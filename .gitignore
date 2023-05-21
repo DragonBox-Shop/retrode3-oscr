@@ -36,3 +36,8 @@ fp-info-cache
 # ODS files
 .~lock*
 /.vs
+
+# C-Code temporaries and results
+*.o
+*.a
+*.so
