@@ -1,10 +1,13 @@
 #!/usr/bin/make -f
 # an altertantive to this simple approach may be: https://github.com/bxparks/EpoxyDuino
 
+CC=gcc
+CFLAGS=
+
 .SUFFIXES : .o .c .cpp .ino
 
 %.o: %.ino
-	$(CC) -c $(OBJCFLAGS) -x c++ $< -o $*.o
+	$(CC) -c $(CFLAGS) -x c++ $< -o $*.o
 
 INO_SOURCES := $(wildcard *.ino)
 
