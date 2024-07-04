@@ -3,6 +3,22 @@
 //******************************************
 #ifdef ENABLE_SNES
 
+#ifdef __Linux__
+int snes_fd;
+int mode;
+int numBanks;
+int sramSize;
+void setup_Snes(void);
+void snesMenu(void);
+void readROM_SNES(void);
+void readSRAM(void);
+void writeSRAM(void);
+void verifySRAM(void);
+void eraseSRAM(void);
+void compare_checksum(void);
+void compareCRC(void);
+#endif
+
 /******************************************
   Defines
  *****************************************/
@@ -585,6 +601,9 @@ void stopSnesClocks_resetCic_resetCart() {
    Setup
  *****************************************/
 void setup_Snes() {
+#ifdef __Linux__
+  md_fd=open("/dev/slot0");
+#endif
   // Request 5V
   setVoltage(VOLTS_SET_5V);
 
@@ -694,7 +713,10 @@ void setup_Snes() {
  *****************************************/
 // Switch control pins to write
 void controlOut_SNES() {
-  // Switch RD(PH6) and WR(PH5) to HIGH
+#ifdef __Linux__
+  /* FIXME */;
+#endif
+ // Switch RD(PH6) and WR(PH5) to HIGH
   PORTH |= (1 << 6) | (1 << 5);
   // Switch CS(PH3) to LOW
   PORTH &= ~(1 << 3);
@@ -702,6 +724,9 @@ void controlOut_SNES() {
 
 // Switch control pins to read
 void controlIn_SNES() {
+#ifdef __Linux__
+  /* FIXME */;
+#endif
   // Switch WR(PH5) to HIGH
   PORTH |= (1 << 5);
   // Switch CS(PH3) and RD(PH6) to LOW
@@ -713,6 +738,10 @@ void controlIn_SNES() {
  *****************************************/
 // Write one byte of data to a location specified by bank and address, 00:0000
 void writeBank_SNES(byte myBank, word myAddress, byte myData) {
+#ifdef __Linux__
+  lseek(md_fd, (myBank<<16)+myAddress, SEEK_POS);
+  write(md_fd, &myData, sizeof(myData));
+#endif
   PORTL = myBank;
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -774,6 +803,12 @@ void writeBank_SNES(byte myBank, word myAddress, byte myData) {
 
 // Read one byte of data from a location specified by bank and address, 00:0000
 byte readBank_SNES(byte myBank, word myAddress) {
+#ifdef __Linux__
+  byte myData;
+  lseek(md_fd, (myBank<<16)+myAddress, SEEK_POS);
+  write(md_fd, &myData, sizeof(myData));
+  return myData;
+#endif
   PORTL = myBank;
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -806,7 +841,11 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
   draw_progressbar(0, totalProgressBar);
 
   for (word currBank = start; currBank < total; currBank++) {
-    PORTL = currBank;
+#ifdef __Linux__
+    lseek(md_fd, (currBank<<16)+currByte, SEEK_POS);
+    currByte += read(md_fd, &buffer, sizeof(buffer));
+#else
+   PORTL = currBank;
 
     // Blink led
     blinkLED();
@@ -833,6 +872,7 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
         c++;
         currByte++;
       }
+#endif
       file->write(buffer, 1024);
 
       // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
@@ -857,7 +897,11 @@ void readHiRomBanks(unsigned int start, unsigned int total, FsFile* file) {
   draw_progressbar(0, totalProgressBar);
 
   for (word currBank = start; currBank < total; currBank++) {
-    PORTL = currBank;
+#ifdef __Linux__
+    lseek(md_fd, (currBank<<16)+currByte, SEEK_POS);
+    currByte += read(md_fd, &buffer, sizeof(buffer));
+#else
+   PORTL = currBank;
 
     // Blink led
     blinkLED();
@@ -884,6 +928,7 @@ void readHiRomBanks(unsigned int start, unsigned int total, FsFile* file) {
         c++;
         currByte++;
       }
+#endif
       file->write(buffer, 1024);
 
       // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
@@ -902,6 +947,11 @@ void readHiRomBanks(unsigned int start, unsigned int total, FsFile* file) {
 void getCartInfo_SNES() {
   boolean manualConfig = 0;
 
+#ifdef __Linux__
+  byte buffer[1024];
+  lseek(md_fd, (192<<16)+0, SEEK_POS);
+  read(md_fd, &buffer, 1024);
+#endif
   //Prime SA1 cartridge
   PORTL = 192;
   for (uint16_t currByte = 0; currByte < 1024; currByte++) {
@@ -1171,6 +1221,10 @@ boolean checkcart_SNES() {
 
     snesHeader[c] = PINC;
   }
+#ifdef __Linux__
+  lseek(md_fd, (0<<16)+headerStart, SEEK_POS);
+  read(md_fd, &snesHeader, 80);
+#endif
 
   // Calculate CRC32 of header
   char crcStr[9];
