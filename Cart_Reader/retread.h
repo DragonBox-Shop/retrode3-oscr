@@ -26,6 +26,9 @@
 #define FSTRING_RESET "reset"
 #define FSTRING_OK "ok"
 #define FSTRING_EMPTY "empty"
+#define error_STR "error: "
+#define _bytes_STR "bytes"
+#define did_not_verify_STR "did not verify"
 
 // system
 #define setup_Flash8()
@@ -47,6 +50,7 @@
 
 unsigned char dummy;
 #define PORTC	dummy
+#define PORTE	dummy
 #define PORTF	dummy
 #define PORTG	dummy
 #define PORTH	dummy
@@ -55,6 +59,7 @@ unsigned char dummy;
 #define DDRA	dummy
 #define DDRC	dummy
 #define DDRE	dummy
+#define DDRF	dummy
 #define DDRG	dummy
 #define DDRH	dummy
 #define DDRJ	dummy
@@ -66,6 +71,7 @@ unsigned char dummy;
 Anders lösen (oder structs/pointers aufmachen):
 myFile. ersetzen
 sd. ersetzen
+display. ersetzen
 stopSnesClocks_resetCic_resetCart bearbeiten (?)
 setup_Snes()	# done by kernel driver bzw. hier den snes_fd anlegen
 controlOut_SNES()	# spezieller syscall oder ioctl
@@ -80,3 +86,25 @@ readLoRomBanks
 readHiRomBanks
 
 */
+
+static void display_setCursor(int x, int y) { }
+
+static struct display {
+	void (*setCursor)(int x, int y);
+} display = { display_setCursor };
+
+static void sd_chdir(const char *dir) { }
+static int file_open(char *path, int flags) { return true; }
+static void file_read(byte buffer, int size) { }
+static void file_close() { }
+
+static struct sd {
+	void (*chdir)(const char *dir);
+	int (*open)(char *path, int flags);
+	void (*write)(byte buffer, int size);
+	void (*read)(byte buffer, int size);
+	void (*close)(void);
+} sd = { sd_chdir }; myFile= { sd_chdir, file_open, file_write, file_read, file_close };
+
+// clockgen.output_enable(clockport, on/off)
+// clockgen.set_freq(freq, clockport)
