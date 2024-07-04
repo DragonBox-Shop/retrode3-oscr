@@ -2,7 +2,7 @@
 # an altertantive to this simple approach may be: https://github.com/bxparks/EpoxyDuino
 
 CC=gcc
-CFLAGS=
+CFLAGS=-include retread.h -DENABLE_MD -DENABLE_SNES -DENABLE_NES
 
 .SUFFIXES : .o .c .cpp .ino
 
@@ -11,9 +11,10 @@ CFLAGS=
 
 INO_SOURCES := $(wildcard *.ino)
 
-all: MD Cart_Reader
+all: Cart_Reader
 
 clean:
+	rm *.o MD SNES Cart_Reader
 
 # todo
 # compile .ino suffixes as C code with special patches
@@ -25,6 +26,10 @@ clean:
 # wrap or remove menu handling
 
 
-MD: MD.o
+SNES: MD.o
 
-Cart_Reader: Cart_Reader.o
+SNES: SNES.o
+
+SNES: NES.o
+
+Cart_Reader: Cart_Reader.o SNES.o MD.o NES.o
