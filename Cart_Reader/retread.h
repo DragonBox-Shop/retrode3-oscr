@@ -25,6 +25,7 @@
 #define FSTRING_REFRESH_CART "refresh"
 #define FSTRING_RESET "reset"
 #define FSTRING_OK "ok"
+#define FSTRING_EMPTY "empty"
 
 // system
 #define setup_Flash8()
@@ -40,6 +41,7 @@
 #define wait()
 #define PROGMEM
 #define NOP
+#define __asm__(...)
 
 // no direct hardware port access (effectively disables read/write)
 
