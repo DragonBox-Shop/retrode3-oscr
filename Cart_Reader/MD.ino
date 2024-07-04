@@ -4,6 +4,10 @@
 // Writes to Sega CD Backup RAM Cart require an extra wire from MRES (B02) to VRES (B27)
 #ifdef ENABLE_MD
 
+#ifdef __Linux__
+int md_fd;
+#endif
+
 /******************************************
    Variables
  *****************************************/
@@ -514,22 +518,11 @@ void segaCDMenu() {
 /******************************************
    Setup
  *****************************************/
+void setup_MD() {
 #ifdef __Linux__
+  md_fd=open("/dev/slot1");
 
-int fd;
-void setup_MD() {
-#ifdef use_md_conf
-  mdLoadConf();
 #endif
-  fd=open("/dev/retrode3");
-
-  // Print all the info
-  getCartInfo_MD();
-}
-
-#else
-
-void setup_MD() {
   // Request 5V
   setVoltage(VOLTS_SET_5V);
 
@@ -575,8 +568,6 @@ void setup_MD() {
   getCartInfo_MD();
 }
 
-#endif
-
 /******************************************
    I/O Functions
  *****************************************/
@@ -584,42 +575,11 @@ void setup_MD() {
 /******************************************
   Low level functions
 *****************************************/
-
+void writeWord_MD(unsigned long myAddress, word myData) {
 #ifdef __Linux__
-
-void writeWord_MD(unsigned long myAddress, word myData) {
-  lseek(fd, myAddress, SEEK_POS);
-  write(fd, &myData, sizeof(myData));
-}
-
-word readWord_MD(unsigned long myAddress) {
-  word myData;
-  lseek(fd, myAddress, SEEK_POS);
-  read(fd, &myData, sizeof(myData));
-  return myData;
-}
-
-void writeFlash_MD(unsigned long myAddress, word myData) {
-  // tbd.
-}
-
-word readFlash_MD(unsigned long myAddress) {
-  return 0;
-}
-
-// Switch data pins to write
-void dataOut_MD() {
-  // FIXME: should not be called/needed
-}
-
-// Switch data pins to read
-void dataIn_MD() {
-  // FIXME: should not be called/needed
-}
-
-#else
-
-void writeWord_MD(unsigned long myAddress, word myData) {
+  lseek(md_fd, myAddress, SEEK_POS);
+  write(md_fd, &myData, sizeof(myData));
+#endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
@@ -665,6 +625,12 @@ void writeWord_MD(unsigned long myAddress, word myData) {
 }
 
 word readWord_MD(unsigned long myAddress) {
+#ifdef __Linux__
+  word myData;
+  lseek(fd, myAddress, SEEK_POS);
+  read(fd, &myData, sizeof(myData));
+  return myData;
+#endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
@@ -717,6 +683,9 @@ word readWord_MD(unsigned long myAddress) {
 }
 
 void writeFlash_MD(unsigned long myAddress, word myData) {
+#ifdef __Linux__
+  /* FIXME */;
+#endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
@@ -755,6 +724,9 @@ void writeFlash_MD(unsigned long myAddress, word myData) {
 }
 
 word readFlash_MD(unsigned long myAddress) {
+#ifdef __Linux__
+  /* FIXME */;
+#endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
@@ -807,7 +779,6 @@ void dataIn_MD() {
   PORTC = 0xFF;
   PORTA = 0xFF;
 }
-#endif
 
 /******************************************
   MEGA DRIVE functions
@@ -1449,14 +1420,9 @@ void getCartInfo_MD() {
 #endif
 }
 
-#ifdef __Linux
-
 void writeSSF2Map(unsigned long myAddress, word myData) {
-}
-
-#else
-
-void writeSSF2Map(unsigned long myAddress, word myData) {
+#ifdef __Linux__
+#endif
   dataOut_MD();
 
   // Set TIME(PJ0) HIGH
@@ -1501,8 +1467,6 @@ void writeSSF2Map(unsigned long myAddress, word myData) {
 
   dataIn_MD();
 }
-
-#endif
 
 // Read rom and save to the SD card
 void readROM_MD() {
@@ -1597,7 +1561,7 @@ void readROM_MD() {
 
 #ifdef __LINUX__
 	// FIXME
-#else
+#endif
     for (int currWord = 0; currWord < 512; currWord++) {
       unsigned long myAddress = currBuffer + currWord - (offsetSSF2Bank * 0x80000);
       PORTF = myAddress & 0xFF;
@@ -1648,7 +1612,6 @@ void readROM_MD() {
       }
       d += 2;
     }
-#endif
 
     myFile.write(buffer, 1024);
 
@@ -1666,7 +1629,7 @@ void readROM_MD() {
 
 #ifdef __LINUX__
 	// FIXME
-#else
+#endif
      for (int currWord = 0; currWord < 512; currWord++) {
         unsigned long myAddress = currBuffer + currWord + cartSize / 2;
         PORTF = myAddress & 0xFF;
@@ -1717,7 +1680,6 @@ void readROM_MD() {
         }
         d += 2;
       }
-#endif
       myFile.write(buffer, 1024);
 
       // update progress bar
@@ -1735,7 +1697,7 @@ void readROM_MD() {
 
 #ifdef __LINUX__
 	// FIXME
-#else
+#endif
       for (int currWord = 0; currWord < 512; currWord++) {
         unsigned long myAddress = currBuffer + currWord + (cartSize + cartSizeLockon) / 2;
         PORTF = myAddress & 0xFF;
@@ -1783,8 +1745,7 @@ void readROM_MD() {
         calcCKSSonic2 += ((buffer[d] << 8) | buffer[d + 1]);
         d += 2;
       }
-#endif
-     myFile.write(buffer, 1024);
+      myFile.write(buffer, 1024);
 
       // update progress bar
       processedProgressBar += 1024;
@@ -1853,8 +1814,7 @@ void readROM_MD() {
 void enableSram_MD(boolean enableSram) {
 #ifdef __LINUX__
 	// FIXME
-#else
-
+#endif
   dataOut_MD();
 
   // Set D0 to either 1(enable SRAM) or 0(enable ROM)
@@ -1878,14 +1838,10 @@ void enableSram_MD(boolean enableSram) {
           "nop\n\t");
 
   dataIn_MD();
-#endif
 }
 
 // Write sram to cartridge
 void writeSram_MD() {
-#ifdef __LINUX__
-	// FIXME
-#else
   dataOut_MD();
 
   // Create filepath
@@ -1936,7 +1892,6 @@ void writeSram_MD() {
     print_FatalError(sd_error_STR);
   }
   dataIn_MD();
-#endif
 }
 
 // Read sram and save to the SD card
