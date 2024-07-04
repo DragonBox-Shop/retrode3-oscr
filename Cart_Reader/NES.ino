@@ -999,11 +999,18 @@ static void set_romsel(unsigned int address) {
 #endif
 }
 
+#define PRG		0x00000000
+#define CHR		0x00010000
+#define CHR_M2		0x00020000
+#define MMC5_SRAM	0x00030000
+#define REG		0x00040000
+#define RAM		0x00050000
+#define WRAM		0x00060000
+
 static unsigned char read_prg_byte(unsigned int address) {
 #ifdef __Linux__
   byte myData;
-// set read mode for prg - potentially through higher bits of address?
-  lseek(nes_fd, address, SEEK_POS);
+  lseek(nes_fd, PRG+address, SEEK_POS);
   read(snes_fd, &myData, sizeof(myData));
   return myData;
 #endif
@@ -1020,8 +1027,7 @@ static unsigned char read_prg_byte(unsigned int address) {
 static unsigned char read_chr_byte(unsigned int address) {
 #ifdef __Linux__
   byte myData;
-// set read mode for chr - potentially through higher bits of address?
-  lseek(nes_fd, (address, SEEK_POS);
+  lseek(nes_fd, CHR+address, SEEK_POS);
   read(snes_fd, &myData, sizeof(myData));
   return myData;
 #endif
@@ -1039,9 +1045,9 @@ static unsigned char read_chr_byte(unsigned int address) {
 static void write_prg_byte(unsigned int address, uint8_t data) {
 #ifdef __Linux__
 // set read mode for prg - potentially through higher bits of address?
-  lseek(nes_fd, address, SEEK_POS);
+  lseek(nes_fd, PRG+address, SEEK_POS);
   write(snes_fd, &data, sizeof(data));
-  return myData;
+  return;
 #endif
   PHI2_LOW;
   ROMSEL_HI;
@@ -1130,8 +1136,7 @@ void write_mmc1_byte(unsigned int address, uint8_t data) {  // write loop for 5 
 // WRITE RAM SAFE TO REGISTERS 0xE000/0xF000
 static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC1 RAM CORRUPTION
 #ifdef __Linux__
-// set write mode for reg - potentially through higher bits of address?
-  lseek(nes_fd, address, SEEK_POS);
+  lseek(nes_fd, REG+address, SEEK_POS);
   write(snes_fd, &data, sizeof(data));
   return;
 #endif
@@ -1158,8 +1163,7 @@ static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC
 
 static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (Namco 106/163) WRITE RAM SAFE ($E000-$FFFF)
 #ifdef __Linux__
-// set write mode for ram - potentially through higher bits of address?
-  lseek(nes_fd, address, SEEK_POS);
+  lseek(nes_fd, RAM+address, SEEK_POS);
   write(snes_fd, &data, sizeof(data));
   return;
 #endif
@@ -1188,8 +1192,7 @@ static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (
 static void write_wram_byte(unsigned int address, uint8_t data) {  // Mapper 5 (MMC5) RAM
 // set write mode for ram - potentially through higher bits of address?
 #ifdef __Linux__
-// set write mode for wram - potentially through higher bits of address?
-  lseek(nes_fd, address, SEEK_POS);
+  lseek(nes_fd, WRAM+address, SEEK_POS);
   write(snes_fd, &data, sizeof(data));
   return;
 #endif
@@ -2007,32 +2010,56 @@ static void printNESSettings(void) {
    ROM Functions
  *****************************************/
 void dumpPRG(word base, word address) {
+#ifdef __Linux__
+  lseek(nes_fd, PRG+base+address, SEEK_POS);
+  read(snes_fd, sdBuffer, 512);
+  return;
+#else
   for (size_t x = 0; x < 512; x++) {
     sdBuffer[x] = read_prg_byte(base + address + x);
   }
+#endif
   myFile.write(sdBuffer, 512);
 }
 
 void dumpCHR(word address) {
+#ifdef __Linux__
+  lseek(nes_fd, CHR+address, SEEK_POS);
+  read(snes_fd, sdBuffer, 512);
+  return;
+#else
   for (size_t x = 0; x < 512; x++) {
     sdBuffer[x] = read_chr_byte(address + x);
   }
-  myFile.write(sdBuffer, 512);
+ #endif
+ myFile.write(sdBuffer, 512);
 }
 
 void dumpCHR_M2(word address) {  // MAPPER 45 - PULSE M2 LO/HI
+#ifdef __Linux__
+  lseek(nes_fd, CHR_M2+address, SEEK_POS);
+  read(snes_fd, sdBuffer, 512);
+  return;
+#else
   for (size_t x = 0; x < 512; x++) {
     PHI2_LOW;
     sdBuffer[x] = read_chr_byte(address + x);
   }
+#endif
   myFile.write(sdBuffer, 512);
 }
 
 void dumpMMC5RAM(word base, word address) {  // MMC5 SRAM DUMP - PULSE M2 LO/HI
+#ifdef __Linux__
+  lseek(nes_fd, MMC5_SRAM+base+address, SEEK_POS);
+  read(snes_fd, sdBuffer, 512);
+  return;
+#else
   for (size_t x = 0; x < 512; x++) {
     PHI2_LOW;
     sdBuffer[x] = read_prg_byte(base + address + x);
   }
+#endif
   myFile.write(sdBuffer, 512);
 }
 
