@@ -29,6 +29,7 @@
 #define error_STR "error: "
 #define _bytes_STR "bytes"
 #define did_not_verify_STR "did not verify"
+#define int_pow(x) (1<<x)
 
 // system
 #define setup_Flash8()
@@ -41,6 +42,7 @@
 #define rgbLed(led)
 #define resetArduino()
 #define delay(msec)
+#define _delay_us(usec)
 #define wait()
 #define PROGMEM
 #define NOP
@@ -79,13 +81,9 @@ controlIn_SNES()
 i2c_found
 clockgen.
 
-durch lseek, read, write ersetzen:
-writeBank_SNES
-readBank_SNES
-readLoRomBanks
-readHiRomBanks
-
 */
+
+// EEPROM_readAnything()?
 
 static void display_setCursor(int x, int y) { }
 
@@ -98,13 +96,19 @@ static int file_open(char *path, int flags) { return true; }
 static void file_read(byte buffer, int size) { }
 static void file_close() { }
 
-static struct sd {
+typedef struct sd {
 	void (*chdir)(const char *dir);
-	int (*open)(char *path, int flags);
+	FsFile (*open)(char *path, int flags);
 	void (*write)(byte buffer, int size);
 	void (*read)(byte buffer, int size);
 	void (*close)(void);
-} sd = { sd_chdir }; myFile= { sd_chdir, file_open, file_write, file_read, file_close };
+} FsFile;
 
-// clockgen.output_enable(clockport, on/off)
-// clockgen.set_freq(freq, clockport)
+static FSFile sd = { sd_chdir };
+static FSFile myFile= { sd_chdir, file_open, file_write, file_read, file_close };
+
+/* wir brauchen noch
+Serial.print, Serial.println - bei defined(ENABLE_SERIAL)
+clockgen.output_enable(clockport, on/off)
+clockgen.set_freq(freq, clockport)
+*/
