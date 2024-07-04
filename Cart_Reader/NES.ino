@@ -7,6 +7,10 @@
 
 #ifdef ENABLE_NES
 
+#ifdef __Linux__
+int nes_fd;
+#endif
+
 //Line Content
 //37   Supported Mappers
 //185  Defines
@@ -619,6 +623,9 @@ void nesFlashMenu() {
  *****************************************/
 void setup_NES() {
   // Request 5V
+#ifdef __Linux__
+  snes_fd=open("/dev/slot2");	/* closed on exit() */
+#endif
   setVoltage(VOLTS_SET_5V);
 
   // CPU R/W, IRQ, PPU /RD, PPU /A13, CIRAM /CE, PPU /WR, /ROMSEL, PHI2
@@ -976,6 +983,9 @@ static void set_address(unsigned int address) {
     PORTF &= ~(1 << 4);
   else
     PORTF |= 1 << 4;
+#ifdef __Linux__
+  lseek(nes_fd, address, SEEK_POS);
+#endif
 }
 
 static void set_romsel(unsigned int address) {
@@ -984,9 +994,19 @@ static void set_romsel(unsigned int address) {
   } else {
     ROMSEL_HI;
   }
+#ifdef __Linux__
+  /* done in kernel driver */
+#endif
 }
 
 static unsigned char read_prg_byte(unsigned int address) {
+#ifdef __Linux__
+  byte myData;
+// set read mode for prg - potentially through higher bits of address?
+  lseek(nes_fd, address, SEEK_POS);
+  read(snes_fd, &myData, sizeof(myData));
+  return myData;
+#endif
   MODE_READ;
   PRG_READ;
   ROMSEL_HI;
@@ -998,6 +1018,13 @@ static unsigned char read_prg_byte(unsigned int address) {
 }
 
 static unsigned char read_chr_byte(unsigned int address) {
+#ifdef __Linux__
+  byte myData;
+// set read mode for chr - potentially through higher bits of address?
+  lseek(nes_fd, (address, SEEK_POS);
+  read(snes_fd, &myData, sizeof(myData));
+  return myData;
+#endif
   MODE_READ;
   PHI2_HI;
   ROMSEL_HI;
@@ -1010,6 +1037,12 @@ static unsigned char read_chr_byte(unsigned int address) {
 }
 
 static void write_prg_byte(unsigned int address, uint8_t data) {
+#ifdef __Linux__
+// set read mode for prg - potentially through higher bits of address?
+  lseek(nes_fd, address, SEEK_POS);
+  write(snes_fd, &data, sizeof(data));
+  return myData;
+#endif
   PHI2_LOW;
   ROMSEL_HI;
   MODE_WRITE;
@@ -1064,6 +1097,9 @@ static void write_chr_byte(unsigned int address, uint8_t data) {
 #endif
 
 void resetROM() {
+#ifdef __Linux__
+// FIXME
+#endif
   set_address(0);
   PHI2_HI;
   ROMSEL_HI;
@@ -1093,6 +1129,12 @@ void write_mmc1_byte(unsigned int address, uint8_t data) {  // write loop for 5 
 
 // WRITE RAM SAFE TO REGISTERS 0xE000/0xF000
 static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC1 RAM CORRUPTION
+#ifdef __Linux__
+// set write mode for reg - potentially through higher bits of address?
+  lseek(nes_fd, address, SEEK_POS);
+  write(snes_fd, &data, sizeof(data));
+  return;
+#endif
   PHI2_LOW;
   ROMSEL_HI;  // A15 HI = E000
   MODE_WRITE;
@@ -1115,6 +1157,12 @@ static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC
 }
 
 static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (Namco 106/163) WRITE RAM SAFE ($E000-$FFFF)
+#ifdef __Linux__
+// set write mode for ram - potentially through higher bits of address?
+  lseek(nes_fd, address, SEEK_POS);
+  write(snes_fd, &data, sizeof(data));
+  return;
+#endif
   PHI2_LOW;
   ROMSEL_HI;
   MODE_WRITE;
@@ -1138,6 +1186,13 @@ static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (
 }
 
 static void write_wram_byte(unsigned int address, uint8_t data) {  // Mapper 5 (MMC5) RAM
+// set write mode for ram - potentially through higher bits of address?
+#ifdef __Linux__
+// set write mode for wram - potentially through higher bits of address?
+  lseek(nes_fd, address, SEEK_POS);
+  write(snes_fd, &data, sizeof(data));
+  return;
+#endif
   PHI2_LOW;
   ROMSEL_HI;
   set_address(address);
