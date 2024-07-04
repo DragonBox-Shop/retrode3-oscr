@@ -6,6 +6,9 @@
 
 #ifdef __Linux__
 int md_fd;
+int saveType;
+void setup_MD(void);
+void readROM_MD(void);
 #endif
 
 /******************************************
@@ -521,7 +524,6 @@ void segaCDMenu() {
 void setup_MD() {
 #ifdef __Linux__
   md_fd=open("/dev/slot1");
-
 #endif
   // Request 5V
   setVoltage(VOLTS_SET_5V);
