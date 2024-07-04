@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
-# an altertantive to this simple approach may be: https://github.com/bxparks/EpoxyDuino
+# an alternative to this simple approach may be: https://github.com/bxparks/EpoxyDuino
+# but it is difficult to manage the hardware access
 
 CC=gcc
 CFLAGS=-include retread.h -DENABLE_MD -DENABLE_SNES -DENABLE_NES
@@ -9,27 +10,22 @@ CFLAGS=-include retread.h -DENABLE_MD -DENABLE_SNES -DENABLE_NES
 %.o: %.ino
 	$(CC) -c $(CFLAGS) -x c++ $< -o $*.o
 
-INO_SOURCES := $(wildcard *.ino)
+%.o: %.c
+	$(CC) -c $(CFLAGS) $< -o $*.o
+
+# INO_SOURCES := $(wildcard *.ino)
 
 all: Cart_Reader
 
 clean:
-	rm *.o MD SNES Cart_Reader
+	rm -f *.o MD SNES NES Cart_Reader retread
 
-# todo
-# compile .ino suffixes as C code with special patches
-# maybe use #ifndef RETRODE3 to keep original code and #else for Retrode3 code?
-#   so that we can directly patch upstream?
-# convert or provide uint16_t for "word", uint8_t for "byte"
-# handle read/write through file descriptor
-# remove all access to PORTA, PORTC, PORTF, etc
-# wrap or remove menu handling
-
-
-SNES: MD.o
+MD: MD.o
 
 SNES: SNES.o
 
-SNES: NES.o
+NES: NES.o
+
+retread: retread.o SNES.o MD.o NES.o
 
 Cart_Reader: Cart_Reader.o SNES.o MD.o NES.o
