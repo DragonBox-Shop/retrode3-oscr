@@ -6,9 +6,6 @@
 
 #ifdef __Linux__
 int md_fd;
-int saveType;
-void setup_MD(void);
-void readROM_MD(void);
 #endif
 
 /******************************************
@@ -523,7 +520,7 @@ void segaCDMenu() {
  *****************************************/
 void setup_MD() {
 #ifdef __Linux__
-  md_fd=open("/dev/slot1");
+  md_fd=open("/dev/slot1", O_RDWR);
 #endif
   // Request 5V
   setVoltage(VOLTS_SET_5V);
@@ -579,7 +576,7 @@ void setup_MD() {
 *****************************************/
 void writeWord_MD(unsigned long myAddress, word myData) {
 #ifdef __Linux__
-  lseek(md_fd, myAddress, SEEK_POS);
+  lseek(md_fd, myAddress, SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
   PORTF = myAddress & 0xFF;
@@ -629,8 +626,8 @@ void writeWord_MD(unsigned long myAddress, word myData) {
 word readWord_MD(unsigned long myAddress) {
 #ifdef __Linux__
   word myData;
-  lseek(fd, myAddress, SEEK_POS);
-  read(fd, &myData, sizeof(myData));
+  lseek(md_fd, myAddress, SEEK_SET);
+  read(md_fd, &myData, sizeof(myData));
   return myData;
 #endif
   PORTF = myAddress & 0xFF;
