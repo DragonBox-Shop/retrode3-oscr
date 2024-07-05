@@ -5,18 +5,6 @@
 
 #ifdef __Linux__
 int snes_fd;
-int mode;
-int numBanks;
-int sramSize;
-void setup_Snes(void);
-void snesMenu(void);
-void readROM_SNES(void);
-void readSRAM(void);
-void writeSRAM(void);
-void verifySRAM(void);
-void eraseSRAM(void);
-void compare_checksum(void);
-void compareCRC(void);
 #endif
 
 /******************************************
@@ -602,7 +590,7 @@ void stopSnesClocks_resetCic_resetCart() {
  *****************************************/
 void setup_Snes() {
 #ifdef __Linux__
-  snes_fd=open("/dev/slot0");	/* closed on exit() */
+  snes_fd=open("/dev/slot0", O_RDWR);	/* closed on exit() */
 #endif
   // Request 5V
   setVoltage(VOLTS_SET_5V);
@@ -739,7 +727,7 @@ void controlIn_SNES() {
 // Write one byte of data to a location specified by bank and address, 00:0000
 void writeBank_SNES(byte myBank, word myAddress, byte myData) {
 #ifdef __Linux__
-  lseek(snes_fd, (myBank<<16)+myAddress, SEEK_POS);
+  lseek(snes_fd, (myBank<<16)+myAddress, SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
 #endif
   PORTL = myBank;
@@ -805,7 +793,7 @@ void writeBank_SNES(byte myBank, word myAddress, byte myData) {
 byte readBank_SNES(byte myBank, word myAddress) {
 #ifdef __Linux__
   byte myData;
-  lseek(snes_fd, (myBank<<16)+myAddress, SEEK_POS);
+  lseek(snes_fd, (myBank<<16)+myAddress, SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
   return myData;
 #endif
@@ -842,7 +830,7 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
 
   for (word currBank = start; currBank < total; currBank++) {
 #ifdef __Linux__
-    lseek(snes_fd, (currBank<<16)+currByte, SEEK_POS);
+    lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
     currByte += read(snes_fd, &buffer, sizeof(buffer));
 #else
    PORTL = currBank;
@@ -898,7 +886,7 @@ void readHiRomBanks(unsigned int start, unsigned int total, FsFile* file) {
 
   for (word currBank = start; currBank < total; currBank++) {
 #ifdef __Linux__
-    lseek(snes_fd, (currBank<<16)+currByte, SEEK_POS);
+    lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
     currByte += read(snes_fd, &buffer, sizeof(buffer));
 #else
    PORTL = currBank;
@@ -949,7 +937,7 @@ void getCartInfo_SNES() {
 
 #ifdef __Linux__
   byte buffer[1024];
-  lseek(snes_fd, (192<<16)+0, SEEK_POS);
+  lseek(snes_fd, (192<<16)+0, SEEK_SET);
   read(snes_fd, &buffer, 1024);
 #endif
   //Prime SA1 cartridge
@@ -1222,7 +1210,7 @@ boolean checkcart_SNES() {
     snesHeader[c] = PINC;
   }
 #ifdef __Linux__
-  lseek(snes_fd, (0<<16)+headerStart, SEEK_POS);
+  lseek(snes_fd, (0<<16)+headerStart, SEEK_SET);
   read(snes_fd, &snesHeader, 80);
 #endif
 
