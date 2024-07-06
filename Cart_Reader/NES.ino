@@ -627,7 +627,7 @@ void setup_NES() {
 #ifdef __Linux__
   nes_fd = open("/dev/slot2", O_RDWR);	/* closed on exit() */
   if(nes_fd < 0) {
-    perror("no cart");
+    perror("no cart in slot 2");
     exit(1);
   }
 #endif
