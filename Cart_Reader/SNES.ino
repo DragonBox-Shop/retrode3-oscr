@@ -590,7 +590,11 @@ void stopSnesClocks_resetCic_resetCart() {
  *****************************************/
 void setup_Snes() {
 #ifdef __Linux__
-  snes_fd=open("/dev/slot0", O_RDWR);	/* closed on exit() */
+  snes_fd = open("/dev/slot0", O_RDWR);	/* closed on exit() */
+  if(snes_fd < 0) {
+    perror("no cart");
+    exit(1);
+  }
 #endif
   // Request 5V
   setVoltage(VOLTS_SET_5V);
@@ -704,7 +708,7 @@ void controlOut_SNES() {
 #ifdef __Linux__
   /* FIXME */;
 #endif
- // Switch RD(PH6) and WR(PH5) to HIGH
+  // Switch RD(PH6) and WR(PH5) to HIGH
   PORTH |= (1 << 6) | (1 << 5);
   // Switch CS(PH3) to LOW
   PORTH &= ~(1 << 3);
@@ -831,9 +835,13 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
   for (word currBank = start; currBank < total; currBank++) {
 #ifdef __Linux__
     lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
-    currByte += read(snes_fd, &buffer, sizeof(buffer));
-#else
-   PORTL = currBank;
+    while(1) {
+      read(snes_fd, &buffer, sizeof(buffer));
+      file->write(buffer, 1024);
+      currByte += sizeof(buffer);
+      // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
+      if (currByte == 0) break;    }#else
+    PORTL = currBank;
 
     // Blink led
     blinkLED();
@@ -860,12 +868,12 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
         c++;
         currByte++;
       }
-#endif
       file->write(buffer, 1024);
 
       // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
       if (currByte == 0) break;
     }
+#endif
 
     // update progress bar
     processedProgressBar += 1024;
@@ -887,9 +895,13 @@ void readHiRomBanks(unsigned int start, unsigned int total, FsFile* file) {
   for (word currBank = start; currBank < total; currBank++) {
 #ifdef __Linux__
     lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
-    currByte += read(snes_fd, &buffer, sizeof(buffer));
-#else
-   PORTL = currBank;
+    while(1) {
+      read(snes_fd, &buffer, sizeof(buffer));
+      file->write(buffer, 1024);
+      currByte += sizeof(buffer);
+      // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
+      if (currByte == 0) break;    }#else
+    PORTL = currBank;
 
     // Blink led
     blinkLED();
@@ -916,12 +928,12 @@ void readHiRomBanks(unsigned int start, unsigned int total, FsFile* file) {
         c++;
         currByte++;
       }
-#endif
       file->write(buffer, 1024);
 
       // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
       if (currByte == 0) break;
     }
+#endif
 
     // update progress bar
     processedProgressBar += 1024;
