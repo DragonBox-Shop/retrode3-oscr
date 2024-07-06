@@ -18,7 +18,7 @@ static char *arg0;
 
 void usage(void)
 {
-	printf("usage: %s megadrive|nes|snes command parameters...\n", arg0);
+	printf("usage: %s flash|megadrive|nes|snes command parameters...\n", arg0);
 	exit(1);
 }
 
@@ -50,13 +50,27 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "missing cart type\n");
 		exit(1);
 		}
+#ifdef ENABLE_FLASH
+	if(strcmp(argv[1], "flash") == 0)
+		flashMenu();
+	else
+#endif
+#ifdef ENABLE_MD
 	if(strcmp(argv[1], "megadrive") == 0 || strcmp(argv[1], "md") == 0)
 		mdMenu();
-	else if(strcmp(argv[1], "nes") == 0)
+	else
+#endif
+#ifdef ENABLE_NES
+	if(strcmp(argv[1], "nes") == 0)
 		nesMenu();
-	else if(strcmp(argv[1], "snes") == 0)
+	else
+#endif
+#ifdef ENABLE_SNES
+	if(strcmp(argv[1], "snes") == 0)
 		snesMenu();
-	else {
+	else
+#endif
+	{
 		fprintf(stderr, "unknown cart type: %s\n", argv[1]);
 		usage();
 	}
@@ -167,6 +181,40 @@ char *itoa(unsigned long value, char str[], int radix)
 
 /*** class implementations mapped to Linux/POSIX ***/
 
+/*** String ***/
+
+String::String()
+{
+	String((char *) "");
+}
+
+String::~String()
+{
+	// delete[] _text;
+	free(str);
+}
+
+String::String(char *s)
+{
+	// alternatively use new char[strlen(s)+1];
+	str = (char *) malloc(strlen(s) + 1);
+	strcpy(str, s);
+}
+
+int String::toInt()
+{
+	int val;
+	sscanf(str, "%d", &val);
+	return val;
+}
+
+char *String::toCstring()
+{
+	return str;
+};
+
+/*** Display ***/
+
 #if 0	// muss explizit in class...
 void Display::Display()
 {
@@ -176,144 +224,170 @@ void Display::Display()
 
 void Display::setCursor(int x, int y)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	return;	// ignore
 }
 
+/*** FsFile ***/
+
 // add constructor by file name
 
-bool FsFile::available()
+FsFile::FsFile()
 {
-printf("%s\n", __func__);
-	return fd >= 0;
+// printf("%s\n", __PRETTY_FUNCTION__);
+	path = NULL;
+	file = NULL;
+}
+
+FsFile::FsFile(char *p)
+{
+// printf("%s\n", __PRETTY_FUNCTION__);
+	path = p;
+	file = NULL;
+}
+
+size_t FsFile::available()
+{ // well, should return number of available characters to EOF
+// printf("%s\n", __PRETTY_FUNCTION__);
+	return file != NULL ? 1:0;
 }
 
 bool FsFile::isDir()
 {
-	// add code here
+	// stat(path);
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 bool FsFile::isFile()
 {
-	// add code here
+	// stat(path);
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 bool FsFile::isHidden()
 {
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	return false;
 }
 
 bool FsFile::getName(char *name, int maxlen)
 {
-	// add code here
+	return path;
 }
 
 bool FsFile::open(const char *path)
 {
-	// save file name
-	fd = open(path, O_RDWR);
+	return open(path, O_RDWR);
 }
 
-bool FsFile::open(const char *path, int flags)
+bool FsFile::open(const char *p, int flags)
 {
-	// add code here
+	file = fopen(path = p, "rw");
+	return file != NULL;
 }
 
 bool FsFile::openNext(FsFile *dir, int flags)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 bool FsFile::rename(const char *name)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void FsFile::write(const byte *buffer, int size)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 ;
 void FsFile::write(char *buffer, int size)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void FsFile::write(byte value)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 size_t FsFile::read(byte *buffer, int size)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 size_t FsFile::read(char *buffer, int size)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+}
+
+size_t FsFile::readBytesUntil(char end, char *buffer, int size)
+{
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 byte FsFile::read()
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 char FsFile::peek()
 {
-// FIXME: for this to work well we should wrap FILE * and not ft_d
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void FsFile::seek(off_t offset)
 {
-	::lseek(fd, 0, SEEK_SET);
+	fseek(file, 0, SEEK_SET);
 }
 
 void FsFile::rewind()
 {
-	::lseek(fd, 0, SEEK_SET);
+	::rewind(file);
 }
 
 void FsFile::seekCur(off_t offset)
 {
-	::lseek(fd, offset, SEEK_CUR);
+	fseek(file, offset, SEEK_CUR);
 }
 
 off_t FsFile::curPosition()
 {
-	return ::lseek(fd, 0, SEEK_CUR);
+	return ftell(file);
 }
 
 off_t FsFile::fileSize()
 {
-	// add code here
+	// stat
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void FsFile::close()
 {
-	::close(fd);
-	fd = -1;
+	fclose(file);
+	file = NULL;
 }
 
 void FsFile::flush()
 {
-	// FIXME: for this to work well we should wrap FILE * and not ft_d
+	fflush(file);
 }
+
+/*** SdFS ***/
 
 bool SdFs::begin(int unknown)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void SdFs::mkdir(const char *dir, bool flag)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void SdFs::chdir(const char *dir)
 {
-printf("%s: %s\n", __func__, dir);
+printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
 	::chdir(dir);
 }
 
@@ -324,71 +398,205 @@ void SdFs::chdir()
 
 FsFile SdFs::open(char *path, int flags)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 bool SdFs::exists(char *path)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+}
+
+/*** Serial ***/
+
+void Serial::begin(int baudrate)
+{
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+}
+
+void Serial::print(const char *str)
+{
+	printf("%s", str);
+}
+
+void Serial::print(String str)
+{
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+}
+
+void Serial::print(int val)
+{
+	printf("%d", val);
+}
+
+void Serial::print(unsigned int val)
+{
+	printf("%u", val);
+}
+
+void Serial::print(long unsigned int val)
+{
+	printf("%lu", val);
 }
 
 void Serial::print(const __FlashStringHelper *str)
 {
-	// add code here
+	printf("%s", str);
+}
+
+void Serial::print(byte val, int more)
+{
+	printf("%02x", val);
+}
+
+void Serial::print(word val, int more)
+{
+	printf("%04x", val);
+}
+
+void Serial::print(int val, int more)
+{
+	printf("%d", val);
+}
+
+void Serial::print(long unsigned int val, int more)
+{
+	printf("%lu", val);
+}
+
+void Serial::println()
+{
+	printf("\n");
+}
+
+void Serial::println(const char *str)
+{
+	printf("%s\n", str);
+}
+
+void Serial::println(String str)
+{
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+}
+
+void Serial::println(long unsigned int val)
+{
+	printf("%lu\n", val);
 }
 
 void Serial::println(const __FlashStringHelper *str)
 {
-	// add code here
+	printf("%s\n", str);
 }
 
+void Serial::println(byte val, int more)
+{
+	printf("%02x\n", val);
+}
+
+size_t Serial::available()
+{ // essentially we want to know if a getc() would block or not
+// printf("%s:\n", __PRETTY_FUNCTION__);
+#if 0
+	fd_set readfds;
+	FD_ZERO(&readfds);
+	FD_SET(STDIN_FILENO, &readfds);
+	fd_set savefds = readfds;
+
+	struct timeval timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 0;
+
+	int sel_rv = select(fileno(stdin), &readfds, NULL, NULL, &timeout);
+	return sel_rv;
+#else
+// FIXME: this is likely called in a tight loop
+// while (Serial.available() == 0) {}
+// which will need 100% CPU load!
+// hence we always return 1 here and block in the read() method(s)
+	return 1;
+#endif
+}
+
+byte Serial::read()
+{
+	return (byte) getc(stdin);
+}
+
+String Serial::readStringUntil(char until)
+{
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+}
+
+/*** EEPROM ***/
 
 byte EEPROM::read(int addr)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void EEPROM::write(int addr, byte value)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void EEPROM::println()
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
+
+/*** Si5351 ***/
 
 bool Si5351::init(int load, int param2, int param3)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	// should control some PWM through /sys
 }
 
 void Si5351::output_enable(int clockport, bool onoff)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	// should control some PWM through /sys
 }
 
 void Si5351::set_freq(unsigned long freq, int clockport)
 {
-	// add code here
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	// should control some PWM through /sys
 }
 
 void Si5351::update_status()
 {
+printf("%s:\n", __PRETTY_FUNCTION__);
 	/* NOP */
 }
 
 /*** substitutes for Cart_Reader.ino not available if we have neither ENABLE_LCD nor ENABLE_OLED ***/
 
+#ifndef ENABLE_SERIAL
 uint8_t checkButton()
 {
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
+#endif
 
 int navigateMenu(int min, int max, void (*printSelection)(int))
 {
+	int i;
+	char c;
+
+printf("%s:\n", __PRETTY_FUNCTION__);
+	while(1) { // loop until something is chosen
+		i=min;
+		while(i < max) {
+			printf("%d: ", min);
+			printSelection(min++);
+		}
+		c = getc(stdin);
+		// then take from argv or read choice from stdin
+		i = min;
+		if(i >= min && i < max)
+			return i;
+	}
 }
 
 /*** EOF ***/
