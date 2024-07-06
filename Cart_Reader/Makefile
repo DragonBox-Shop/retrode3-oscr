@@ -17,7 +17,7 @@ INO_SOURCES := Cart_Reader.ino SNES.ino MD.ino NES.ino
 all: retread
 
 %.o: %.ino	# directly compile .ino using C++
-	$(CC) -c $(CFLAGS) -include retread.h -D__Linux__ -include ino.h -x c++ $< -o $*.o
+	$(CC) -c $(CFLAGS) -include retread.h -D__Linux__ include retread.h -include ino.h -x c++ $< -o $*.o
 
 %.o: %.cpp
 	$(CC) -c $(CFLAGS) -D__Linux__ -include retread.h -x c++ -std=c++11 $< -o $*.o
@@ -40,6 +40,11 @@ remote: clean
 	rsync -rltDvzh "./" "$(DEVICE):$(DIR)"
 	ssh $(DEVICE) sh -c "cd; uname -a; cd $(DIR); make clean all"
 
+OSCR.o: OSCR.h OSCR.cpp
+
+ino.o: ino.h $(INO_SOURCES)
+
+retread.o: retread.h retread.cpp
 
 # command line tool
-retread: ino.h retread.h retread.o ino.o
+retread: retread.o OSCR.o ino.o
