@@ -1004,18 +1004,19 @@ static void set_romsel(unsigned int address) {
 #endif
 }
 
-#define PRG		0x00000000
-#define CHR		0x00010000
-#define CHR_M2		0x00020000
-#define MMC5_SRAM	0x00030000
-#define REG		0x00040000
-#define RAM		0x00050000
-#define WRAM		0x00060000
-
 static unsigned char read_prg_byte(unsigned int address) {
 #ifdef __Linux__
+
+#define NES_PRG		0x00000000
+#define NES_CHR		0x00010000
+#define NES_CHR_M2		0x00020000
+#define NES_MMC5_SRAM	0x00030000
+#define NES_REG		0x00040000
+#define NES_RAM		0x00050000
+#define NES_WRAM		0x00060000
+
   byte myData;
-  lseek(nes_fd, PRG+address, SEEK_SET);
+  lseek(nes_fd, NES_PRG+address, SEEK_SET);
   read(nes_fd, &myData, sizeof(myData));
   return myData;
 #endif
@@ -1032,7 +1033,7 @@ static unsigned char read_prg_byte(unsigned int address) {
 static unsigned char read_chr_byte(unsigned int address) {
 #ifdef __Linux__
   byte myData;
-  lseek(nes_fd, CHR+address, SEEK_SET);
+  lseek(nes_fd, NES_CHR+address, SEEK_SET);
   read(nes_fd, &myData, sizeof(myData));
   return myData;
 #endif
@@ -1050,7 +1051,7 @@ static unsigned char read_chr_byte(unsigned int address) {
 static void write_prg_byte(unsigned int address, uint8_t data) {
 #ifdef __Linux__
 // set read mode for prg - potentially through higher bits of address?
-  lseek(nes_fd, PRG+address, SEEK_SET);
+  lseek(nes_fd, NES_PRG+address, SEEK_SET);
   write(nes_fd, &data, sizeof(data));
   return;
 #endif
@@ -1141,7 +1142,7 @@ void write_mmc1_byte(unsigned int address, uint8_t data) {  // write loop for 5 
 // WRITE RAM SAFE TO REGISTERS 0xE000/0xF000
 static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC1 RAM CORRUPTION
 #ifdef __Linux__
-  lseek(nes_fd, REG+address, SEEK_SET);
+  lseek(nes_fd, NES_REG+address, SEEK_SET);
   write(nes_fd, &data, sizeof(data));
   return;
 #endif
@@ -1168,7 +1169,7 @@ static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC
 
 static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (Namco 106/163) WRITE RAM SAFE ($E000-$FFFF)
 #ifdef __Linux__
-  lseek(nes_fd, RAM+address, SEEK_SET);
+  lseek(nes_fd, NES_RAM+address, SEEK_SET);
   write(nes_fd, &data, sizeof(data));
   return;
 #endif
@@ -1197,7 +1198,7 @@ static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (
 static void write_wram_byte(unsigned int address, uint8_t data) {  // Mapper 5 (MMC5) RAM
 // set write mode for ram - potentially through higher bits of address?
 #ifdef __Linux__
-  lseek(nes_fd, WRAM+address, SEEK_SET);
+  lseek(nes_fd, NES_WRAM+address, SEEK_SET);
   write(nes_fd, &data, sizeof(data));
   return;
 #endif
@@ -2016,7 +2017,7 @@ static void printNESSettings(void) {
  *****************************************/
 void dumpPRG(word base, word address) {
 #ifdef __Linux__
-  lseek(nes_fd, PRG+base+address, SEEK_SET);
+  lseek(nes_fd, NES_PRG+base+address, SEEK_SET);
   read(nes_fd, sdBuffer, 512);
   return;
 #else
@@ -2029,7 +2030,7 @@ void dumpPRG(word base, word address) {
 
 void dumpCHR(word address) {
 #ifdef __Linux__
-  lseek(nes_fd, CHR+address, SEEK_SET);
+  lseek(nes_fd, NES_CHR+address, SEEK_SET);
   read(nes_fd, sdBuffer, 512);
   return;
 #else
@@ -2042,7 +2043,7 @@ void dumpCHR(word address) {
 
 void dumpCHR_M2(word address) {  // MAPPER 45 - PULSE M2 LO/HI
 #ifdef __Linux__
-  lseek(nes_fd, CHR_M2+address, SEEK_SET);
+  lseek(nes_fd, NES_CHR_M2+address, SEEK_SET);
   read(nes_fd, sdBuffer, 512);
   return;
 #else
@@ -2056,7 +2057,7 @@ void dumpCHR_M2(word address) {  // MAPPER 45 - PULSE M2 LO/HI
 
 void dumpMMC5RAM(word base, word address) {  // MMC5 SRAM DUMP - PULSE M2 LO/HI
 #ifdef __Linux__
-  lseek(nes_fd, MMC5_SRAM+base+address, SEEK_SET);
+  lseek(nes_fd, NES_MMC5_SRAM+base+address, SEEK_SET);
   read(nes_fd, sdBuffer, 512);
   return;
 #else
