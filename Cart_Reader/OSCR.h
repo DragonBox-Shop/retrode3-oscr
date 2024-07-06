@@ -5,6 +5,9 @@
 #define OSCR_H_
 
 #include <stdint.h>
+#ifdef __Linux__
+#include "retread.h"
+#else
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -13,6 +16,7 @@
 #include "SdFat.h"
 
 #include "Config.h"
+#define ENABLE_EEPROM
 
 /*==== SANITY CHECKS ==============================================*/
 // Error if no hardware version is enabled
@@ -24,6 +28,9 @@
 # if (defined(HW1) + defined(HW2) + defined(HW3) + defined(HW4) + defined(HW5) + defined(SERIAL_MONITOR)) > 1
 #   error !!! PLEASE CHOOSE ONLY ONE HARDWARE VERSION IN CONFIG.H !!!
 # endif
+
+#include "ClockedSerial.h"
+#endif
 
 // Let user know unsafe configs are allowed
 # if defined(ALLOW_UNSAFE_CONFIG)
