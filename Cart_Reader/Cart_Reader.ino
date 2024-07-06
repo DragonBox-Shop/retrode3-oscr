@@ -222,8 +222,12 @@ void print_STR(byte string_number, boolean newline) {
   Defines
  *****************************************/
 
+#ifdef __Linux__
+#define NOP	// all timing related actions are done in kernel driver
+#else
 // optimization-safe nop delay
 #define NOP __asm__ __volatile__("nop\n\t")
+#endif
 
 // Button timing
 #define debounce 20        // ms debounce period to prevent flickering when pressing or releasing the button
