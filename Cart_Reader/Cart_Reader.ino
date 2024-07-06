@@ -72,10 +72,12 @@ bool dont_log = false;
 #endif
 
 // AVR Eeprom
+#ifdef ENABLE_EEPROM
 #include <EEPROM.h>
 // forward declarations for "T" (for non Arduino IDE)
 template<class T> int EEPROM_writeAnything(int ee, const T& value);
 template<class T> int EEPROM_readAnything(int ee, T& value);
+#endif
 
 // Graphic SPI LCD
 #ifdef ENABLE_LCD
@@ -121,7 +123,9 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 #endif
 
 // Etherkit Clock Generator
+#ifdef ENABLE_CLOCKGEN
 #include <si5351.h>
+#endif
 Si5351 clockgen;
 bool i2c_found;
 
