@@ -212,10 +212,16 @@ static constexpr const char* const string_table[] PROGMEM = {
 };
 
 void print_STR(byte string_number, boolean newline) {
+  char string_buffer[22];
+#ifdef __Linux__
+  strcpy_P(string_buffer, string_table[string_number]);	// code below assumes sizeof(char *) == sizeof(word)
+#else
+  strcpy_P(string_buffer, (char*)pgm_read_word(&(string_table[string_number])));
+#endif
   if (newline)
-    println_Msg(FS(pgm_read_word(string_table + string_number)));
+    println_Msg(string_buffer);
   else
-    print_Msg(FS(pgm_read_word(string_table + string_number)));
+    print_Msg(string_buffer);
 }
 
 /******************************************
@@ -2416,7 +2422,10 @@ byte buildRomName(char* output, const byte* input, byte length) {
 // Converts a progmem array into a ram array
 void convertPgm(const char* const pgmOptions[], byte numArrays) {
   for (int i = 0; i < numArrays; i++) {
-    strlcpy_P(menuOptions[i], (char*)pgm_read_word(&(pgmOptions[i])), 20);
+#ifdef __Linux__
+    strlcpy_P(menuOptions[i], pgmOptions[i], 20);	// code below assumes sizeof(char *) == sizeof(word)
+#else
+    strlcpy_P(menuOptions[i], (char*)pgm_read_word(&(pgmOptions[i])), 20);#endif
   }
 }
 
@@ -2689,6 +2698,9 @@ void println_Msg(String string) {
 #endif
 #ifdef ENABLE_GLOBAL_LOG
   if (!dont_log && loggingEnabled) myLog.println(string);
+#endif
+#ifdef __Linux__
+  printf("%s\n", string);
 #endif
 }
 
