@@ -522,7 +522,7 @@ void setup_MD() {
 #ifdef __Linux__
   md_fd = open("/dev/slot1", O_RDWR);
   if(md_fd < 0) {
-    perror("no cart");
+    perror("no cart in slot 1");
     exit(1);
   }
 #endif
