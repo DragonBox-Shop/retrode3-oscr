@@ -9,7 +9,6 @@
 
 #ifdef __Linux__
 int nes_fd;
-char folder[128];	// CHECKME: isn't this a global?
 #define string_error5 error_STR	// likely a mistake in upstream code...
 #endif
 
@@ -626,7 +625,11 @@ void nesFlashMenu() {
 void setup_NES() {
   // Request 5V
 #ifdef __Linux__
-  nes_fd=open("/dev/slot2", O_RDWR);	/* closed on exit() */
+  nes_fd = open("/dev/slot2", O_RDWR);	/* closed on exit() */
+  if(nes_fd < 0) {
+    perror("no cart");
+    exit(1);
+  }
 #endif
   setVoltage(VOLTS_SET_5V);
 
