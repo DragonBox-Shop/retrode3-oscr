@@ -20,6 +20,9 @@
 #define ENABLE_NES
 #define ENABLE_SNES
 
+// #define ENABLE_SERIAL	// use the Serial interface
+// #define ENABLE_LCD	// pretend to have an LCD
+
 /*** global types ***/
 
 typedef bool boolean;
@@ -51,6 +54,8 @@ public:
 } display;
 
 extern class FsFile {
+private:
+	int fd = -1;
 public:
 	operator bool() { return available(); }
 	bool available();
@@ -69,11 +74,11 @@ public:
 	size_t read(char *buffer, int size);
 	byte read();
 	char peek();
-	void seek(unsigned long offset);
+	void seek(off_t offset);
 	void rewind();
-	void seekCur(long offset);
-	unsigned long curPosition();
-	size_t fileSize();
+	void seekCur(off_t offset);
+	off_t curPosition();
+	off_t fileSize();
 	void close();
 	void flush();
 } myFile;
@@ -82,7 +87,7 @@ extern class SdFs {
 public:
 	bool begin(int unknown);
 #define SS 0	// used as parameter for begin()
-	void mkdir(const char dir[38], bool flag);
+	void mkdir(const char *dir, bool flag);
 	void chdir(const char *dir);
 	void chdir();
 	FsFile open(char *path, int flags);
@@ -92,12 +97,22 @@ public:
 extern class Serial {
 public:
 	void begin(int baudrate);
+	void print(const char *);
+	void print(byte, int);
+	void print(word, int);
+	void print(int, int);
+	void print(long unsigned int);
+	void print(long unsigned int, int);
+	void print(int);
 	void print(const __FlashStringHelper *str);
-	void println(const __FlashStringHelper *str);
 	void println();
+	void println(const char *);
+	void println(byte, int);
+	void println(long unsigned int);
+	void println(const __FlashStringHelper *str);
 	bool available();
 	byte read();
-	char *readStringUntil(char *until);
+	char *readStringUntil(char until);
 } Serial;
 // ClockedSerial
 
@@ -188,12 +203,15 @@ extern size_t strlcpy(char *dst, const char *src, size_t size);
 #define snprintf_P(filename, size, format, prefix, ...) snprintf(filename, size, format, prefix, __VA_ARGS__)
 #define analogWrite(num, r)
 extern char *itoa(unsigned long value, char str[], int radix);
+extern uint8_t checkButton(); // only with ENABLE_LCD or ENABLE_OLED
+extern int navigateMenu(int min, int max, void (*printSelection)(int)); // only with ENABLE_LCD or ENABLE_OLED
 
 /*** direct hardware port access (effectively disabled for read&write) ***/
 
 extern byte dummy;
 #define PORTA	dummy	// PORTA = value; assigns to dummy variable so that compiler can optimize away
 #define PINA	0		// always read input as 0 so that compiler can optimize away
+#define PORTB	dummy
 #define PORTC	dummy
 #define PINC	0
 #define PORTE	dummy
