@@ -37,6 +37,8 @@ typedef char *String;
 #define pgm_read_word(addr) ((uintptr_t)*(word *) (addr))
 #define PSTR(string) string	// we do not need to distinguish memory and program memory
 #define __asm__(...)	// eliminate any assembler code since our hardware is handled by kernel driver
+#define asm	// wipe out in GBS.ino, MD.ino, WS.ino
+#define volatile(...)
 
 /*** C++ objects defned in retread.cpp ***/
 
@@ -189,7 +191,7 @@ extern char *itoa(unsigned long value, char str[], int radix);
 
 /*** direct hardware port access (effectively disabled for read&write) ***/
 
-unsigned char dummy;
+extern byte dummy;
 #define PORTA	dummy	// PORTA = value; assigns to dummy variable so that compiler can optimize away
 #define PINA	0		// always read input as 0 so that compiler can optimize away
 #define PORTC	dummy
