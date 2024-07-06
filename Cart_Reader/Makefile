@@ -11,13 +11,13 @@ CFLAGS=
 .SUFFIXES : .o .c .cpp .ino
 .PHONY: all clean remote
 
-INO_SOURCES := $(wildcard *.ino)
-INO_SOURCES := Cart_Reader.ino SNES.ino MD.ino NES.ino
+INO_SOURCES := $(wildcard *.ino) OSCR.cpp
+INO_SOURCES := Cart_Reader.ino SNES.ino MD.ino FLASH.ino NES.ino OSCR.cpp
 
 all: retread
 
 %.o: %.ino	# directly compile .ino using C++
-	$(CC) -c $(CFLAGS) -include retread.h -D__Linux__ include retread.h -include ino.h -x c++ $< -o $*.o
+	$(CC) -c $(CFLAGS) -include retread.h -D__Linux__ -include retread.h -include ino.h -x c++ $< -o $*.o
 
 %.o: %.cpp
 	$(CC) -c $(CFLAGS) -D__Linux__ -include retread.h -x c++ -std=c++11 $< -o $*.o
@@ -29,7 +29,7 @@ ino.cpp: $(INO_SOURCES)	# collect all .ino source files into a single one and ke
 	( echo "#include \"ino.h\""; for FILE in $^; do echo "# 1 \"$$FILE\""; cat "$$FILE"; done ) >$@
 
 ino.h: ino.cpp	# derive forward declarations
-	sed -n '/^[a-zA-Z_0-9].*(.*).*{.*$$/s/{/;/p' $^ | sed 's/= [^,)]*[^,)]//g' | sed 's/\}//g' >ino.h
+	( cat OSCR.h; sed -n '/^[a-zA-Z_0-9].*(.*).*{.*$$/s/{/;/p' $^ | sed 's/= [^,)]*[^,)]//g' | sed 's/\}//g' ) >ino.h
 
 clean:
 	rm -f *.o ino.* retread
@@ -40,11 +40,11 @@ remote: clean
 	rsync -rltDvzh "./" "$(DEVICE):$(DIR)"
 	ssh $(DEVICE) sh -c "cd; uname -a; cd $(DIR); make clean all"
 
-OSCR.o: OSCR.h OSCR.cpp
+OSCR.o: retread.h OSCR.h OSCR.cpp
 
-ino.o: ino.h $(INO_SOURCES)
+ino.o: retread.h ino.h ino.cpp
 
-retread.o: retread.h ino.h retread.cpp
+retread.o: ino.h retread.h retread.cpp
 
 # command line tool
-retread: retread.o OSCR.o ino.o
+retread: retread.o ino.o
