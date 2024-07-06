@@ -44,7 +44,7 @@ OSCR.o: OSCR.h OSCR.cpp
 
 ino.o: ino.h $(INO_SOURCES)
 
-retread.o: retread.h retread.cpp
+retread.o: retread.h ino.h retread.cpp
 
 # command line tool
 retread: retread.o OSCR.o ino.o
