@@ -3,6 +3,9 @@
 #ifndef RETREAD_H
 #define RETREAD_H
 
+#define time imported_time	// names will be used for local variables
+#define clock imported_clock
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,17 +13,25 @@
 #include <fcntl.h>	// for O_RDONLY
 #define O_READ O_RDONLY	// as used in code
 #include <math.h>	// for log()
-#include <cstring>
 #include <ctype.h>	// for isprint()
 // #include <bsd/string.h>	// for strlcpy()
 
+#include <cstring>
+
+#undef time
+#undef clock
+
 /*** modules to compile ***/
 
-#define ENABLE_MD
-#define ENABLE_NES
-#define ENABLE_SNES
+#define ENABLE_MD	// Megadrive
+#define ENABLE_NES	// NES
+#define ENABLE_SNES	// SNES
+#define ENABLE_FLASH	// SNES/MD Flashing - does not yet compile (epromMenu, setup_Flash8, flashSize, blank and more are missing) - needs FLASH.ino
+#define startCFIMode(x)	// is defined in GB.ino and used by FLASH.ino
 
-// #define ENABLE_SERIAL	// use the Serial interface
+#define ENABLE_CONFIG
+
+#define ENABLE_SERIAL	// we use the Serial interface (mapped to stdin and stdout)
 // #define ENABLE_LCD	// pretend to have an LCD
 
 /*** global types ***/
@@ -29,8 +40,6 @@ typedef bool boolean;
 typedef unsigned char byte;
 typedef unsigned long dword;
 typedef unsigned short word;
-
-typedef char *String;
 
 /*** code qualifiers ***/
 
@@ -48,6 +57,17 @@ typedef char *String;
 class __FlashStringHelper;
 #define F(string_literal) (reinterpret_cast<const __FlashStringHelper *>(PSTR(string_literal)))
 
+class String {
+private:
+	char *str;
+public:
+	String();
+	String(char *);
+        ~String();
+	int toInt();
+	char *toCstring();
+};
+
 extern class Display {
 public:
 	void setCursor(int x, int y);
@@ -55,10 +75,13 @@ public:
 
 extern class FsFile {
 private:
-	int fd = -1;
+	const char *path;
+	FILE *file;
 public:
-	operator bool() { return available(); }
-	bool available();
+	FsFile();
+	FsFile(char *path);
+	operator bool() { return file != NULL; }
+	size_t available();
 	bool isDir();
 	bool isFile();
 	bool isHidden();
@@ -72,6 +95,7 @@ public:
 	void write(byte value);
 	size_t read(byte *buffer, int size);
 	size_t read(char *buffer, int size);
+	size_t readBytesUntil(char end, char *buffer, int size);
 	byte read();
 	char peek();
 	void seek(off_t offset);
@@ -97,22 +121,25 @@ public:
 extern class Serial {
 public:
 	void begin(int baudrate);
+	void print(String str);
 	void print(const char *);
+	void print(int);
+	void print(unsigned int);
+	void print(long unsigned int);
+	void print(const __FlashStringHelper *);
 	void print(byte, int);
 	void print(word, int);
 	void print(int, int);
-	void print(long unsigned int);
 	void print(long unsigned int, int);
-	void print(int);
-	void print(const __FlashStringHelper *str);
+	void println(String str);
 	void println();
 	void println(const char *);
-	void println(byte, int);
 	void println(long unsigned int);
-	void println(const __FlashStringHelper *str);
-	bool available();
+	void println(const __FlashStringHelper *);
+	void println(byte, int);
+	size_t available();
 	byte read();
-	char *readStringUntil(char until);
+	String readStringUntil(char until);
 } Serial;
 // ClockedSerial
 
@@ -188,14 +215,25 @@ extern void snesMenu();
 extern void mdCartMenu();
 extern void segaCDMenu();
 
-/*** misc definitions ***/
-#define HEX 16
+/*** from FLASH.ino ***/
+
+extern unsigned long flashSize;
+extern byte flashromType;extern byte secondID;extern unsigned long time;extern unsigned long blank;extern unsigned long sectorSize;extern uint16_t bufferSize;extern byte mapping;
+/*** from Config.h ***/
+
+#define CONFIG_FILE "config.txt"
+#define CONFIG_KEY_MAX 32
+#define CONFIG_VALUE_MAX 32
 
 /*** system functions ***/
 
 #define delay(msec)	// ignore
 #define _delay_us(usec)	// ignore
 #define delayMicroseconds(usec)	// ignore
+#define interrupts()	// ignore
+#define noInterrupts()	// ignore
+#define millis() 0	// well...
+
 #define memcpy_P(to, fm, sz) memcpy(to, fm, sz)
 #define strcpy_P(to, fm) strcpy(to, fm)
 extern size_t strlcpy(char *dst, const char *src, size_t size);
@@ -203,6 +241,8 @@ extern size_t strlcpy(char *dst, const char *src, size_t size);
 #define snprintf_P(filename, size, format, prefix, ...) snprintf(filename, size, format, prefix, __VA_ARGS__)
 #define analogWrite(num, r)
 extern char *itoa(unsigned long value, char str[], int radix);
+#define DEC 10
+#define HEX 16
 extern uint8_t checkButton(); // only with ENABLE_LCD or ENABLE_OLED
 extern int navigateMenu(int min, int max, void (*printSelection)(int)); // only with ENABLE_LCD or ENABLE_OLED
 
