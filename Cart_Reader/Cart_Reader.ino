@@ -2699,9 +2699,6 @@ void println_Msg(String string) {
 #ifdef ENABLE_GLOBAL_LOG
   if (!dont_log && loggingEnabled) myLog.println(string);
 #endif
-#ifdef __Linux__
-  printf("%s\n", string);
-#endif
 }
 
 void println_Msg(byte message, int outputFormat) {
