@@ -6,6 +6,7 @@
 
 /*** global objects ***/
 
+byte dummy;
 class Display display;	// global display
 class Serial serial;	// global serial interface
 class EEPROM EEPROM;	// global EEPROM
