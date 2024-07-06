@@ -521,6 +521,10 @@ void segaCDMenu() {
 void setup_MD() {
 #ifdef __Linux__
   md_fd=open("/dev/slot1", O_RDWR);
+  if(md_fd < 0) {
+    perror("no cart");
+    exit(1);
+  }
 #endif
   // Request 5V
   setVoltage(VOLTS_SET_5V);
