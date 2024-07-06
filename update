@@ -1,0 +1,4 @@
+git checkout upstream
+git pull sanni master
+git checkout master
+git rebase -i upstream
