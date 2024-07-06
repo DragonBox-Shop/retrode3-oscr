@@ -3,12 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "retread.h"
+#include "ino.h"	// to know all globals
 
 /*** global objects ***/
 
 byte dummy;
 class Display display;	// global display
-class Serial serial;	// global serial interface
+class Serial Serial;	// global serial interface
 class EEPROM EEPROM;	// global EEPROM
 
 /*** main program ***/
@@ -17,35 +18,73 @@ static char *arg0;
 
 void usage(void)
 {
-	printf("usage: %s snes|megadrive|nes command parameters...\n", arg0);
+	printf("usage: %s megadrive|nes|snes command parameters...\n", arg0);
+	exit(1);
+}
+
+void exit_helper(void)
+{
 	exit(1);
 }
 
 int main(int argc, char *argv[])
 {
+	extern void (*resetArduino)(void) __attribute__((noreturn));
+	resetArduino = &exit_helper;	// will be called at several locations
+
 	arg0=argv[0];
-	for(; argv[1] && argv[1][0] == '-'; argv++)
-		{
+	for(; argv[1] && argv[1][0] == '-'; argv++) {
 		switch(argv[1][1])
 			{
-			case ' ':
+			case 'h':
+				usage();
 				continue;
 			default:
 				fprintf(stderr, "unknown option -%c\n", argv[1][1]);
+				usage();
 				exit(1);
 			}
 		break;
 		}
-	// decode argv[1] for "snes", "megadrive", "nes"
-	// prepare user choices
-	// call appropriate subfunctions from the .ino modules
-	usage();
+	if(!argv[1]) {
+		fprintf(stderr, "missing cart type\n");
+		exit(1);
+		}
+	if(strcmp(argv[1], "megadrive") == 0 || strcmp(argv[1], "md") == 0)
+		mdMenu();
+	else if(strcmp(argv[1], "nes") == 0)
+		nesMenu();
+	else if(strcmp(argv[1], "snes") == 0)
+		snesMenu();
+	else {
+		fprintf(stderr, "unknown cart type: %s\n", argv[1]);
+		usage();
+	}
 	exit(0);
 }
 
 /*** helper functions from C/C++ standard libraries ***/
 
 extern size_t strlcpy(char *dst, const char *src, size_t size);
+
+size_t strlcpy(char *dst, const char *src, size_t size)
+{ /* from kernel.org (nolibc/string.h) */
+
+	size_t len;
+
+	for (len = 0; len < size; len++) {
+		dst[len] = src[len];
+		if (!dst[len])
+			return len;
+	}
+	if (size)
+		dst[size-1] = '\0';
+
+	while (src[len])
+		len++;
+
+	return len;
+}
 
 /* from https://stackoverflow.com/a/46732059
 =============
@@ -141,44 +180,215 @@ void Display::setCursor(int x, int y)
 	return;	// ignore
 }
 
-#if 0
+// add constructor by file name
 
-class FsFile {
-public:
-	bool available();
-	bool open(const char *path, int flags);
-	void write(byte *buffer, int size);
-	void write(byte value);
-	void read(byte *buffer, int size);
-	byte read();
-	void seekCur(long offset);
-	size_t fileSize();
-	void close(void);
-} myFile;
+bool FsFile::available()
+{
+printf("%s\n", __func__);
+	return fd >= 0;
+}
 
-class SdFs {
-public:
-	void chdir(const char *dir);
-	void chdir();
-	FsFile open(char *path, int flags);
-	bool exists(char *path);
-} sd;
+bool FsFile::isDir()
+{
+	// add code here
+}
 
-class Serial {
-public:
-	void print();
-	void println();
-} serial;
+bool FsFile::isFile()
+{
+	// add code here
+}
 
-const int SI5351_CLK0 = 0;
-const int SI5351_CLK1 = 1;
-const int SI5351_CLK2 = 2;
+bool FsFile::isHidden()
+{
+	return false;
+}
 
-class ClockGen {
-public:
-	void output_enable(int clockport, bool onoff);
-	void set_freq(unsigned long freq, int clockport);
-	void update_status();
-} clockgen;
+bool FsFile::getName(char *name, int maxlen)
+{
+	// add code here
+}
 
-#endif
+bool FsFile::open(const char *path)
+{
+	// save file name
+	fd = open(path, O_RDWR);
+}
+
+bool FsFile::open(const char *path, int flags)
+{
+	// add code here
+}
+
+bool FsFile::openNext(FsFile *dir, int flags)
+{
+	// add code here
+}
+
+bool FsFile::rename(const char *name)
+{
+	// add code here
+}
+
+void FsFile::write(const byte *buffer, int size)
+{
+	// add code here
+}
+;
+void FsFile::write(char *buffer, int size)
+{
+	// add code here
+}
+
+void FsFile::write(byte value)
+{
+	// add code here
+}
+
+size_t FsFile::read(byte *buffer, int size)
+{
+	// add code here
+}
+
+size_t FsFile::read(char *buffer, int size)
+{
+	// add code here
+}
+
+byte FsFile::read()
+{
+	// add code here
+}
+
+char FsFile::peek()
+{
+// FIXME: for this to work well we should wrap FILE * and not ft_d
+	// add code here
+}
+
+void FsFile::seek(off_t offset)
+{
+	::lseek(fd, 0, SEEK_SET);
+}
+
+void FsFile::rewind()
+{
+	::lseek(fd, 0, SEEK_SET);
+}
+
+void FsFile::seekCur(off_t offset)
+{
+	::lseek(fd, offset, SEEK_CUR);
+}
+
+off_t FsFile::curPosition()
+{
+	return ::lseek(fd, 0, SEEK_CUR);
+}
+
+off_t FsFile::fileSize()
+{
+	// add code here
+}
+
+void FsFile::close()
+{
+	::close(fd);
+	fd = -1;
+}
+
+void FsFile::flush()
+{
+	// FIXME: for this to work well we should wrap FILE * and not ft_d
+}
+
+bool SdFs::begin(int unknown)
+{
+	// add code here
+}
+
+void SdFs::mkdir(const char *dir, bool flag)
+{
+	// add code here
+}
+
+void SdFs::chdir(const char *dir)
+{
+printf("%s: %s\n", __func__, dir);
+	::chdir(dir);
+}
+
+void SdFs::chdir()
+{
+	chdir("/dev/mmc1");
+}
+
+FsFile SdFs::open(char *path, int flags)
+{
+	// add code here
+}
+
+bool SdFs::exists(char *path)
+{
+	// add code here
+}
+
+void Serial::print(const __FlashStringHelper *str)
+{
+	// add code here
+}
+
+void Serial::println(const __FlashStringHelper *str)
+{
+	// add code here
+}
+
+
+byte EEPROM::read(int addr)
+{
+	// add code here
+}
+
+void EEPROM::write(int addr, byte value)
+{
+	// add code here
+}
+
+void EEPROM::println()
+{
+	// add code here
+}
+
+bool Si5351::init(int load, int param2, int param3)
+{
+	// add code here
+	// should control some PWM through /sys
+}
+
+void Si5351::output_enable(int clockport, bool onoff)
+{
+	// add code here
+	// should control some PWM through /sys
+}
+
+void Si5351::set_freq(unsigned long freq, int clockport)
+{
+	// add code here
+	// should control some PWM through /sys
+}
+
+void Si5351::update_status()
+{
+	/* NOP */
+}
+
+/*** substitutes for Cart_Reader.ino not available if we have neither ENABLE_LCD nor ENABLE_OLED ***/
+
+uint8_t checkButton()
+{
+}
+
+int navigateMenu(int min, int max, void (*printSelection)(int))
+{
+}
+
+/*** EOF ***/
