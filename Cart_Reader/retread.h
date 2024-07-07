@@ -1,4 +1,5 @@
 // Compatibility-Header to be able to compile the code under Linux
+// (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 
 #ifndef RETREAD_H
 #define RETREAD_H
@@ -11,10 +12,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>	// for O_RDONLY
-#define O_READ O_RDONLY	// as used in code
 #include <math.h>	// for log()
 #include <ctype.h>	// for isprint()
 // #include <bsd/string.h>	// for strlcpy()
+#include <arpa/inet.h>	// for htons() and ntohs()
 
 #include <cstring>
 
@@ -73,6 +74,9 @@ public:
 	void setCursor(int x, int y);
 } display;
 
+#define O_READ O_RDONLY		// Arduino special
+#define O_WRITE O_WRONLY	// Arduino special
+
 extern class FsFile {
 private:
 	const char *path;
@@ -81,7 +85,7 @@ public:
 	FsFile();
 	FsFile(char *path);
 	operator bool() { return file != NULL; }
-	size_t available();
+	bool exists();
 	bool isDir();
 	bool isFile();
 	bool isHidden();
@@ -93,6 +97,7 @@ public:
 	void write(const byte *buffer, int size);
 	void write(char *buffer, int size);
 	void write(byte value);
+	size_t available();
 	size_t read(byte *buffer, int size);
 	size_t read(char *buffer, int size);
 	size_t readBytesUntil(char end, char *buffer, int size);
