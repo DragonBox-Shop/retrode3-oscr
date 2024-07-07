@@ -1064,6 +1064,7 @@ byte starting_letter() {
   // Enable log again
   dont_log = false;
 #endif
+  return 27;	/* equivalent to ? */
 }
 
 void print_MissingModule(void) {
