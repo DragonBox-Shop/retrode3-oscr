@@ -1,4 +1,6 @@
 #!/usr/bin/make -f
+# (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
+#
 # an alternative to this simple approach may be: https://github.com/bxparks/EpoxyDuino
 # but it is difficult to manage the hardware access
 
@@ -42,6 +44,7 @@ DEVICE=root@192.168.0.202
 remote: clean
 	rsync -rltDvzh "./" "$(DEVICE):$(DIR)"
 	ssh $(DEVICE) sh -c "cd; uname -a; cd $(DIR); make clean all"
+	scp "$(DEVICE):$(DIR)"/retread retread	# pull binary from device
 
 OSCR.o: retread.h OSCR.h OSCR.cpp
 
