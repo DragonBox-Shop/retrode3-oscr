@@ -9,7 +9,7 @@ CC=g++
 CFLAGS=
 
 .SUFFIXES : .o .c .cpp .ino
-.PHONY: all clean remote
+.PHONY: all clean install remote
 
 INO_SOURCES := $(wildcard *.ino) OSCR.cpp
 INO_SOURCES := Cart_Reader.ino SNES.ino MD.ino FLASH.ino NES.ino OSCR.cpp
@@ -25,7 +25,7 @@ all: retread
 %.o: %.c
 	$(CC) -c $(CFLAGS) -D__Linux__ $< -o $*.o
 
-ino.cpp: $(INO_SOURCES)	# collect all .ino source files into a single one and keep source file references
+ino.cpp: $(INO_SOURCES)	# collect all .ino source files into a single one and keep source file references --- FIXME: maybe we should preprocess first?
 	( echo "#include \"ino.h\""; for FILE in $^; do echo "# 1 \"$$FILE\""; cat "$$FILE"; done ) >$@
 
 ino.h: ino.cpp	# derive forward declarations
@@ -33,6 +33,9 @@ ino.h: ino.cpp	# derive forward declarations
 
 clean:
 	rm -f *.o ino.* retread
+
+install: retread
+	cp retread /root/retread
 
 DIR=/root/retrode3/Cart_Reader
 DEVICE=root@192.168.0.202
