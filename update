@@ -1,4 +1,12 @@
-git checkout upstream
+# update and rebase on latest upstream version
+
+set -e
+
+git checkout base
 git pull sanni master
+
+git checkout for-upstream
+git rebase base || { git rebase --abort; git remase -i base; }
+
 git checkout master
-git rebase -i upstream
+git rebase for-upstream || { git rebase --abort; git remase -i for-upstream; }
