@@ -1,13 +1,15 @@
-/* new driver */
+/* new retread driver simulating an Arduino environment for the *.ino files */
+// (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>	// for mkdir()
 #include "retread.h"
 #include "ino.h"	// to know all globals
 
 /*** global objects ***/
 
-byte dummy;
+byte dummy;		// dummy variable for assigning bytes to PORTs
 class Display display;	// global display
 class Serial Serial;	// global serial interface
 class EEPROM EEPROM;	// global EEPROM
@@ -15,10 +17,12 @@ class EEPROM EEPROM;	// global EEPROM
 /*** main program ***/
 
 static char *arg0;
+static const char *sdroot = ".";		// /media/... ?
+static const char *eeprom = "eeprom.bin";	// ~/.eeprom.bin ?
 
 void usage(void)
 {
-	printf("usage: %s flash|megadrive|nes|snes command parameters...\n", arg0);
+	printf("usage: %s [-h] [-e eeprom.bin] [-r sd-root] command parameters...\n", arg0);
 	exit(1);
 }
 
@@ -36,6 +40,30 @@ int main(int argc, char *argv[])
 	for(; argv[1] && argv[1][0] == '-'; argv++) {
 		switch(argv[1][1])
 			{
+			case 'e':
+				if(argv[1][2])
+					eeprom = &argv[1][2];
+				else if(argv[2]) {
+					eeprom = argv[2];
+					argv++;
+				}
+				else {
+					fprintf(stderr, "missing eeprom file name\n");
+					usage();
+				}
+				continue;
+			case 'r':
+				if(argv[1][2])
+					sdroot = &argv[1][2];
+				else if(argv[2]) {
+					sdroot = argv[2];
+					argv++;
+				}
+				else {
+					fprintf(stderr, "missing eeprom file name\n");
+					usage();
+				}
+				continue;
 			case 'h':
 				usage();
 				continue;
@@ -46,10 +74,16 @@ int main(int argc, char *argv[])
 			}
 		break;
 		}
+	setup();	// Arduino setup()
+	while(1)
+		loop();	// Arduino loop()
+	exit(0);
+
 	if(!argv[1]) {
 		fprintf(stderr, "missing cart type\n");
 		exit(1);
 		}
+#if 0	// old
 #ifdef ENABLE_FLASH
 	if(strcmp(argv[1], "flash") == 0)
 		flashMenu();
@@ -75,6 +109,7 @@ int main(int argc, char *argv[])
 		usage();
 	}
 	exit(0);
+#endif
 }
 
 /*** helper functions from C/C++ standard libraries ***/
@@ -246,10 +281,14 @@ FsFile::FsFile(char *p)
 	file = NULL;
 }
 
+bool FsFile::exists()
+{
+	return file != NULL ? true : false;
+}
 size_t FsFile::available()
 { // well, should return number of available characters to EOF
 // printf("%s\n", __PRETTY_FUNCTION__);
-	return file != NULL ? 1:0;
+	return file != NULL ? true : false;
 }
 
 bool FsFile::isDir()
@@ -275,15 +314,18 @@ bool FsFile::getName(char *name, int maxlen)
 	return path;
 }
 
+bool FsFile::open(const char *p, int flags)
+{
+printf("%s: %s %04o\n", __PRETTY_FUNCTION__, p, flags);
+	int fd = ::open(path = p, flags, 0644);	// -rw-r--r-- for O_CREAT
+	if (fd >= 0)
+		file = fdopen(fd, "r+");	// reading and writing; creation is controled by O_CREAT
+	return file != NULL;
+}
+
 bool FsFile::open(const char *path)
 {
 	return open(path, O_RDWR);
-}
-
-bool FsFile::open(const char *p, int flags)
-{
-	file = fopen(path = p, "rw");
-	return file != NULL;
 }
 
 bool FsFile::openNext(FsFile *dir, int flags)
@@ -298,17 +340,20 @@ printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 
 void FsFile::write(const byte *buffer, int size)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	fwrite(buffer, 1, size, file);
 }
 ;
 void FsFile::write(char *buffer, int size)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	fwrite(buffer, 1, size, file);
 }
 
 void FsFile::write(byte value)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	fputc(value, file);
 }
 
 size_t FsFile::read(byte *buffer, int size)
@@ -375,42 +420,55 @@ void FsFile::flush()
 
 /*** SdFS ***/
 
-bool SdFs::begin(int unknown)
+bool SdFs::begin(int unknown)	// called as sd.begin(SS)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	return true;
 }
 
 void SdFs::mkdir(const char *dir, bool flag)
-{
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+{ // not clear what "flag" means, but we assume it means "recursive"
+printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
+// FIXME: prefix with sdroot
+// ignore for the moment	::mkdir(dir, 0777);
 }
 
 void SdFs::chdir(const char *dir)
 {
 printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
-	::chdir(dir);
+// FIXME: prefix with sdroot
+// ignore for the moment	::chdir(dir);
 }
 
 void SdFs::chdir()
 {
-	chdir("/dev/mmc1");
+	chdir("/");
 }
 
 FsFile SdFs::open(char *path, int flags)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	FsFile f;
+// FIXME: prefix with sdroot
+	f.open(path, flags);
+	return f;
 }
 
 bool SdFs::exists(char *path)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	FsFile f;
+// FIXME: prefix with sdroot
+	f.open(path);	// try to open
+	return f.exists();
 }
 
 /*** Serial ***/
 
 void Serial::begin(int baudrate)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	// ignore
 }
 
 void Serial::print(const char *str)
@@ -441,6 +499,7 @@ void Serial::print(long unsigned int val)
 void Serial::print(const __FlashStringHelper *str)
 {
 	printf("%s", str);
+	fflush(stdout);	// for progress display
 }
 
 void Serial::print(byte val, int more)
@@ -513,21 +572,38 @@ size_t Serial::available()
 // while (Serial.available() == 0) {}
 // which will need 100% CPU load!
 // hence we always return 1 here and block in the read() method(s)
+// and we block until there is a full line (have to strip off the \n)
 	return 1;
 #endif
 }
 
 byte Serial::read()
 {
-	return (byte) getc(stdin);
+// FIXME: this is not intuitive after "Press Button..."
+// because one has to press space + cr
+	int c;
+	do {
+		c = getc(stdin);
+	} while(c == '\b');
+	if(c == '\n')
+		c = getc(stdin);	// get another character
+	return (byte) c;
 }
 
 String Serial::readStringUntil(char until)
-{
+{ // char is usually '\n'
 printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 /*** EEPROM ***/
+
+#if 0
+EEPROM::EEPROM()
+{
+	// open a file "eeprom.bin"
+	// create if needed for 1kB
+}
+#endif
 
 byte EEPROM::read(int addr)
 {
@@ -541,6 +617,7 @@ printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 
 void EEPROM::println()
 {
+// what is this doing?
 printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
