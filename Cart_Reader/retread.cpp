@@ -579,6 +579,8 @@ printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 #endif
 
+// where and when is this used at all?
+
 int navigateMenu(int min, int max, void (*printSelection)(int))
 {
 	int i;
@@ -588,10 +590,11 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 	while(1) { // loop until something is chosen
 		i=min;
 		while(i < max) {
-			printf("%d: ", min);
+			printf("%d) ", min);
 			printSelection(min++);
 		}
 		c = getc(stdin);
+		// oder ganze Zeile lesen...
 		// then take from argv or read choice from stdin
 		i = min;
 		if(i >= min && i < max)
