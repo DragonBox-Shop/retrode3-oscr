@@ -20,15 +20,58 @@ static char *arg0;
 static const char *sdroot = ".";		// /media/... ?
 static const char *eeprom = "eeprom.bin";	// ~/.eeprom.bin ?
 
-void usage(void)
+static void usage(void)
 {
-	printf("usage: %s [-h] [-e eeprom.bin] [-r sd-root] command parameters...\n", arg0);
+	fprintf(stderr, "usage: cat [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n");
 	exit(1);
 }
 
-void exit_helper(void)
+static void error(const char *str)
+{
+	fprintf(stderr, "%s: %s\n", str);
+	usage();
+}
+
+static void exit_helper(void)
 {
 	exit(1);
+}
+
+static void help(void)
+{
+	printf("Usage: cat [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n");
+	printf("Options:\n");
+	printf("  -h             Display this information\n");
+#ifdef ENABLED_EEPROM
+	printf("  -e eeprom.bin  Define the eeprom file [default: \"eeprom.bin\"]\n");
+#endif
+	printf("  -r sd-root     Define the SD root directory [default: \".\"]\n");
+	printf("\n");
+#ifdef ENABLED_CONFIG
+	printf("There is a config file called \"config.txt\".\n");
+	printf("\n");
+#endif
+#ifdef ENABLED_EEPROM
+	printf("The eeprom file is used to store e.g.\n");
+	printf("  folder number\n");
+	printf("  cart mode (NES)\n");
+	printf("  mapper (NES)\n");
+	printf("  newmapper (NES)\n");
+	printf("  prgsize (NES)\n");
+	printf("  chrsize (NES)\n");
+	printf("  ramsize (NES)\n");
+	printf("\n");
+#endif
+	printf("Menu choices are numbers. Multiple choices of subsequent submenus can be\n");
+	printf(" concatenated into a single command\n");
+	printf(" Choose the 'Reset' item to exit this tool\n");
+	printf("\n");
+	printf("Example:\n");
+	printf(" echo 200 | %s\n", arg0);
+	printf(" some echo commands to use:\n");
+	printf("  echo 100      read SNES/SFC cart to file");
+	printf("  echo 200      read Megadrive cart to file");
+	printf("  echo 210      backup Sega RamCart to file");
 }
 
 int main(int argc, char *argv[])
@@ -40,6 +83,7 @@ int main(int argc, char *argv[])
 	for(; argv[1] && argv[1][0] == '-'; argv++) {
 		switch(argv[1][1])
 			{
+#ifdef ENABLED_EEPROM
 			case 'e':
 				if(argv[1][2])
 					eeprom = &argv[1][2];
@@ -47,11 +91,10 @@ int main(int argc, char *argv[])
 					eeprom = argv[2];
 					argv++;
 				}
-				else {
-					fprintf(stderr, "missing eeprom file name\n");
-					usage();
-				}
+				else
+					error("missing eeprom file name\n");
 				continue;
+#endif
 			case 'r':
 				if(argv[1][2])
 					sdroot = &argv[1][2];
@@ -59,18 +102,16 @@ int main(int argc, char *argv[])
 					sdroot = argv[2];
 					argv++;
 				}
-				else {
-					fprintf(stderr, "missing eeprom file name\n");
-					usage();
-				}
+				else
+					error("missing sd root file name\n");
 				continue;
+			case '?':
 			case 'h':
-				usage();
-				continue;
+				help();
+				exit(0);
 			default:
-				fprintf(stderr, "unknown option -%c\n", argv[1][1]);
+				fprintf(stderr, "%s: unknown option -%c\n", argv[0], argv[1][1]);
 				usage();
-				exit(1);
 			}
 		break;
 		}
@@ -78,38 +119,6 @@ int main(int argc, char *argv[])
 	while(1)
 		loop();	// Arduino loop()
 	exit(0);
-
-	if(!argv[1]) {
-		fprintf(stderr, "missing cart type\n");
-		exit(1);
-		}
-#if 0	// old
-#ifdef ENABLE_FLASH
-	if(strcmp(argv[1], "flash") == 0)
-		flashMenu();
-	else
-#endif
-#ifdef ENABLE_MD
-	if(strcmp(argv[1], "megadrive") == 0 || strcmp(argv[1], "md") == 0)
-		mdMenu();
-	else
-#endif
-#ifdef ENABLE_NES
-	if(strcmp(argv[1], "nes") == 0)
-		nesMenu();
-	else
-#endif
-#ifdef ENABLE_SNES
-	if(strcmp(argv[1], "snes") == 0)
-		snesMenu();
-	else
-#endif
-	{
-		fprintf(stderr, "unknown cart type: %s\n", argv[1]);
-		usage();
-	}
-	exit(0);
-#endif
 }
 
 /*** helper functions from C/C++ standard libraries ***/
@@ -293,33 +302,56 @@ size_t FsFile::available()
 
 bool FsFile::isDir()
 {
-	// stat(path);
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	struct stat buf;
+	stat(path, &buf);	// lstat on path?
+	return S_ISDIR(buf.st_mode);
 }
 
 bool FsFile::isFile()
 {
-	// stat(path);
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	struct stat buf;
+	stat(path, &buf);	// lstat on path?
+	return S_ISREG(buf.st_mode);
 }
 
 bool FsFile::isHidden()
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	// check if basename starts with '.' ?
 	return false;
 }
 
 bool FsFile::getName(char *name, int maxlen)
 {
+	// of real file name only?
 	return path;
 }
 
 bool FsFile::open(const char *p, int flags)
 {
-printf("%s: %s %04o\n", __PRETTY_FUNCTION__, p, flags);
-	int fd = ::open(path = p, flags, 0644);	// -rw-r--r-- for O_CREAT
-	if (fd >= 0)
-		file = fdopen(fd, "r+");	// reading and writing; creation is controled by O_CREAT
+	char wd[128];
+printf("%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, flags);
+	close();	// may still be open
+	path = p;
+	int fd = ::open(p, flags, 0644);	// -rw-r--r-- for O_CREAT
+	if (fd >= 0) { // hack syscall O_ flags to stdio buffer modes
+		const char *mode = "?";
+		switch (flags & (O_RDWR | O_RDONLY | O_WRONLY)) {
+			case O_RDONLY: mode = "r"; break;
+			case O_WRONLY: mode = "w"; break;
+			case O_RDWR:
+				if (flags & O_CREAT && flags & O_TRUNC)
+					mode = "w+";
+				else
+					mode = "w";
+				break;
+		}
+printf("%s: mode = %s\n", __PRETTY_FUNCTION__, mode);
+		file = fdopen(fd, mode);
+	} else
+		perror(p);
 	return file != NULL;
 }
 
@@ -358,27 +390,43 @@ void FsFile::write(byte value)
 
 size_t FsFile::read(byte *buffer, int size)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	return fread(buffer, 1, size, file);
 }
 
 size_t FsFile::read(char *buffer, int size)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	return fread(buffer, 1, size, file);
 }
 
 size_t FsFile::readBytesUntil(char end, char *buffer, int size)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	int i=0;
+	while(i < size) {
+		int c = fgetc(file);
+		if (c == EOF)
+			break;
+		if (c == end)	// this does NOT store the character
+			break;
+		buffer[i++] = c;
+	}
+	return i;
 }
 
 byte FsFile::read()
 {
 printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	return fgetc(file);
 }
 
 char FsFile::peek()
 {
 printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	int c = fgetc(file);
+	ungetc(c, file);
+	return c;
 }
 
 void FsFile::seek(off_t offset)
@@ -403,13 +451,16 @@ off_t FsFile::curPosition()
 
 off_t FsFile::fileSize()
 {
-	// stat
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+//printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	struct stat buf;
+	fstat(fileno(file), &buf);
+	return buf.st_size;
 }
 
 void FsFile::close()
 {
-	fclose(file);
+	if(file)
+		fclose(file);
 	file = NULL;
 }
 
@@ -502,17 +553,18 @@ void Serial::print(const __FlashStringHelper *str)
 	fflush(stdout);	// for progress display
 }
 
-void Serial::print(byte val, int more)
+// FIXME: format may be HEX or DEC
+void Serial::print(byte val, int format)
 {
 	printf("%02x", val);
 }
 
-void Serial::print(word val, int more)
+void Serial::print(word val, int format)
 {
 	printf("%04x", val);
 }
 
-void Serial::print(int val, int more)
+void Serial::print(int val, int format)
 {
 	printf("%d", val);
 }
@@ -547,7 +599,7 @@ void Serial::println(const __FlashStringHelper *str)
 	printf("%s\n", str);
 }
 
-void Serial::println(byte val, int more)
+void Serial::println(byte val, int format)
 {
 	printf("%02x\n", val);
 }
@@ -584,6 +636,8 @@ byte Serial::read()
 	int c;
 	do {
 		c = getc(stdin);
+		if (c == EOF)
+			exit(0);
 	} while(c == '\b');
 	if(c == '\n')
 		c = getc(stdin);	// get another character
@@ -597,22 +651,32 @@ printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 
 /*** EEPROM ***/
 
-#if 0
 EEPROM::EEPROM()
 {
-	// open a file "eeprom.bin"
-	// create if needed for 1kB
+	fd = open(eeprom, O_RDWR | O_CREAT, 0644);
+	if (fd < 0)
+		{
+		fprintf(stderr, "%s: failed to open %s\n", arg0, eeprom);
+		exit(1);
+		}
+	ftruncate(fd, 1024);	// simulate 1kBx8 EEPROM
 }
-#endif
 
 byte EEPROM::read(int addr)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	byte value = 0;
+	lseek(fd, addr, SEEK_SET);
+	if(::read(fd, &value, sizeof(value)) != sizeof(value))
+		fprintf(stderr, "EEPROM read error at address %04x\n", addr);
+printf("%s: %04x -> %02x\n", __PRETTY_FUNCTION__, addr, value);
+	return value;
 }
 
 void EEPROM::write(int addr, byte value)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	lseek(fd, addr, SEEK_SET);
+	::write(fd, &value, sizeof(value));
+printf("%s: %04x <- %02x\n", __PRETTY_FUNCTION__, addr, value);
 }
 
 void EEPROM::println()

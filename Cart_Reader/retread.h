@@ -149,7 +149,10 @@ public:
 // ClockedSerial
 
 extern class EEPROM {
+private:
+	int fd;
 public:
+	EEPROM();
 	byte read(int addr);
 	void write(int addr, byte value);
 	void println();
