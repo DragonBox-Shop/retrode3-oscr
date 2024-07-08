@@ -387,6 +387,7 @@ void configInit() {
 *
 *F*/
 uint8_t configFindKey(const __FlashStringHelper* searchKey, char* value) {
+printf("%s: %s\n", __PRETTY_FUNCTION__, searchKey);
   if (!useConfig) return 0;
 
   char key[CONFIG_KEY_MAX + 1];
