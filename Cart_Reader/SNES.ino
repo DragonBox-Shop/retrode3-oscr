@@ -398,7 +398,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 // SNES Menu
 void snesMenu() {
   // create menu with title and 7 options to choose from
-printf("%s:\n", __PRETTY_FUNCTION__);
+//printf("%s:\n", __PRETTY_FUNCTION__);
   unsigned char mainMenu;
   // Copy menuOptions out of progmem
   convertPgm(menuOptionsSNES, 7);
@@ -809,7 +809,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 
 // Read one byte of data from a location specified by bank and address, 00:0000
 byte readBank_SNES(byte myBank, word myAddress) {
-printf("%s\n", __PRETTY_FUNCTION__);
+// printf("%s\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
   byte myData;
   lseek(snes_fd, (myBank<<16)+myAddress, SEEK_SET);
@@ -837,8 +837,8 @@ printf("%s\n", __PRETTY_FUNCTION__);
 }
 
 void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
- printf("%s\n", __PRETTY_FUNCTION__);
- byte buffer[1024] = { 0 };
+// printf("%s\n", __PRETTY_FUNCTION__);
+  byte buffer[1024] = { 0 };
 
   uint16_t c = 0;
   uint16_t currByte = 32768;
@@ -962,7 +962,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
   SNES ROM Functions
 ******************************************/
 void getCartInfo_SNES() {
-printf("%s\n", __PRETTY_FUNCTION__);
+// printf("%s\n", __PRETTY_FUNCTION__);
   boolean manualConfig = 0;
 
 #ifdef __Linux__
@@ -970,7 +970,6 @@ printf("%s\n", __PRETTY_FUNCTION__);
   lseek(snes_fd, (192<<16)+0, SEEK_SET);
   read(snes_fd, &buffer, 1024);
 #endif
-// FIXME: do this in kernel driver
 
   //Prime SA1 cartridge
   PORTL = 192;
@@ -1217,7 +1216,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 
 // Read header
 boolean checkcart_SNES() {
-printf("%s:\n", __PRETTY_FUNCTION__);
+// printf("%s:\n", __PRETTY_FUNCTION__);
   // set control to read  dataIn();
 
   uint16_t headerStart = 0xFFB0;
@@ -1410,7 +1409,7 @@ unsigned int calc_checksum(char* fileName, char* folder) {
   if (myFile.open(fileName, O_READ)) {
     calcFilesize = myFile.fileSize() * 8 / 1024 / 1024;
 
-printf("%s 2: NP=%d %d\n", __PRETTY_FUNCTION__, NP, calcFilesize);
+// printf("%s 2: NP=%d %d\n", __PRETTY_FUNCTION__, NP, calcFilesize);
     // Nintendo Power (SF Memory Cassette)
     // Read up to 0x60000 then add FFs to 0x80000
     if (NP == true) {
@@ -1511,7 +1510,7 @@ printf("%s 2: NP=%d %d\n", __PRETTY_FUNCTION__, NP, calcFilesize);
     }
     myFile.close();
     sd.chdir();
-printf("%s: checksum %x\n", __PRETTY_FUNCTION__, calcChecksum);
+// printf("%s: checksum %x\n", __PRETTY_FUNCTION__, calcChecksum);
     return (calcChecksum);
   } else {
     // Else show error
