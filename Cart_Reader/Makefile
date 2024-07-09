@@ -43,6 +43,7 @@ DIR=/root/retrode3/Cart_Reader
 DEVICE=root@192.168.0.202
 remote: clean
 	rsync -rltDvzh "./" "$(DEVICE):$(DIR)"
+	rsync -rltDvzh "../sd/" "$(DEVICE):$(DIR)/../sd"
 	ssh $(DEVICE) sh -c "cd; uname -a; cd $(DIR); make clean all"
 	scp "$(DEVICE):$(DIR)"/retread retread	# pull binary from device
 
