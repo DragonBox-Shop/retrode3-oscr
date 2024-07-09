@@ -745,6 +745,12 @@ printf("%s\n", __PRETTY_FUNCTION__);
 void writeBank_SNES(byte myBank, word myAddress, byte myData) {
 printf("%s\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
+// FIXME: some carts/modes need CS(PH3) high
+    // ExHiRom
+   if (romType == EX)
+        // e.g. Writing SRAM on HiRom needs CS(PH3) to be high
+        PORTH |= (1 << 3);
+
   lseek(snes_fd, (myBank<<16)+myAddress, SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
 #endif
@@ -849,20 +855,20 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
   draw_progressbar(0, totalProgressBar);
 
   for (word currBank = start; currBank < total; currBank++) {
-#ifdef __Linux__
-    lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
-    while(1) {
-      read(snes_fd, &buffer, sizeof(buffer));
-      file->write(buffer, 1024);
-      currByte += sizeof(buffer);
-      // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
-      if (currByte == 0) break;    }#else
     PORTL = currBank;
 
     // Blink led
     blinkLED();
 
     currByte = 32768;
+#ifdef __Linux__
+// printf("%s: %d %04x %06x\n", __PRETTY_FUNCTION__, currBank, currByte, (currBank<<16)+currByte);
+
+    lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
+    while (1) {
+      read(snes_fd, &buffer, sizeof(buffer));
+      currByte += sizeof(buffer);
+#else
     while (1) {
       c = 0;
       while (c < 1024) {
@@ -884,12 +890,12 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
         c++;
         currByte++;
       }
+#endif
       file->write(buffer, 1024);
 
       // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
       if (currByte == 0) break;
     }
-#endif
 
     // update progress bar
     processedProgressBar += 1024;
@@ -910,20 +916,18 @@ printf("%s\n", __PRETTY_FUNCTION__);
   draw_progressbar(0, totalProgressBar);
 
   for (word currBank = start; currBank < total; currBank++) {
-#ifdef __Linux__
-    lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
-    while(1) {
-      read(snes_fd, &buffer, sizeof(buffer));
-      file->write(buffer, 1024);
-      currByte += sizeof(buffer);
-      // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
-      if (currByte == 0) break;    }#else
     PORTL = currBank;
 
     // Blink led
     blinkLED();
 
     currByte = 0;
+#ifdef __Linux__
+    lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
+    while (1) {
+      read(snes_fd, &buffer, sizeof(buffer));
+      currByte += sizeof(buffer);
+#else
     while (1) {
       c = 0;
       while (c < 1024) {
@@ -945,12 +949,12 @@ printf("%s\n", __PRETTY_FUNCTION__);
         c++;
         currByte++;
       }
-      file->write(buffer, 1024);
+ #endif
+     file->write(buffer, 1024);
 
       // exit while(1) loop once the uint16_t currByte overflows from 0xffff to 0 (current bank is done)
       if (currByte == 0) break;
     }
-#endif
 
     // update progress bar
     processedProgressBar += 1024;
@@ -1221,6 +1225,10 @@ boolean checkcart_SNES() {
 
   uint16_t headerStart = 0xFFB0;
   byte snesHeader[80];
+#ifdef __Linux__
+  lseek(snes_fd, (0<<16)+headerStart, SEEK_SET);
+  read(snes_fd, &snesHeader, 80);
+#else
   PORTL = 0;
   for (uint16_t c = 0, currByte = headerStart; c < 80; c++, currByte++) {
     PORTF = (currByte & 0xFF);
@@ -1241,9 +1249,6 @@ boolean checkcart_SNES() {
 
     snesHeader[c] = PINC;
   }
-#ifdef __Linux__
-  lseek(snes_fd, (0<<16)+headerStart, SEEK_SET);
-  read(snes_fd, &snesHeader, 80);
 #endif
 
   // Calculate CRC32 of header
@@ -1980,6 +1985,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
       }
     }
   } else if (romType == EX) {
+// FIXME: this special mode should be handled in readBank_SNES and through the kernel driver
     // Dumping SRAM on HiRom needs CS(PH3) to be high
     PORTH |= (1 << 3);
     // Sram size
