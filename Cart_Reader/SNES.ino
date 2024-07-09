@@ -1396,9 +1396,8 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 }
 
 unsigned int calc_checksum(char* fileName, char* folder) {
-printf("%s 1: %s %s\n", __PRETTY_FUNCTION__, fileName, folder);
-  unsigned int calcChecksum = 0;
-  unsigned int calcChecksumChunk = 0;
+  uint16_t calcChecksum = 0;
+  uint16_t calcChecksumChunk = 0;
   int calcFilesize = 0;
   unsigned int c = 0;
   unsigned long i = 0;
