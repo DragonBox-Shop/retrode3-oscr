@@ -278,14 +278,12 @@ printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 
 FsFile::FsFile()
 {
-// printf("%s\n", __PRETTY_FUNCTION__);
 	path = NULL;
 	file = NULL;
 }
 
 FsFile::FsFile(char *p)
 {
-// printf("%s\n", __PRETTY_FUNCTION__);
 	path = p;
 	file = NULL;
 }
@@ -295,14 +293,12 @@ bool FsFile::exists()
 	return file != NULL ? true : false;
 }
 size_t FsFile::available()
-{ // well, should return number of available characters to EOF
-// printf("%s\n", __PRETTY_FUNCTION__);
-	return file != NULL ? true : false;
+{
+	return fileSize() - curPosition();
 }
 
 bool FsFile::isDir()
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	struct stat buf;
 	stat(path, &buf);	// lstat on path?
 	return S_ISDIR(buf.st_mode);
@@ -310,7 +306,6 @@ bool FsFile::isDir()
 
 bool FsFile::isFile()
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	struct stat buf;
 	stat(path, &buf);	// lstat on path?
 	return S_ISREG(buf.st_mode);
@@ -318,7 +313,7 @@ bool FsFile::isFile()
 
 bool FsFile::isHidden()
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	// check if basename starts with '.' ?
 	return false;
 }
@@ -367,43 +362,37 @@ printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 
 bool FsFile::rename(const char *name)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+printf("%s: '%s' - add implementation\n", __PRETTY_FUNCTION__, name);
 }
 
 void FsFile::write(const byte *buffer, int size)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	fwrite(buffer, 1, size, file);
 }
 ;
 void FsFile::write(char *buffer, int size)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	fwrite(buffer, 1, size, file);
 }
 
 void FsFile::write(byte value)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	fputc(value, file);
 }
 
 size_t FsFile::read(byte *buffer, int size)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	return fread(buffer, 1, size, file);
 }
 
 size_t FsFile::read(char *buffer, int size)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	return fread(buffer, 1, size, file);
 }
 
 size_t FsFile::readBytesUntil(char end, char *buffer, int size)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
-	int i=0;
+	int i = 0;
 	while(i < size) {
 		int c = fgetc(file);
 		if (c == EOF)
@@ -417,13 +406,11 @@ size_t FsFile::readBytesUntil(char end, char *buffer, int size)
 
 byte FsFile::read()
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	return fgetc(file);
 }
 
 char FsFile::peek()
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	int c = fgetc(file);
 	ungetc(c, file);
 	return c;
@@ -451,7 +438,6 @@ off_t FsFile::curPosition()
 
 off_t FsFile::fileSize()
 {
-//printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	struct stat buf;
 	fstat(fileno(file), &buf);
 	return buf.st_size;
@@ -556,17 +542,26 @@ void Serial::print(const __FlashStringHelper *str)
 // FIXME: format may be HEX or DEC
 void Serial::print(byte val, int format)
 {
-	printf("%02x", val);
+	if (format == HEX)
+		printf("%02x", val);
+	else
+		printf("%d", val);
 }
 
 void Serial::print(word val, int format)
 {
-	printf("%04x", val);
+	if (format == HEX)
+		printf("%04x", val);
+	else
+		printf("%d", val);
 }
 
 void Serial::print(int val, int format)
 {
-	printf("%d", val);
+	if (format == HEX)
+		printf("%x", val);
+	else
+		printf("%d", val);
 }
 
 void Serial::print(long unsigned int val, int more)
@@ -601,12 +596,14 @@ void Serial::println(const __FlashStringHelper *str)
 
 void Serial::println(byte val, int format)
 {
-	printf("%02x\n", val);
+	if (format == HEX)
+		printf("%02x\n", val);
+	else
+		printf("%d\n", val);
 }
 
 size_t Serial::available()
 { // essentially we want to know if a getc() would block or not
-// printf("%s:\n", __PRETTY_FUNCTION__);
 #if 0
 	fd_set readfds;
 	FD_ZERO(&readfds);
