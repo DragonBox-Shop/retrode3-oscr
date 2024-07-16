@@ -6,7 +6,7 @@ git checkout base
 git pull sanni master
 
 git checkout for-upstream
-git rebase base || { git rebase --abort; git remase -i base; }
+git rebase base || { git rebase --abort; git rebase -i base; }
 
 git checkout master
-git rebase for-upstream || { git rebase --abort; git remase -i for-upstream; }
+git rebase for-upstream || { git rebase --abort; git rebase -i for-upstream; }
