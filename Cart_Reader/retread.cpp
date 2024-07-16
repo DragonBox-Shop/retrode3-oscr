@@ -227,6 +227,14 @@ char *itoa(unsigned long value, char str[], int radix)
 
 /*** String ***/
 
+String::String(char *s)
+{
+printf("%s:\n", __PRETTY_FUNCTION__);
+	// alternatively use new char[strlen(s)+1];
+	str = (char *) ::malloc(strlen(s) + 1);
+	strcpy(str, s);
+}
+
 String::String()
 {
 	String((char *) "");
@@ -234,15 +242,10 @@ String::String()
 
 String::~String()
 {
+printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
 	// delete[] _text;
-	free(str);
-}
-
-String::String(char *s)
-{
-	// alternatively use new char[strlen(s)+1];
-	str = (char *) malloc(strlen(s) + 1);
-	strcpy(str, s);
+	if(str)
+		::free(str);
 }
 
 int String::toInt()
@@ -254,6 +257,7 @@ int String::toInt()
 
 char *String::toCstring()
 {
+printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
 	return str;
 };
 
@@ -358,11 +362,19 @@ bool FsFile::open(const char *path)
 bool FsFile::openNext(FsFile *dir, int flags)
 {
 printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	// read next directory entry and update the file buffers
+	// FIXME: how should this work - we do not return the new FsFile!
+	return false;
 }
 
 bool FsFile::rename(const char *name)
-{
-printf("%s: '%s' - add implementation\n", __PRETTY_FUNCTION__, name);
+{ // file may be open since read/write goes through a file descriptor
+// printf("%s: '%s' - add implementation\n", __PRETTY_FUNCTION__, name);
+	if (::rename(path, name) == 0) {
+		path = name;	// new name
+		return true;
+	}
+	return false;
 }
 
 void FsFile::write(const byte *buffer, int size)
@@ -581,7 +593,7 @@ void Serial::println(const char *str)
 
 void Serial::println(String str)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	printf("%s\n", str.toCstring());
 }
 
 void Serial::println(long unsigned int val)
@@ -643,7 +655,20 @@ byte Serial::read()
 
 String Serial::readStringUntil(char until)
 { // char is usually '\n'
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	char buffer[128];
+	int i = 0;
+	while(i < sizeof(buffer)-1) {
+		int c = fgetc(stdin);
+		if (c == EOF)
+			break;
+		if (i > 0 && c == until)	// this does NOT store the character
+			break;
+		buffer[i++] = c;
+	}
+	buffer[i] = 0;
+printf("%s: line '%s'\n", __PRETTY_FUNCTION__, buffer);
+	return String(buffer);	// will copy to heap
 }
 
 /*** EEPROM ***/
@@ -688,6 +713,7 @@ bool Si5351::init(int load, int param2, int param3)
 {
 printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	// should control some PWM through /sys
+	return true;
 }
 
 void Si5351::output_enable(int clockport, bool onoff)
