@@ -580,9 +580,18 @@ void setup_MD() {
 *****************************************/
 void writeWord_MD(unsigned long myAddress, word myData) {
 #ifdef __Linux__
+
+#define MD_ROM(addr)	((0x00 << 24) + ((addr) << 1))
+#define MD_P10(addr)	((0x01 << 24) + ((addr) << 1))
+#define MD_P1(addr)	((0x02 << 24) + ((addr) << 1))
+#define MD_TIME(addr)	((0x03 << 24) + ((addr) << 1))	// address with TIME impulse with WE
+#define MD_FLASH		unused? (0x04 << 24)
+#define MD_ENSRAM(addr)	((0x05 << 24) + ((addr) << 1))	// TIME impulse without WE
+#define MD_EEPMODE(addr)((0x06 << 24) + ((addr) << 1))
+
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   myData = htons(myData);
-  lseek(md_fd, myAddress<<1, SEEK_SET);
+  lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
   PORTF = myAddress & 0xFF;
@@ -632,7 +641,7 @@ printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 word readWord_MD(unsigned long myAddress) {
 #ifdef __Linux__
   word myData;
-  lseek(md_fd, myAddress<<1, SEEK_SET);
+  lseek(md_fd, MD_P10(myAddress), SEEK_SET);
   read(md_fd, &myData, sizeof(myData));
   myData = ntohs(myData);
 // printf("%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
@@ -691,9 +700,12 @@ word readWord_MD(unsigned long myAddress) {
 
 void writeFlash_MD(unsigned long myAddress, word myData) {
 #ifdef __Linux__
-  myData = htons(myData);
+  byte val = htons(myData);
+// CHECKME: how is this different from writing ROM? it is a byte wide write
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 printf("fixme: %s\n", __PRETTY_FUNCTION__);
+  lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
+  write(md_fd, &val, sizeof(val));
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -737,7 +749,8 @@ word readFlash_MD(unsigned long myAddress) {
   word myData;
 printf("fixme: %s\n", __PRETTY_FUNCTION__);
 printf("%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
-  myData = htons(myData);
+  lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
+  read(md_fd, &myData, sizeof(myData));
   return myData;
 #endif
   PORTF = myAddress & 0xFF;
@@ -1461,8 +1474,10 @@ printf("romName: \"%s\"\n", romName);
 void writeSSF2Map(unsigned long myAddress, word myData) {
 #ifdef __Linux__
   myData = htons(myData);
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+  myData = htons(myData);
+  lseek(md_fd, MD_TIME(myAddress), SEEK_SET);
+  write(md_fd, &myData, sizeof(myData));
 #endif
   dataOut_MD();
 
@@ -1604,12 +1619,10 @@ void readROM_MD() {
 #ifdef __Linux__
   unsigned long myAddress = currBuffer - (offsetSSF2Bank * 0x80000);
 //printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
-  lseek(md_fd, myAddress<<1, SEEK_SET);
+  lseek(md_fd, isSVP ? MD_P10(myAddress) : MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &buffer, sizeof(buffer));
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
 	calcCKS += ((buffer[d] << 8) | buffer[d + 1]);
-  if(isSVP)
-	printf("fixme: %s\n", __PRETTY_FUNCTION__);
 #else
     for (int currWord = 0; currWord < 512; currWord++) {
       unsigned long myAddress = currBuffer + currWord - (offsetSSF2Bank * 0x80000);
@@ -1680,12 +1693,10 @@ void readROM_MD() {
 #ifdef __Linux__
   unsigned long myAddress = currBuffer + cartSize / 2;
 printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
-  lseek(md_fd, myAddress<<1, SEEK_SET);
+  lseek(md_fd, isSVP ? MD_P10(myAddress) : MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &buffer, sizeof(buffer));
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
         calcCKSLockon += ((buffer[d] << 8) | buffer[d + 1]);
-  if(isSVP)
-	printf("fixme: %s\n", __PRETTY_FUNCTION__);
 #else
      for (int currWord = 0; currWord < 512; currWord++) {
         unsigned long myAddress = currBuffer + currWord + cartSize / 2;
@@ -1756,12 +1767,10 @@ printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
 #ifdef __Linux__
   unsigned long myAddress = currBuffer + (cartSize + cartSizeLockon) / 2;
 printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
-  lseek(md_fd, myAddress<<1, SEEK_SET);
+  lseek(md_fd, isSVP ? MD_P1(myAddress) : MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &buffer, sizeof(buffer));
   for(d = 0; d < 1024; d += 2)
         calcCKSSonic2 += ((buffer[d] << 8) | buffer[d + 1]);
-  if(isSVP)
-	printf("fixme: %s\n", __PRETTY_FUNCTION__);
 #else
       for (int currWord = 0; currWord < 512; currWord++) {
         unsigned long myAddress = currBuffer + currWord + (cartSize + cartSizeLockon) / 2;
@@ -1878,9 +1887,12 @@ printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
 *****************************************/
 // Sonic 3 sram enable
 void enableSram_MD(boolean enableSram) {
+  word myData = enableSram;
 printf("%s: %d\n", __PRETTY_FUNCTION__, enableSram);
 #ifdef __Linux__
 printf("fixme: %s\n", __PRETTY_FUNCTION__);
+  lseek(md_fd, MD_ENSRAM(0), SEEK_SET);
+  write(md_fd, &myData, sizeof(myData));
 #endif
   dataOut_MD();
 
@@ -2378,10 +2390,10 @@ void busyCheck_MD() {
 void EepromInit(byte eepmode) {    // Acclaim Type 2
 #ifdef __Linux__
 printf("%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
-  if(isSVP)
+	word myData = eepmode;
 	printf("fixme: %s\n", __PRETTY_FUNCTION__);
-//  lseek(md_fd, myAddress<<1, SEEK_SET);
-//  write(md_fd, &myData, sizeof(myData));
+	lseek(md_fd, MD_EEPMODE(0x10 << 16), SEEK_SET);
+	write(md_fd, &myData, sizeof(myData));
 #endif
   PORTF = 0x00;                    // ADDR A0-A7
   PORTK = 0x00;                    // ADDR A8-A15
@@ -2421,12 +2433,14 @@ printf("%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
 
 void writeWord_SDA(unsigned long myAddress, word myData) { /* D0 goes to /SDA when only /LWR is asserted */
 #ifdef __Linux__
+  myData = htons(myData);
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 printf("fixme: %s\n", __PRETTY_FUNCTION__);
-//  lseek(md_fd, myAddress<<1, SEEK_SET);
-//  write(md_fd, &myData, sizeof(myData));
+// what is special with this mode? the extra delay of 100µs for tiny eepSize?
+  lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
+  write(md_fd, &myData, sizeof(myData));
 #endif
-   PORTF = myAddress & 0xFF;
+  PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
   PORTC = myData;
@@ -2470,10 +2484,11 @@ printf("fixme: %s\n", __PRETTY_FUNCTION__);
 void writeWord_SCL(unsigned long myAddress, word myData) { /* D0 goes to /SCL when only /UWR is asserted */
 #ifdef __Linux__
   myData = htons(myData);
+// what is special with this mode? the extra delay of 100µs for tiny eepSize?
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 printf("fixme: %s\n", __PRETTY_FUNCTION__);
-//  lseek(md_fd, myAddress<<1, SEEK_SET);
-//  write(md_fd, &myData, sizeof(myData));
+  lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
+  write(md_fd, &myData, sizeof(myData));
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -2521,8 +2536,8 @@ void writeWord_CM(unsigned long myAddress, word myData) {  // Codemasters
   myData = htons(myData);
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 printf("fixme: %s\n", __PRETTY_FUNCTION__);
-//  lseek(md_fd, myAddress<<1, SEEK_SET);
-//  write(md_fd, &myData, sizeof(myData));
+  lseek(md_fd, MD_P1(myAddress), SEEK_SET);
+  write(md_fd, &myData, sizeof(myData));
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -3107,10 +3122,11 @@ void writeBram_MD() {
 //******************************************
 void writeRealtec(unsigned long address, byte value) {  // Realtec 0x404000 (UPPER)/0x400000 (LOWER)
 #ifdef __Linux__
+  word myData = htons(value);
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, address, value);
 printf("fixme: %s\n", __PRETTY_FUNCTION__);
-//  lseek(md_fd, myAddress<<1, SEEK_SET);
-//  write(md_fd, &myData, sizeof(myData));
+  lseek(md_fd, MD_ROM(address), SEEK_SET);
+  write(md_fd, &myData, sizeof(myData));
 #endif
   dataOut_MD();
   PORTF = address & 0xFF;          // 0x00 ADDR A0-A7
