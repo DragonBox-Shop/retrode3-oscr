@@ -5,6 +5,9 @@
 
 #ifdef __Linux__
 int snes_fd;
+static byte local_porth;	// track assignments to PORTH especially PH3
+#undef PORTH
+#define PORTH local_porth
 #endif
 
 /******************************************
@@ -718,7 +721,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 void controlOut_SNES() {
 #ifdef __Linux__
 printf("%s\n", __PRETTY_FUNCTION__);
-  /* FIXME */;
+  /* CS(PH3) handled by writeBank_SNES(), others by kernel driver */;
 #endif
   // Switch RD(PH6) and WR(PH5) to HIGH
   PORTH |= (1 << 6) | (1 << 5);
@@ -730,7 +733,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 void controlIn_SNES() {
 #ifdef __Linux__
 printf("%s\n", __PRETTY_FUNCTION__);
-  /* FIXME */;
+  /* CS(PH3) handled by writeBank_SNES(), others by kernel driver */;
 #endif
   // Switch WR(PH5) to HIGH
   PORTH |= (1 << 5);
@@ -743,15 +746,13 @@ printf("%s\n", __PRETTY_FUNCTION__);
  *****************************************/
 // Write one byte of data to a location specified by bank and address, 00:0000
 void writeBank_SNES(byte myBank, word myAddress, byte myData) {
-printf("%s\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
-// FIXME: some carts/modes need CS(PH3) high
-    // ExHiRom
-   if (romType == EX)
-        // e.g. Writing SRAM on HiRom needs CS(PH3) to be high
-        PORTH |= (1 << 3);
-
-  lseek(snes_fd, (myBank<<16)+myAddress, SEEK_SET);
+printf("%s\n", __PRETTY_FUNCTION__);
+#define CS_PH3 (PORTH & (1 << 3))
+#define SNES_REGULAR	(0x00 << 24)
+#define SNES_HIROM	(0x01 << 24)
+#define SNES_ADDR(bank, address) ((CS_PH3 ? SNES_HIROM : SNES_REGULAR) + (((bank) & 0x7f) << 16) + (address))
+  lseek(snes_fd, SNES_ADDR(myBank, myAddress), SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
 #endif
   PORTL = myBank;
@@ -818,7 +819,7 @@ byte readBank_SNES(byte myBank, word myAddress) {
 // printf("%s\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
   byte myData;
-  lseek(snes_fd, (myBank<<16)+myAddress, SEEK_SET);
+  lseek(snes_fd, SNES_ADDR(myBank, myAddress), SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
   return myData;
 #endif
@@ -864,7 +865,7 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
 #ifdef __Linux__
 // printf("%s: %d %04x %06x\n", __PRETTY_FUNCTION__, currBank, currByte, (currBank<<16)+currByte);
 
-    lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
+    lseek(snes_fd, SNES_ADDR(currBank, currByte), SEEK_SET);
     while (1) {
       read(snes_fd, &buffer, sizeof(buffer));
       currByte += sizeof(buffer);
@@ -923,7 +924,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 
     currByte = 0;
 #ifdef __Linux__
-    lseek(snes_fd, (currBank<<16)+currByte, SEEK_SET);
+    lseek(snes_fd, SNES_ADDR(currBank, currByte), SEEK_SET);
     while (1) {
       read(snes_fd, &buffer, sizeof(buffer));
       currByte += sizeof(buffer);
@@ -971,7 +972,7 @@ void getCartInfo_SNES() {
 
 #ifdef __Linux__
   byte buffer[1024];
-  lseek(snes_fd, (192<<16)+0, SEEK_SET);
+  lseek(snes_fd, SNES_ADDR(192, 0), SEEK_SET);
   read(snes_fd, &buffer, 1024);
 #endif
 
@@ -1226,7 +1227,7 @@ boolean checkcart_SNES() {
   uint16_t headerStart = 0xFFB0;
   byte snesHeader[80];
 #ifdef __Linux__
-  lseek(snes_fd, (0<<16)+headerStart, SEEK_SET);
+  lseek(snes_fd, SNES_ADDR(0, headerStart), SEEK_SET);
   read(snes_fd, &snesHeader, 80);
 #else
   PORTL = 0;
@@ -2558,6 +2559,10 @@ printf("%s:\n", __PRETTY_FUNCTION__);
   display_Update();
 }
 
+#ifdef __Linux__
+#undef PORTH
+#define PORTH	dummy
+#endif
 #endif
 
 //******************************************
