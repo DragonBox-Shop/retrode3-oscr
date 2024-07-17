@@ -325,8 +325,8 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 // SNES start menu
 void snsMenu() {
   // create menu with title and 7 options to choose from
-printf("%s:\n", __PRETTY_FUNCTION__);
   unsigned char snsCart;
+// printf("%s:\n", __PRETTY_FUNCTION__);
   // Copy menuOptions out of progmem
   convertPgm(menuOptionsSNS, 7);
   snsCart = question_box(FS(FSTRING_SELECT_CART_TYPE), menuOptions, 7, 0);
@@ -401,8 +401,8 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 // SNES Menu
 void snesMenu() {
   // create menu with title and 7 options to choose from
-//printf("%s:\n", __PRETTY_FUNCTION__);
   unsigned char mainMenu;
+//printf("%s:\n", __PRETTY_FUNCTION__);
   // Copy menuOptions out of progmem
   convertPgm(menuOptionsSNES, 7);
   mainMenu = question_box(F("SNES Cart Reader"), menuOptions, 7, 0);
@@ -540,9 +540,9 @@ void snesMenu() {
 
 // Menu for manual configuration
 void confMenuManual() {
-printf("%s:\n", __PRETTY_FUNCTION__);
   // create menu with title and 5 options to choose from
   unsigned char subMenu;
+printf("%s:\n", __PRETTY_FUNCTION__);
   // Copy menuOptions out of progmem
   convertPgm(menuOptionsConfManual, 5);
   subMenu = question_box(F("Choose mapping"), menuOptions, 5, 0);
@@ -582,8 +582,8 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 }
 
 void stopSnesClocks_resetCic_resetCart() {
-printf("%s\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
+printf("%s\n", __PRETTY_FUNCTION__);
 printf("%s to be implemented\n", __PRETTY_FUNCTION__);
 #endif
   DDRG |= (1 << 1);    // Set cicrstPin(PG1) to Output
@@ -601,7 +601,7 @@ printf("%s to be implemented\n", __PRETTY_FUNCTION__);
    Setup
  *****************************************/
 void setup_Snes() {
-printf("%s:\n", __PRETTY_FUNCTION__);
+//printf("%s:\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
   snes_fd = open("/dev/slot0", O_RDWR);	/* closed on exit() */
   if(snes_fd < 0) {
