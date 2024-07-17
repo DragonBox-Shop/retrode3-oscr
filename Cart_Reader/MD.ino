@@ -581,9 +581,9 @@ void setup_MD() {
 void writeWord_MD(unsigned long myAddress, word myData) {
 #ifdef __Linux__
 
-#define MD_ROM(addr)	((0x00 << 24) + ((addr) << 1))
-#define MD_P10(addr)	((0x01 << 24) + ((addr) << 1))
-#define MD_P1(addr)	((0x02 << 24) + ((addr) << 1))
+#define MD_ROM(addr)	((0x00 << 24) + ((addr) << 1))	// default read/write
+#define MD_P10(addr)	((0x01 << 24) + ((addr) << 1))	// 10 toggle pulses on CLK
+#define MD_P1(addr)	((0x02 << 24) + ((addr) << 1))	// 1 toggle pulses on CLK
 #define MD_TIME(addr)	((0x03 << 24) + ((addr) << 1))	// address with TIME impulse with WE
 #define MD_FLASH		unused? (0x04 << 24)
 #define MD_ENSRAM(addr)	((0x05 << 24) + ((addr) << 1))	// TIME impulse without WE
@@ -701,9 +701,9 @@ word readWord_MD(unsigned long myAddress) {
 void writeFlash_MD(unsigned long myAddress, word myData) {
 #ifdef __Linux__
   byte val = htons(myData);
+printf("fixme: %s\n", __PRETTY_FUNCTION__);
 // CHECKME: how is this different from writing ROM? it is a byte wide write
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &val, sizeof(val));
 #endif
@@ -828,7 +828,7 @@ void getCartInfo_MD() {
   // Get cart size
   cartSize = ((long(readWord_MD(0xD2)) << 16) | readWord_MD(0xD3)) + 1;
 
-printf("cartSize: %08x\n", cartSize);
+// printf("cartSize: %08x\n", cartSize);
 
   // Check for 32x compatibility
   if ((readWord_MD(0x104 / 2) == 0x2033) && (readWord_MD(0x106 / 2) == 0x3258))
@@ -838,7 +838,7 @@ printf("cartSize: %08x\n", cartSize);
 
   // Get cart checksum
   chksum = readWord_MD(0xC7);
-printf("chksum: %08x\n", chksum);
+// printf("chksum: %08x\n", chksum);
 
   // Get cart ID
   char id[15];
@@ -1339,7 +1339,7 @@ printf("chksum: %08x\n", chksum);
     sdBuffer[c + 1] = loByte;
   }
   romName[copyToRomName_MD(romName, sdBuffer, sizeof(romName) - 1)] = 0;
-printf("romName: \"%s\"\n", romName);
+// printf("romName: \"%s\"\n", romName);
 
   //Check for Slaughter Sport
   if (!strncmp("GMT5604600jJ", romName, 12) && (chksum == 0xFFFF)) {
