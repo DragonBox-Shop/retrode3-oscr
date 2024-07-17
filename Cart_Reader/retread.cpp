@@ -7,6 +7,8 @@
 #include "retread.h"
 #include "ino.h"	// to know all globals
 
+#define PATH_MAX 256
+
 /*** global objects ***/
 
 byte dummy;		// dummy variable for assigning bytes to PORTs
@@ -17,8 +19,8 @@ class EEPROM EEPROM;	// global EEPROM
 /*** main program ***/
 
 static char *arg0;
-static const char *sdroot = ".";		// /media/... ?
-static const char *eeprom = "eeprom.bin";	// ~/.eeprom.bin ?
+static const char *sdroot = "/usr/local/share/retread";
+static const char *eeprom = "/usr/local/share/retread/EEPROM.bin";
 
 static void usage(void)
 {
@@ -43,12 +45,13 @@ static void help(void)
 	printf("Options:\n");
 	printf("  -h             Display this information\n");
 #ifdef ENABLED_EEPROM
-	printf("  -e eeprom.bin  Define the eeprom file [default: \"eeprom.bin\"]\n");
+	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/share/retread/EEPROM.bin\"]\n");
 #endif
-	printf("  -r sd-root     Define the SD root directory [default: \".\"]\n");
+	printf("  -r sd-root     Define the SD root directory [default: \"/usr/local/share/retread\"]\n");
 	printf("\n");
 #ifdef ENABLED_CONFIG
 	printf("There is a config file called \"config.txt\".\n");
+		// stored where???
 	printf("\n");
 #endif
 #ifdef ENABLED_EEPROM
@@ -223,6 +226,19 @@ char *itoa(unsigned long value, char str[], int radix)
     return str;
 }
 
+static const char *_fileSystemPath(const char *path)
+{
+	static char newpath[PATH_MAX];
+	if(path[0] == '/')
+		strcpy(newpath, sdroot);	// prefix with sdroot
+	else
+		newpath[0] = '\0';
+	strcat(newpath, path);		// includes the initial / as directory separator
+// printf("%s: %s -> %s\n", __PRETTY_FUNCTION__, path, newpath);
+	return newpath;	// only used temporarily - not thread safe!
+}
+
+
 /*** class implementations mapped to Linux/POSIX ***/
 
 /*** String ***/
@@ -296,6 +312,7 @@ bool FsFile::exists()
 {
 	return file != NULL ? true : false;
 }
+
 size_t FsFile::available()
 {
 	return fileSize() - curPosition();
@@ -317,24 +334,26 @@ bool FsFile::isFile()
 
 bool FsFile::isHidden()
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	// check if basename starts with '.' ?
 	return false;
 }
 
 bool FsFile::getName(char *name, int maxlen)
 {
-	// of real file name only?
-	return path;
+	if (!path)
+		return false;
+	strncpy(name, path, maxlen);
+	return true;
 }
 
 bool FsFile::open(const char *p, int flags)
 {
-	char wd[128];
-printf("%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, flags);
+	char wd[PATH_MAX];
+// printf("%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, flags);
 	close();	// may still be open
 	path = p;
-	int fd = ::open(p, flags, 0644);	// -rw-r--r-- for O_CREAT
+	int fd = ::open(_fileSystemPath(p), flags, 0644);	// -rw-r--r-- for O_CREAT
 	if (fd >= 0) { // hack syscall O_ flags to stdio buffer modes
 		const char *mode = "?";
 		switch (flags & (O_RDWR | O_RDONLY | O_WRONLY)) {
@@ -347,7 +366,7 @@ printf("%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, f
 					mode = "w";
 				break;
 		}
-printf("%s: mode = %s\n", __PRETTY_FUNCTION__, mode);
+// printf("%s: mode = %s\n", __PRETTY_FUNCTION__, mode);
 		file = fdopen(fd, mode);
 	} else
 		perror(p);
@@ -370,8 +389,8 @@ printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 bool FsFile::rename(const char *name)
 { // file may be open since read/write goes through a file descriptor
 // printf("%s: '%s' - add implementation\n", __PRETTY_FUNCTION__, name);
-	if (::rename(path, name) == 0) {
-		path = name;	// new name
+	if (::rename(_fileSystemPath(path), name) == 0) {
+		path = name;	// new name - should this include the previous path or not?
 		return true;
 	}
 	return false;
@@ -475,20 +494,35 @@ bool SdFs::begin(int unknown)	// called as sd.begin(SS)
 	return true;
 }
 
+// should likely be bool!
 void SdFs::mkdir(const char *dir, bool flag)
 { // not clear what "flag" means, but we assume it means "recursive"
-printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
-// FIXME: prefix with sdroot
-// ignore for the moment	::mkdir(dir, 0777);
+// printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
+	if (flag) {
+		char tmp[PATH_MAX], *p = tmp;
+		strncpy(tmp, dir, sizeof(tmp));
+
+		while(*p) { // find / one after the other
+			if(*p == '/') {
+				*p = '\0';
+				::mkdir(_fileSystemPath(tmp), S_IRWXU);
+				*p = '/';
+			}
+			p++;
+		}
+	}
+	::mkdir(_fileSystemPath(dir), S_IRWXU);
 }
 
+// should likely be bool!
 void SdFs::chdir(const char *dir)
 {
-printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
+// printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
 // FIXME: prefix with sdroot
-// ignore for the moment	::chdir(dir);
+	::chdir(_fileSystemPath(dir));
 }
 
+// should likely be bool!
 void SdFs::chdir()
 {
 	chdir("/");
@@ -498,7 +532,6 @@ FsFile SdFs::open(char *path, int flags)
 {
 // printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	FsFile f;
-// FIXME: prefix with sdroot
 	f.open(path, flags);
 	return f;
 }
@@ -507,7 +540,6 @@ bool SdFs::exists(char *path)
 {
 // printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	FsFile f;
-// FIXME: prefix with sdroot
 	f.open(path);	// try to open
 	return f.exists();
 }
@@ -656,7 +688,7 @@ byte Serial::read()
 String Serial::readStringUntil(char until)
 { // char is usually '\n'
 // printf("%s: add implementation\n", __PRETTY_FUNCTION__);
-	char buffer[128];
+	char buffer[PATH_MAX];
 	int i = 0;
 	while(i < sizeof(buffer)-1) {
 		int c = fgetc(stdin);
@@ -690,7 +722,7 @@ byte EEPROM::read(int addr)
 	lseek(fd, addr, SEEK_SET);
 	if(::read(fd, &value, sizeof(value)) != sizeof(value))
 		fprintf(stderr, "EEPROM read error at address %04x\n", addr);
-printf("%s: %04x -> %02x\n", __PRETTY_FUNCTION__, addr, value);
+// printf("%s: %04x -> %02x\n", __PRETTY_FUNCTION__, addr, value);
 	return value;
 }
 
@@ -698,7 +730,7 @@ void EEPROM::write(int addr, byte value)
 {
 	lseek(fd, addr, SEEK_SET);
 	::write(fd, &value, sizeof(value));
-printf("%s: %04x <- %02x\n", __PRETTY_FUNCTION__, addr, value);
+// printf("%s: %04x <- %02x\n", __PRETTY_FUNCTION__, addr, value);
 }
 
 void EEPROM::println()
