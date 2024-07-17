@@ -629,8 +629,6 @@ void nesFlashMenu() {
    Setup
  *****************************************/
 void setup_NES() {
-  // Request 5V
-printf("%s:\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
   nes_fd = open("/dev/slot2", O_RDWR);	/* closed on exit() */
   if(nes_fd < 0) {
@@ -638,6 +636,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
     exit(1);
   }
 #endif
+  // Request 5V
   setVoltage(VOLTS_SET_5V);
 
   // CPU R/W, IRQ, PPU /RD, PPU /A13, CIRAM /CE, PPU /WR, /ROMSEL, PHI2
