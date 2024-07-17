@@ -36,16 +36,19 @@ ino.h: ino.cpp	# derive forward declarations
 clean:
 	rm -f *.o ino.* retread
 
-install: retread
-	cp retread /root/retread
-
-DIR=/root/retrode3/Cart_Reader
 DEVICE=root@192.168.0.202
+SRCDIR=/usr/local/src/retread
+BINDIR=/usr/local/bin/
+ROOTDIR=/usr/local/share/retread/
+
+install: retread
+	cp retread $(BINDIR)/retread
+
 remote: clean
-	rsync -rltDvzh "./" "$(DEVICE):$(DIR)"
-	rsync -rltDvzh "../sd/" "$(DEVICE):$(DIR)/../sd"
-	ssh $(DEVICE) sh -c "cd; uname -a; cd $(DIR); make clean all"
-	scp "$(DEVICE):$(DIR)"/retread retread	# pull binary from device
+	rsync -rltDvzh "./" "$(DEVICE):$(SRCDIR)"
+	rsync -rltDvzh "../sd/" "$(DEVICE):$(ROOTDIR)/"
+	ssh $(DEVICE) sh -c "cd; uname -a; cd $(SRCDIR) && make clean all install"
+	scp "$(DEVICE):$(BINDIR)/retread" retread	# pull binary from device
 
 OSCR.o: retread.h OSCR.h OSCR.cpp
 
