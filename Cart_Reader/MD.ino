@@ -581,13 +581,13 @@ void setup_MD() {
 void writeWord_MD(unsigned long myAddress, word myData) {
 #ifdef __Linux__
 
-#define MD_ROM(addr)	((0x00 << 24) + ((addr) << 1))	// default read/write
-#define MD_P10(addr)	((0x01 << 24) + ((addr) << 1))	// 10 toggle pulses on CLK
-#define MD_P1(addr)	((0x02 << 24) + ((addr) << 1))	// 1 toggle pulses on CLK
-#define MD_TIME(addr)	((0x03 << 24) + ((addr) << 1))	// address with TIME impulse with WE
+#define MD_ROM(addr)	((0 << 24) + ((addr) << 1))	// default read/write
+#define MD_P10(addr)	((1 << 24) + ((addr) << 1))	// 10 toggle pulses on CLK
+#define MD_P1(addr)	((2 << 24) + ((addr) << 1))	// 1 toggle pulses on CLK
+#define MD_TIME(addr)	((3 << 24) + ((addr) << 1))	// address with TIME impulse with WE
 #define MD_FLASH		unused? (0x04 << 24)
-#define MD_ENSRAM(addr)	((0x05 << 24) + ((addr) << 1))	// TIME impulse without WE
-#define MD_EEPMODE(addr)((0x06 << 24) + ((addr) << 1))
+#define MD_ENSRAM(addr)	((5 << 24) + ((addr) << 1))	// TIME impulse without WE
+#define MD_EEPMODE(addr)((6 << 24) + ((addr) << 1))
 
 printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   myData = htons(myData);
