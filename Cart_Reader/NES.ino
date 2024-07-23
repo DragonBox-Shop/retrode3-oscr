@@ -630,6 +630,17 @@ void nesFlashMenu() {
  *****************************************/
 void setup_NES() {
 #ifdef __Linux__
+#if 0
+  { // simple unit-test for certain functions
+  uint32_t oldcrc32 = 0xFFFFFFFF;
+  uint32_t oldcrc32MMC3 = 0xFFFFFFFF;
+  UPDATE_CRC(oldcrc32, 0x55);
+  UPDATE_CRC(oldcrc32MMC3, 0xaa);
+  printf("crc: %08x\n", oldcrc32);
+  printf("crcMMC3: %08x\n", oldcrc32MMC3);
+  exit(0);
+  }
+#endif
   nes_fd = open("/dev/slot2", O_RDWR);	/* closed on exit() */
   if(nes_fd < 0) {
     perror("no cart in slot 2");
@@ -1017,14 +1028,13 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
 static unsigned char read_prg_byte(unsigned int address) {
 #ifdef __Linux__
 
-// FIXME: nicht nur als Konstanten sondern als Macro?
-#define NES_PRG(addr)		((0x00 << 24) + ((addr) << 1) + 1)	// currently on odd addresses (may change with new hardware)
-#define NES_CHR(addr)		((0x01 << 24) + ((addr) << 1) + 1)
-#define NES_CHR_M2(addr)	((0x02 << 24) + ((addr) << 1) + 1)
-#define NES_MMC5_SRAM(addr)	((0x03 << 24) + ((addr) << 1) + 1)
-#define NES_REG(addr)		((0x04 << 24) + ((addr) << 1) + 1)
-#define NES_RAM(addr)		((0x05 << 24) + ((addr) << 1) + 1)
-#define NES_WRAM(addr)		((0x06 << 24) + ((addr) << 1) + 1)
+#define NES_PRG(addr)		((10 << 24) + (addr))	// CPU ROM: D0..D7
+#define NES_CHR(addr)		((11 << 24) + (addr))	// PPU ROM: D8..D15
+#define NES_CHR_M2(addr)	((12 << 24) + (addr))
+#define NES_MMC5_SRAM(addr)	((13 << 24) + (addr)) 	// CPU ROM: D0..D7
+#define NES_REG(addr)		((14 << 24) + (addr))
+#define NES_RAM(addr)		((15 << 24) + (addr))
+#define NES_WRAM(addr)		((16 << 24) + (addr))
 
   byte myData;
 // currently, PRG memory is at D0..D7 so we have to double the address
@@ -1063,7 +1073,7 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
 }
 
 static void write_prg_byte(unsigned int address, uint8_t data) {
-printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+printf("%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
 #ifdef __Linux__
 // set read mode for prg - potentially through higher bits of address?
   lseek(nes_fd, NES_PRG(address), SEEK_SET);
