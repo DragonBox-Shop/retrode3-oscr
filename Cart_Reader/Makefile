@@ -39,7 +39,7 @@ clean:
 DEVICE=root@192.168.0.202
 SRCDIR=/usr/local/src/retread
 BINDIR=/usr/local/bin/
-ROOTDIR=/usr/local/share/retread/
+ROOTDIR=/usr/local/games/retread/
 
 install: retread
 	cp retread $(BINDIR)/retread
