@@ -19,8 +19,8 @@ class EEPROM EEPROM;	// global EEPROM
 /*** main program ***/
 
 static char *arg0;
-static const char *sdroot = "/usr/local/share/retread";
-static const char *eeprom = "/usr/local/share/retread/EEPROM.bin";
+static const char *sdroot = "/usr/local/games/retread";
+static const char *eeprom = "/usr/local/games/retread/EEPROM.bin";
 
 static void usage(void)
 {
@@ -44,17 +44,14 @@ static void help(void)
 	printf("Usage: cat [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n");
 	printf("Options:\n");
 	printf("  -h             Display this information\n");
-#ifdef ENABLED_EEPROM
-	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/share/retread/EEPROM.bin\"]\n");
-#endif
-	printf("  -r sd-root     Define the SD root directory [default: \"/usr/local/share/retread\"]\n");
+	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/games/retread/EEPROM.bin\"]\n");
+	printf("  -r sd-root     Define the SD root directory [default: \"/usr/local/games/retread\"]\n");
 	printf("\n");
 #ifdef ENABLED_CONFIG
 	printf("There is a config file called \"config.txt\".\n");
 		// stored where???
 	printf("\n");
 #endif
-#ifdef ENABLED_EEPROM
 	printf("The eeprom file is used to store e.g.\n");
 	printf("  folder number\n");
 	printf("  cart mode (NES)\n");
@@ -64,7 +61,6 @@ static void help(void)
 	printf("  chrsize (NES)\n");
 	printf("  ramsize (NES)\n");
 	printf("\n");
-#endif
 	printf("Menu choices are numbers. Multiple choices of subsequent submenus can be\n");
 	printf(" concatenated into a single command\n");
 	printf(" Choose the 'Reset' item to exit this tool\n");
@@ -72,9 +68,9 @@ static void help(void)
 	printf("Example:\n");
 	printf(" echo 200 | %s\n", arg0);
 	printf(" some echo commands to use:\n");
-	printf("  echo 100      read SNES/SFC cart to file");
-	printf("  echo 200      read Megadrive cart to file");
-	printf("  echo 210      backup Sega RamCart to file");
+	printf("  echo 100      read SNES/SFC cart to file\n");
+	printf("  echo 200      read Megadrive cart to file\n");
+	printf("  echo 210      backup Sega RamCart to file\n");
 }
 
 int main(int argc, char *argv[])
@@ -86,7 +82,6 @@ int main(int argc, char *argv[])
 	for(; argv[1] && argv[1][0] == '-'; argv++) {
 		switch(argv[1][1])
 			{
-#ifdef ENABLED_EEPROM
 			case 'e':
 				if(argv[1][2])
 					eeprom = &argv[1][2];
@@ -97,7 +92,6 @@ int main(int argc, char *argv[])
 				else
 					error("missing eeprom file name\n");
 				continue;
-#endif
 			case 'r':
 				if(argv[1][2])
 					sdroot = &argv[1][2];
@@ -245,9 +239,12 @@ static const char *_fileSystemPath(const char *path)
 
 String::String(char *s)
 {
-printf("%s:\n", __PRETTY_FUNCTION__);
-	// alternatively use new char[strlen(s)+1];
+printf("%s: '%s'\n", __PRETTY_FUNCTION__, s);
+#if 1
+	str = new char[strlen(s)+1];
+#else
 	str = (char *) ::malloc(strlen(s) + 1);
+#endif
 	strcpy(str, s);
 }
 
@@ -259,15 +256,20 @@ String::String()
 String::~String()
 {
 printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
-	// delete[] _text;
-	if(str)
-		::free(str);
+	// this raises a double free abort for reading a newmapper in NES.ino
+#if 1
+//	delete[] str;
+#else
+	::free(str);
+#endif
+printf("%s: done\n", __PRETTY_FUNCTION__);
 }
 
 int String::toInt()
 {
 	int val;
 	sscanf(str, "%d", &val);
+printf("%s: '%s' -> %d\n", __PRETTY_FUNCTION__, str, val);
 	return val;
 }
 
@@ -625,7 +627,7 @@ void Serial::println(const char *str)
 
 void Serial::println(String str)
 {
-	printf("%s\n", str.toCstring());
+	printf("Serial::println '%s'\n", str.toCstring());
 }
 
 void Serial::println(long unsigned int val)
@@ -690,10 +692,13 @@ String Serial::readStringUntil(char until)
 // printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 	char buffer[PATH_MAX];
 	int i = 0;
+	int c;
+	if((c = fgetc(stdin)) != '\n')
+		ungetc(c, stdin);	// skip a newline at the beginning (coming from previous menu choice)
 	while(i < sizeof(buffer)-1) {
 		int c = fgetc(stdin);
 		if (c == EOF)
-			break;
+			exit(0);
 		if (i > 0 && c == until)	// this does NOT store the character
 			break;
 		buffer[i++] = c;
@@ -707,18 +712,21 @@ printf("%s: line '%s'\n", __PRETTY_FUNCTION__, buffer);
 
 EEPROM::EEPROM()
 {
-	fd = open(eeprom, O_RDWR | O_CREAT, 0644);
-	if (fd < 0)
-		{
-		fprintf(stderr, "%s: failed to open %s\n", arg0, eeprom);
-		exit(1);
-		}
-	ftruncate(fd, 1024);	// simulate 1kBx8 EEPROM
+	fd = -1;
 }
 
 byte EEPROM::read(int addr)
 {
 	byte value = 0;
+	if (fd < 0) {
+		fd = open(eeprom, O_RDWR | O_CREAT, 0644);
+		if (fd < 0)
+			{
+			fprintf(stderr, "%s: failed to open %s\n", arg0, eeprom);
+			exit(1);
+			}
+		}
+	ftruncate(fd, 1024);	// simulate 1kBx8 EEPROM
 	lseek(fd, addr, SEEK_SET);
 	if(::read(fd, &value, sizeof(value)) != sizeof(value))
 		fprintf(stderr, "EEPROM read error at address %04x\n", addr);
@@ -728,6 +736,14 @@ byte EEPROM::read(int addr)
 
 void EEPROM::write(int addr, byte value)
 {
+	if (fd < 0) {
+		fd = open(eeprom, O_RDWR | O_CREAT, 0644);
+		if (fd < 0)
+			{
+			fprintf(stderr, "%s: failed to open %s\n", arg0, eeprom);
+			exit(1);
+			}
+		}
 	lseek(fd, addr, SEEK_SET);
 	::write(fd, &value, sizeof(value));
 // printf("%s: %04x <- %02x\n", __PRETTY_FUNCTION__, addr, value);
