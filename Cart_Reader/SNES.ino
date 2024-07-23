@@ -747,11 +747,13 @@ printf("%s\n", __PRETTY_FUNCTION__);
 // Write one byte of data to a location specified by bank and address, 00:0000
 void writeBank_SNES(byte myBank, word myAddress, byte myData) {
 #ifdef __Linux__
-printf("%s\n", __PRETTY_FUNCTION__);
+
 #define CS_PH3 (PORTH & (1 << 3))
-#define SNES_REGULAR	(0x00 << 24)
-#define SNES_HIROM	(0x01 << 24)
+#define SNES_REGULAR	(0 << 24)
+#define SNES_HIROM	(9 << 24)
 #define SNES_ADDR(bank, address) ((CS_PH3 ? SNES_HIROM : SNES_REGULAR) + (((bank) & 0x7f) << 16) + (address))
+
+printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   lseek(snes_fd, SNES_ADDR(myBank, myAddress), SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
 #endif
