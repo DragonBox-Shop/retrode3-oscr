@@ -38,16 +38,16 @@
 /*** global types ***/
 
 typedef bool boolean;
-typedef unsigned char byte;
-typedef unsigned long dword;
-typedef unsigned short word;
+typedef uint8_t byte;
+typedef uint16_t word;
+typedef uint32_t dword;
 
 /*** code qualifiers ***/
 
 #define PROGMEM
 #define pgm_read_byte(addr) (*(byte *) (addr))
-#define pgm_read_dword(addr) ((uintptr_t)*(dword *) (addr))
-#define pgm_read_word(addr) ((uintptr_t)*(word *) (addr))
+#define pgm_read_word(addr) (*(word *) (addr))
+#define pgm_read_dword(addr) (*(dword *) (addr))
 #define PSTR(string) string	// we do not need to distinguish memory and program memory
 #define __asm__(...)	// eliminate any assembler code since our hardware is handled by kernel driver
 #define asm	// wipe out in GBS.ino, MD.ino, WS.ino
