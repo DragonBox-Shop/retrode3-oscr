@@ -905,6 +905,7 @@ static void readDatabaseEntry(FsFile& database, struct database_entry* entry) {
   get_line(entry->filename, &database, sizeof(entry->filename));
   readDataLine_NES(database, entry);
   skip_line(&database);
+// printf("%s: %08X %08X %s\n", __func__, entry->crc, entry->crc512, entry->filename);
 }
 
 void readDataLine_NES(FsFile& database, void* e) {
@@ -1040,7 +1041,7 @@ static unsigned char read_prg_byte(unsigned int address) {
 // currently, PRG memory is at D0..D7 so we have to double the address
   lseek(nes_fd, NES_PRG(address), SEEK_SET);
   read(nes_fd, &myData, sizeof(myData));
-printf("%s: %08x -> %02x\n", __PRETTY_FUNCTION__, address, myData);
+// printf("%s: %08x -> %02x\n", __PRETTY_FUNCTION__, address, myData);
   return myData;
 #endif
   MODE_READ;
