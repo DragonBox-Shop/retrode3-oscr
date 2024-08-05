@@ -434,7 +434,7 @@ static const char* const menuOptionsNESFlash[] PROGMEM = { nesFlashMenuItem1, ne
 void nesMenu() {
   unsigned char answer;
 
-printf("%s:\n", __PRETTY_FUNCTION__);
+// printf("%s:\n", __PRETTY_FUNCTION__);
   // create menu with title "NES CART READER" and 7 options to choose from
   convertPgm(menuOptionsNES, 7);
   answer = question_box(F("NES CART READER"), menuOptions, 7, 0);
@@ -443,7 +443,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
   switch (answer) {
     // Read Rom
     case 0:
-printf("%s: 0\n", __PRETTY_FUNCTION__);
+// printf("%s: 0\n", __PRETTY_FUNCTION__);
       display_Clear();
       // Change working dir to root
       sd.chdir("/");
@@ -460,13 +460,13 @@ printf("%s: 0\n", __PRETTY_FUNCTION__);
 
     // Read single chip
     case 1:
- printf("%s: 1\n", __PRETTY_FUNCTION__);
+ // printf("%s: 1\n", __PRETTY_FUNCTION__);
       nesChipMenu();
       break;
 
     // Read RAM
     case 2:
- printf("%s: 2\n", __PRETTY_FUNCTION__);
+// printf("%s: 2\n", __PRETTY_FUNCTION__);
       sd.chdir();
       sprintf(folder, "NES/SAVE");
       sd.mkdir(folder, true);
@@ -521,7 +521,7 @@ printf("%s: 0\n", __PRETTY_FUNCTION__);
 
 void nesChipMenu() {
   // create menu with title "Select NES Chip" and 4 options to choose from
-printf("%s:\n", __PRETTY_FUNCTION__);
+//printf("%s:\n", __PRETTY_FUNCTION__);
   convertPgm(menuOptionsNESChips, 4);
   unsigned char answer = question_box(F("Select NES Chip"), menuOptions, 4, 0);
 
@@ -529,7 +529,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
   switch (answer) {
     // Read combined PRG/CHR
     case 0:
-printf("%s: 0\n", __PRETTY_FUNCTION__);
+// printf("%s: 0\n", __PRETTY_FUNCTION__);
       display_Clear();
       // Change working dir to root
       sd.chdir("/");
@@ -814,7 +814,7 @@ uint32_t oldcrc32 = 0xFFFFFFFF;
 uint32_t oldcrc32MMC3 = 0xFFFFFFFF;
 
 void getMapping() {
-printf("%s\n", __PRETTY_FUNCTION__);
+// printf("%s\n", __PRETTY_FUNCTION__);
   FsFile database;
   char crcStr[9];
 
@@ -1000,7 +1000,7 @@ void readRaw_NES() {
 static void set_address(unsigned int address) {
   unsigned char l = address & 0xFF;
   unsigned char h = address >> 8;
-printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+// printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
   PORTL = l;
   PORTA = h;
 
@@ -1010,12 +1010,12 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
   else
     PORTF |= 1 << 4;
 #ifdef __Linux__
-  lseek(nes_fd, address, SEEK_SET);
+  /* addres setup done in kernel */
 #endif
 }
 
 static void set_romsel(unsigned int address) {
-printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+// printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
   if (address & 0x8000) {
     ROMSEL_LOW;
   } else {
@@ -1033,9 +1033,9 @@ static unsigned char read_prg_byte(unsigned int address) {
 #define NES_CHR(addr)		((11 << 24) + (addr))	// PPU ROM: D8..D15
 #define NES_CHR_M2(addr)	((12 << 24) + (addr))
 #define NES_MMC5_SRAM(addr)	((13 << 24) + (addr)) 	// CPU ROM: D0..D7
-#define NES_REG(addr)		((14 << 24) + (addr))
-#define NES_RAM(addr)		((15 << 24) + (addr))
-#define NES_WRAM(addr)		((16 << 24) + (addr))
+#define NES_REG(addr)		((14 << 24) + (addr))	// xE000/0xF000
+#define NES_RAM(addr)		((15 << 24) + (addr))	// CPU RAM:
+#define NES_WRAM(addr)		((16 << 24) + (addr))	// CART RAM: D0..D7
 
   byte myData;
 // currently, PRG memory is at D0..D7 so we have to double the address
@@ -1076,7 +1076,6 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
 static void write_prg_byte(unsigned int address, uint8_t data) {
 printf("%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
 #ifdef __Linux__
-// set read mode for prg - potentially through higher bits of address?
   lseek(nes_fd, NES_PRG(address), SEEK_SET);
   write(nes_fd, &data, sizeof(data));
   return;
@@ -1135,9 +1134,9 @@ static void write_chr_byte(unsigned int address, uint8_t data) {
 #endif
 
 void resetROM() {
-printf("%s\n", __PRETTY_FUNCTION__);
+// printf("%s\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
-// FIXME
+// nothing to be done
 #endif
   set_address(0);
   PHI2_HI;
@@ -1227,7 +1226,6 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
 
 static void write_wram_byte(unsigned int address, uint8_t data) {  // Mapper 5 (MMC5) RAM
 printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
-// set write mode for ram - potentially through higher bits of address?
 #ifdef __Linux__
   lseek(nes_fd, NES_WRAM(address), SEEK_SET);
   write(nes_fd, &data, sizeof(data));
@@ -2051,7 +2049,6 @@ void dumpPRG(word base, word address) {
 #ifdef __Linux__
   lseek(nes_fd, NES_PRG(base + address), SEEK_SET);
   read(nes_fd, sdBuffer, 512);
-  return;
 #else
   for (size_t x = 0; x < 512; x++) {
     sdBuffer[x] = read_prg_byte(base + address + x);
@@ -2064,7 +2061,6 @@ void dumpCHR(word address) {
 #ifdef __Linux__
   lseek(nes_fd, NES_CHR(address), SEEK_SET);
   read(nes_fd, sdBuffer, 512);
-  return;
 #else
   for (size_t x = 0; x < 512; x++) {
     sdBuffer[x] = read_chr_byte(address + x);
@@ -2077,7 +2073,6 @@ void dumpCHR_M2(word address) {  // MAPPER 45 - PULSE M2 LO/HI
 #ifdef __Linux__
   lseek(nes_fd, NES_CHR_M2(address), SEEK_SET);
   read(nes_fd, sdBuffer, 512);
-  return;
 #else
   for (size_t x = 0; x < 512; x++) {
     PHI2_LOW;
@@ -2091,7 +2086,6 @@ void dumpMMC5RAM(word base, word address) {  // MMC5 SRAM DUMP - PULSE M2 LO/HI
 #ifdef __Linux__
   lseek(nes_fd, NES_MMC5_SRAM(base+address), SEEK_SET);
   read(nes_fd, sdBuffer, 512);
-  return;
 #else
   for (size_t x = 0; x < 512; x++) {
     PHI2_LOW;
