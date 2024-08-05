@@ -239,7 +239,7 @@ static const char *_fileSystemPath(const char *path)
 
 String::String(char *s)
 {
-printf("%s: '%s'\n", __PRETTY_FUNCTION__, s);
+// printf("%s: '%s'\n", __PRETTY_FUNCTION__, s);
 #if 1
 	str = new char[strlen(s)+1];
 #else
@@ -255,27 +255,27 @@ String::String()
 
 String::~String()
 {
-printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
+// printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
 	// this raises a double free abort for reading a newmapper in NES.ino
 #if 1
 //	delete[] str;
 #else
 	::free(str);
 #endif
-printf("%s: done\n", __PRETTY_FUNCTION__);
+// printf("%s: done\n", __PRETTY_FUNCTION__);
 }
 
 int String::toInt()
 {
 	int val;
 	sscanf(str, "%d", &val);
-printf("%s: '%s' -> %d\n", __PRETTY_FUNCTION__, str, val);
+// printf("%s: '%s' -> %d\n", __PRETTY_FUNCTION__, str, val);
 	return val;
 }
 
 char *String::toCstring()
 {
-printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
+// printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
 	return str;
 };
 
@@ -704,7 +704,7 @@ String Serial::readStringUntil(char until)
 		buffer[i++] = c;
 	}
 	buffer[i] = 0;
-printf("%s: line '%s'\n", __PRETTY_FUNCTION__, buffer);
+// printf("%s: line '%s'\n", __PRETTY_FUNCTION__, buffer);
 	return String(buffer);	// will copy to heap
 }
 
