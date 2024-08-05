@@ -32,6 +32,9 @@
 
 #define ENABLE_CONFIG
 
+#define ENABLE_VSELECT
+#define HW5	// Retread has a different hardware versioning system so fake to have HW5
+
 #define ENABLE_SERIAL	// we use the Serial interface (mapped to stdin and stdout)
 // #define ENABLE_LCD	// pretend to have an LCD
 
@@ -226,7 +229,14 @@ extern void segaCDMenu();
 /*** from FLASH.ino ***/
 
 extern unsigned long flashSize;
-extern byte flashromType;extern byte secondID;extern unsigned long time;extern unsigned long blank;extern unsigned long sectorSize;extern uint16_t bufferSize;extern byte mapping;
+extern byte flashromType;
+extern byte secondID;
+extern unsigned long time;
+extern unsigned long blank;
+extern unsigned long sectorSize;
+extern uint16_t bufferSize;
+extern byte mapping;
+
 /*** from Config.h ***/
 
 #define CONFIG_FILE "config.txt"
@@ -262,6 +272,7 @@ extern byte dummy;
 #define PORTB	dummy
 #define PORTC	dummy
 #define PINC	0
+#define PORTD	dummy
 #define PORTE	dummy
 #define PORTF	dummy
 #define PORTG	dummy
