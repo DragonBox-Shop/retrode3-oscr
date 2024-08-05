@@ -832,7 +832,7 @@ boolean checkCartSelection(FsFile& database, void (*readData)(FsFile&, void*), v
     else
       println_Msg("");
     print_STR(press_to_select_STR, 1);
-#elif defined(SERIAL_MONITOR)
+#elif defined(ENABLE_SERIAL)
     println_Msg(F("U/D to Change"));
     println_Msg(F("Space/Zero to Select"));
 #endif
