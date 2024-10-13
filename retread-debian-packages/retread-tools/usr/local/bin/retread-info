@@ -1,0 +1,30 @@
+#!/bin/bash
+# retread-info slot - try to find out Game name
+
+# exec 2>&1	# report any errors
+
+# NOTES:
+# - this is required so that retread can access everything
+# - especially if run by a PHP script in the web server
+# - this fix belongs somewhere else, most likely to some .postinst
+# - therefore it must be run once from the root shell after each update
+
+chown root:root -R /usr/local/bin/retread /usr/local/games/retread 2>/dev/null
+chmod ug+s /usr/local/bin/retread 2>/dev/null
+fgrep -q /swapfile /etc/fstab || echo '/swapfile swap swap defaults 0 0' >>/etc/fstab
+
+case "$1" in
+	/dev/slot0 )	# SNES
+		echo 10 | /usr/local/bin/retread | fgrep "Name: " | sed 's/Name: //'
+		;;
+	/dev/slot1 )	# MD
+		echo 200 | /usr/local/bin/retread | fgrep "CRC32..." | sed 's/CRC32... [0-9a-zA-Z]* -> \(.*\).md/\1/'
+		;;
+	/dev/slot2 )	# NES
+		echo 0 | /usr/local/bin/retread | fgrep .nes | sed 's/.nes//'
+		;;
+	* )
+		echo unknown device "$1"
+		exit 1
+		;;
+esac
