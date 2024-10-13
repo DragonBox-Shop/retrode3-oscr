@@ -24,7 +24,7 @@ static const char *eeprom = "/usr/local/games/retread/EEPROM.bin";
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: cat [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n");
+	fprintf(stderr, "usage: %s [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n", arg0);
 	exit(1);
 }
 
@@ -507,13 +507,13 @@ void SdFs::mkdir(const char *dir, bool flag)
 		while(*p) { // find / one after the other
 			if(*p == '/') {
 				*p = '\0';
-				::mkdir(_fileSystemPath(tmp), S_IRWXU);
+				::mkdir(_fileSystemPath(tmp), 0755);
 				*p = '/';
 			}
 			p++;
 		}
 	}
-	::mkdir(_fileSystemPath(dir), S_IRWXU);
+	::mkdir(_fileSystemPath(dir), 0755);
 }
 
 // should likely be bool!
