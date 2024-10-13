@@ -4,9 +4,9 @@
 # an alternative to this simple approach may be: https://github.com/bxparks/EpoxyDuino
 # but it is difficult to manage the hardware access
 
-# may need "apt-get install g++"
-# you can specify a cross-compiler here
+# you can also specify a cross-compiler here
 CC=g++
+LOAD_GCC=$(shell [ "`which g++`" ] || yes | apt-get install g++)
 
 CFLAGS=
 
