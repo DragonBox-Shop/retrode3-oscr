@@ -1,0 +1,19 @@
+# Rules for detecting card and cart insertion/removal
+
+# for systemd (Stretch++)
+KERNEL=="sd[a-z][0-9]", SUBSYSTEMS=="usb", ACTION=="add", RUN+="/bin/systemctl start usb-mount@%k.service"
+KERNEL=="sd[a-z][0-9]", SUBSYSTEMS=="usb", ACTION=="remove", RUN+="/bin/systemctl stop usb-mount@%k.service"
+
+# for non-systemd (up to Jessie)
+KERNEL=="sd[a-z][0-9]", SUBSYSTEMS=="usb", ACTION=="add", RUN+="/etc/udev/rules.d/gadget.sh add"
+KERNEL=="sd[a-z][0-9]",			   ACTION=="remove", RUN+="/etc/udev/rules.d/gadget.sh remove"
+
+# detect SD card reader insert/remove
+
+# triggers too early, already during boot...
+# ACTION=="add", KERNEL=="mmc1:59b4", SUBSYSTEMS=="mmc", RUN+="/etc/udev/rules.d/retrode3.sh"
+# ACTION=="remove", KERNEL=="mmc1:59b4", SUBSYSTEMS=="mmc", RUN+="/etc/udev/rules.d/retrode3.sh"
+
+# detect cart slot change (incl. game controllers)
+
+ACTION=="change", SUBSYSTEMS=="retrode3", RUN+="/etc/udev/rules.d/retrode3.sh"
