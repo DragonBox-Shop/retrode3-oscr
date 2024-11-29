@@ -1,9 +1,0 @@
-# Rules for detecting game controller insertion/removal
-
-# FIXME: kenrel should send a special subsystem note
-# FIXME: add rules for creating /dev/input/left & right here as RUN commands
-
-# detect cart slot change (incl. game controllers)
-
-#ACTION=="change", SUBSYSTEMS=="retrode3", RUN+="/etc/udev/rules.d/retrode3.sh"
-
