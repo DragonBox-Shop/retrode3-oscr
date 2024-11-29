@@ -1,8 +1,8 @@
 // Compatibility-Header to be able to compile the code under Linux
 // (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 
-#ifndef RETREAD_H
-#define RETREAD_H
+#ifndef RETRODE_H
+#define RETRODE_H
 
 #define time imported_time	// names will be used for local variables
 #define clock imported_clock
@@ -33,7 +33,7 @@
 #define ENABLE_CONFIG
 
 #define ENABLE_VSELECT
-#define HW5	// Retread has a different hardware versioning system so fake to have HW5
+#define HW5	// Retrode3 has a different hardware versioning system so fake to have HW5
 
 #define ENABLE_SERIAL	// we use the Serial interface (mapped to stdin and stdout)
 // #define ENABLE_LCD	// pretend to have an LCD
@@ -56,7 +56,7 @@ typedef uint32_t dword;
 #define asm	// wipe out in GBS.ino, MD.ino, WS.ino
 #define volatile(...)
 
-/*** C++ objects defned in retread.cpp ***/
+/*** C++ objects defined in retrode.cpp ***/
 
 class __FlashStringHelper;
 #define F(string_literal) (reinterpret_cast<const __FlashStringHelper *>(PSTR(string_literal)))

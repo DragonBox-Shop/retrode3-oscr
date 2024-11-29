@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 #ifdef __Linux__
-#include "retread.h"
+#include "retrode.h"
 #else
 #include <Arduino.h>
 #include <SPI.h>

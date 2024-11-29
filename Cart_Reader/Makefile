@@ -16,13 +16,13 @@ CFLAGS=
 INO_SOURCES := $(wildcard *.ino) OSCR.cpp
 INO_SOURCES := Cart_Reader.ino SNES.ino MD.ino FLASH.ino NES.ino OSCR.cpp
 
-all: retread
+all: retrode
 
 %.o: %.ino	# directly compile .ino using C++
-	$(CC) -c $(CFLAGS) -include retread.h -D__Linux__ -include retread.h -include ino.h -x c++ $< -o $*.o
+	$(CC) -c $(CFLAGS) -include retrode.h -D__Linux__ -include retrode.h -include ino.h -x c++ $< -o $*.o
 
 %.o: %.cpp
-	$(CC) -c $(CFLAGS) -D__Linux__ -include retread.h -x c++ -std=c++11 $< -o $*.o
+	$(CC) -c $(CFLAGS) -D__Linux__ -include retrode.h -x c++ -std=c++11 $< -o $*.o
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) -D__Linux__ $< -o $*.o
@@ -34,27 +34,27 @@ ino.h: ino.cpp	# derive forward declarations
 	( cat OSCR.h; sed -n '/^[a-zA-Z_0-9].*(.*).*{.*$$/s/{/;/p' $^ | sed 's/= [^,)]*[^,)]//g' | sed 's/\}//g' ) >ino.h
 
 clean:
-	rm -f *.o ino.* retread
+	rm -f *.o ino.* retrode
 
 DEVICE=root@192.168.0.202
-SRCDIR=/usr/local/src/retread
+SRCDIR=/usr/local/src/retrode
 BINDIR=/usr/local/bin/
-ROOTDIR=/usr/local/games/retread/
+ROOTDIR=/usr/local/games/retrode/
 
-install: retread
-	cp retread $(BINDIR)/retread
+install: retrode
+	cp retrode $(BINDIR)/retrode
 
 remote: clean
 	rsync -rltDvzh "./" "$(DEVICE):$(SRCDIR)"
 	rsync -rltDvzh "../sd/" "$(DEVICE):$(ROOTDIR)/"
 	ssh $(DEVICE) sh -c "cd; uname -a; cd $(SRCDIR) && make clean all install"
-	scp "$(DEVICE):$(BINDIR)/retread" retread	# pull binary from device
+	scp "$(DEVICE):$(BINDIR)/retrode" retrode	# pull binary from device
 
-OSCR.o: retread.h OSCR.h OSCR.cpp
+OSCR.o: retrode.h OSCR.h OSCR.cpp
 
-ino.o: retread.h ino.h ino.cpp
+ino.o: retrode.h ino.h ino.cpp
 
-retread.o: ino.h retread.h retread.cpp
+retrode.o: ino.h retrode.h retrode.cpp
 
 # command line tool
-retread: retread.o ino.o
+retrode: retrode.o ino.o
