@@ -1,10 +1,10 @@
-/* new retread driver simulating an Arduino environment for the *.ino files */
+/* new retrode driver simulating an Arduino environment for the *.ino files */
 // (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>	// for mkdir()
-#include "retread.h"
+#include "retrode.h"
 #include "ino.h"	// to know all globals
 
 #define PATH_MAX 256
@@ -19,8 +19,8 @@ class EEPROM EEPROM;	// global EEPROM
 /*** main program ***/
 
 static char *arg0;
-static const char *sdroot = "/usr/local/games/retread";
-static const char *eeprom = "/usr/local/games/retread/EEPROM.bin";
+static const char *sdroot = "/usr/local/games/retrode";
+static const char *eeprom = "/usr/local/games/retrode/EEPROM.bin";
 
 static void usage(void)
 {
@@ -44,8 +44,8 @@ static void help(void)
 	printf("Usage: cat [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n");
 	printf("Options:\n");
 	printf("  -h             Display this information\n");
-	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/games/retread/EEPROM.bin\"]\n");
-	printf("  -r sd-root     Define the SD root directory [default: \"/usr/local/games/retread\"]\n");
+	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/games/retrode/EEPROM.bin\"]\n");
+	printf("  -r sd-root     Define the SD root directory [default: \"/usr/local/games/retrode\"]\n");
 	printf("\n");
 #ifdef ENABLED_CONFIG
 	printf("There is a config file called \"config.txt\".\n");
