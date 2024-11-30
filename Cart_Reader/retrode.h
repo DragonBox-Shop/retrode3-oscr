@@ -149,7 +149,6 @@ public:
 	byte read();
 	String readStringUntil(char until);
 } Serial;
-// ClockedSerial
 
 extern class EEPROM {
 private:
