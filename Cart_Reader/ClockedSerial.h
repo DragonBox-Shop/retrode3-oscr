@@ -4,8 +4,20 @@
 #ifndef CLOCKEDSERIAL_H_
 #define CLOCKEDSERIAL_H_
 
+#ifdef __Linux__
+/* based on https://github.com/arduino/ArduinoCore-avr/blob/master/cores/arduino/HardwareSerial.h */
+
+#define SERIAL_8N1 0x06
+
+class HardwareSerial {
+public:
+	void begin(unsigned long baud, uint32_t config = SERIAL_8N1, uint32_t clock = 0);
+};
+
+#else
 #include <HardwareSerial.h>
 #include <HardwareSerial_private.h>
+#endif
 
 /*C******************************************************************
 * NAME :            ClockedSerial
