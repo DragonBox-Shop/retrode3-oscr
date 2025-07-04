@@ -520,9 +520,9 @@ void segaCDMenu() {
  *****************************************/
 void setup_MD() {
 #ifdef __Linux__
-  md_fd = open("/dev/slot1", O_RDWR);
+  md_fd = open("/dev/slot-md", O_RDWR);
   if (md_fd < 0) {
-    perror("no cart in slot 1");
+    perror("no cart in MD slot");
     exit(1);
   }
 #endif
