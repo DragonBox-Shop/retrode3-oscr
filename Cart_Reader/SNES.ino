@@ -603,9 +603,9 @@ printf("%s to be implemented\n", __PRETTY_FUNCTION__);
 void setup_Snes() {
 //printf("%s:\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
-  snes_fd = open("/dev/slot0", O_RDWR);	/* closed on exit() */
+  snes_fd = open("/dev/slot-snes", O_RDWR);	/* closed on exit() */
   if(snes_fd < 0) {
-    perror("no cart in slot 0");
+    perror("no cart in SNES slot");
     exit(1);
   }
 #endif
