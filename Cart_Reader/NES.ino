@@ -641,9 +641,9 @@ void setup_NES() {
   exit(0);
   }
 #endif
-  nes_fd = open("/dev/slot2", O_RDWR);	/* closed on exit() */
+  nes_fd = open("/dev/slot-nes", O_RDWR);	/* closed on exit() */
   if(nes_fd < 0) {
-    perror("no cart in slot 2");
+    perror("no cart in NES slot");
     exit(1);
   }
 #endif
