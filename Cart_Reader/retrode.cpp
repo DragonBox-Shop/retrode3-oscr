@@ -30,7 +30,7 @@ static void usage(void)
 
 static void error(const char *str)
 {
-	fprintf(stderr, "%s: %s\n", str);
+	fprintf(stderr, "%s: %s\n", arg0, str);
 	usage();
 }
 
@@ -41,7 +41,7 @@ static void exit_helper(void)
 
 static void help(void)
 {
-	printf("Usage: cat [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n");
+	printf("Usage: %s [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n", arg0);
 	printf("Options:\n");
 	printf("  -h             Display this information\n");
 	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/games/retrode/EEPROM.bin\"]\n");
@@ -111,6 +111,13 @@ int main(int argc, char *argv[])
 				usage();
 			}
 		break;
+		}
+fprintf(stderr, "chdir(%s)\n", sdroot);
+
+	if (chdir(sdroot) < 0)
+		{
+		perror(sdroot);
+		exit(1);
 		}
 	setup();	// Arduino setup()
 	while(1)
@@ -216,7 +223,7 @@ char *itoa(unsigned long value, char str[], int radix)
 
     if (sign) *--dest = '-';
 
-    memcpy (str, dest, buf +sizeof(buf) - dest);
+    memcpy (str, dest, (buf + sizeof(buf)) - dest);
     return str;
 }
 
@@ -352,7 +359,7 @@ bool FsFile::getName(char *name, int maxlen)
 bool FsFile::open(const char *p, int flags)
 {
 	char wd[PATH_MAX];
-// printf("%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, flags);
+printf("%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, flags);
 	close();	// may still be open
 	path = p;
 	int fd = ::open(_fileSystemPath(p), flags, 0644);	// -rw-r--r-- for O_CREAT
