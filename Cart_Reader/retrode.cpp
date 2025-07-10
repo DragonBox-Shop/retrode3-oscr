@@ -112,8 +112,6 @@ int main(int argc, char *argv[])
 			}
 		break;
 		}
-fprintf(stderr, "chdir(%s)\n", sdroot);
-
 	if (chdir(sdroot) < 0)
 		{
 		perror(sdroot);
