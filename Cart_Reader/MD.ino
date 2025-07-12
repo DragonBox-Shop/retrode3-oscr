@@ -813,11 +813,20 @@ byte copyToRomName_MD(char* output, const byte* input, byte length) {
   byte myLength = 0;
 
   for (byte i = 0; i < 48; i++) {
+#ifdef __Linux__
+// printf("%s: %d:%c %d:%c\n", __PRETTY_FUNCTION__, i, input[i], myLength, output[i]);
+    if (input[i] == ' ' && myLength > 0 && output[myLength-1] != ' ')
+      output[myLength++] = input[i];	// preserve single and squeeze multiple spaces
+    else
+#endif
     if (((input[i] >= '0' && input[i] <= '9') || (input[i] >= 'A' && input[i] <= 'z')) && myLength < length) {
       output[myLength++] = input[i];
     }
   }
-
+#ifdef __Linux__
+  while (myLength > 0 && output[myLength-1] == ' ')
+	myLength--;	// remove final space(s)
+#endif
   return myLength;
 }
 
