@@ -233,7 +233,7 @@ static const char *_fileSystemPath(const char *path)
 	else
 		newpath[0] = '\0';
 	strcat(newpath, path);		// includes the initial / as directory separator
-// printf("%s: %s -> %s\n", __PRETTY_FUNCTION__, path, newpath);
+// fprintf(stderr, "%s: %s -> %s\n", __PRETTY_FUNCTION__, path, newpath);
 	return newpath;	// only used temporarily - not thread safe!
 }
 
@@ -244,7 +244,7 @@ static const char *_fileSystemPath(const char *path)
 
 String::String(char *s)
 {
-// printf("%s: '%s'\n", __PRETTY_FUNCTION__, s);
+// fprintf(stderr, "%s: '%s'\n", __PRETTY_FUNCTION__, s);
 #if 1
 	str = new char[strlen(s)+1];
 #else
@@ -260,27 +260,27 @@ String::String()
 
 String::~String()
 {
-// printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
+// fprintf(stderr, "%s: '%s'\n", __PRETTY_FUNCTION__, str);
 	// this raises a double free abort for reading a newmapper in NES.ino
 #if 1
 //	delete[] str;
 #else
 	::free(str);
 #endif
-// printf("%s: done\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: done\n", __PRETTY_FUNCTION__);
 }
 
 int String::toInt()
 {
 	int val;
 	sscanf(str, "%d", &val);
-// printf("%s: '%s' -> %d\n", __PRETTY_FUNCTION__, str, val);
+// fprintf(stderr, "%s: '%s' -> %d\n", __PRETTY_FUNCTION__, str, val);
 	return val;
 }
 
 char *String::toCstring()
 {
-// printf("%s: '%s'\n", __PRETTY_FUNCTION__, str);
+// fprintf(stderr, "%s: '%s'\n", __PRETTY_FUNCTION__, str);
 	return str;
 };
 
@@ -295,7 +295,7 @@ void Display::Display()
 
 void Display::setCursor(int x, int y)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	return;	// ignore
 }
 
@@ -341,7 +341,7 @@ bool FsFile::isFile()
 
 bool FsFile::isHidden()
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	// check if basename starts with '.' ?
 	return false;
 }
@@ -357,7 +357,7 @@ bool FsFile::getName(char *name, int maxlen)
 bool FsFile::open(const char *p, int flags)
 {
 	char wd[PATH_MAX];
-printf("%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, flags);
+fprintf(stderr, "%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, flags);
 	close();	// may still be open
 	path = p;
 	int fd = ::open(_fileSystemPath(p), flags, 0644);	// -rw-r--r-- for O_CREAT
@@ -373,7 +373,7 @@ printf("%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, f
 					mode = "w";
 				break;
 		}
-// printf("%s: mode = %s\n", __PRETTY_FUNCTION__, mode);
+// fprintf(stderr, "%s: mode = %s\n", __PRETTY_FUNCTION__, mode);
 		file = fdopen(fd, mode);
 	} else
 		perror(p);
@@ -387,7 +387,7 @@ bool FsFile::open(const char *path)
 
 bool FsFile::openNext(FsFile *dir, int flags)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	// read next directory entry and update the file buffers
 	// FIXME: how should this work - we do not return the new FsFile!
 	return false;
@@ -395,7 +395,7 @@ printf("%s: add implementation\n", __PRETTY_FUNCTION__);
 
 bool FsFile::rename(const char *name)
 { // file may be open since read/write goes through a file descriptor
-// printf("%s: '%s' - add implementation\n", __PRETTY_FUNCTION__, name);
+// fprintf(stderr, "%s: '%s' - add implementation\n", __PRETTY_FUNCTION__, name);
 	if (::rename(_fileSystemPath(path), name) == 0) {
 		path = name;	// new name - should this include the previous path or not?
 		return true;
@@ -497,14 +497,14 @@ void FsFile::flush()
 
 bool SdFs::begin(int unknown)	// called as sd.begin(SS)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	return true;
 }
 
 // should likely be bool!
 void SdFs::mkdir(const char *dir, bool flag)
 { // not clear what "flag" means, but we assume it means "recursive"
-// printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
+// fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, dir);
 	if (flag) {
 		char tmp[PATH_MAX], *p = tmp;
 		strncpy(tmp, dir, sizeof(tmp));
@@ -524,7 +524,7 @@ void SdFs::mkdir(const char *dir, bool flag)
 // should likely be bool!
 void SdFs::chdir(const char *dir)
 {
-// printf("%s: %s\n", __PRETTY_FUNCTION__, dir);
+// fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, dir);
 // FIXME: prefix with sdroot
 	::chdir(_fileSystemPath(dir));
 }
@@ -537,7 +537,7 @@ void SdFs::chdir()
 
 FsFile SdFs::open(char *path, int flags)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	FsFile f;
 	f.open(path, flags);
 	return f;
@@ -545,7 +545,7 @@ FsFile SdFs::open(char *path, int flags)
 
 bool SdFs::exists(char *path)
 {
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	FsFile f;
 	f.open(path);	// try to open
 	return f.exists();
@@ -555,7 +555,7 @@ bool SdFs::exists(char *path)
 
 void Serial::begin(int baudrate)
 {
-	// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+	// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	// ignore
 }
 
@@ -566,7 +566,7 @@ void Serial::print(const char *str)
 
 void Serial::print(String str)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 void Serial::print(int val)
@@ -694,7 +694,7 @@ byte Serial::read()
 
 String Serial::readStringUntil(char until)
 { // char is usually '\n'
-// printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	char buffer[PATH_MAX];
 	int i = 0;
 	int c;
@@ -709,7 +709,7 @@ String Serial::readStringUntil(char until)
 		buffer[i++] = c;
 	}
 	buffer[i] = 0;
-// printf("%s: line '%s'\n", __PRETTY_FUNCTION__, buffer);
+// fprintf(stderr, "%s: line '%s'\n", __PRETTY_FUNCTION__, buffer);
 	return String(buffer);	// will copy to heap
 }
 
@@ -735,7 +735,7 @@ byte EEPROM::read(int addr)
 	lseek(fd, addr, SEEK_SET);
 	if(::read(fd, &value, sizeof(value)) != sizeof(value))
 		fprintf(stderr, "EEPROM read error at address %04x\n", addr);
-// printf("%s: %04x -> %02x\n", __PRETTY_FUNCTION__, addr, value);
+// fprintf(stderr, "%s: %04x -> %02x\n", __PRETTY_FUNCTION__, addr, value);
 	return value;
 }
 
@@ -751,39 +751,39 @@ void EEPROM::write(int addr, byte value)
 		}
 	lseek(fd, addr, SEEK_SET);
 	::write(fd, &value, sizeof(value));
-// printf("%s: %04x <- %02x\n", __PRETTY_FUNCTION__, addr, value);
+// fprintf(stderr, "%s: %04x <- %02x\n", __PRETTY_FUNCTION__, addr, value);
 }
 
 void EEPROM::println()
 {
 // what is this doing?
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
 /*** Si5351 ***/
 
 bool Si5351::init(int load, int param2, int param3)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	// should control some PWM through /sys
 	return true;
 }
 
 void Si5351::output_enable(int clockport, bool onoff)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	// should control some PWM through /sys
 }
 
 void Si5351::set_freq(unsigned long freq, int clockport)
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	// should control some PWM through /sys
 }
 
 void Si5351::update_status()
 {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
 	/* NOP */
 }
 
@@ -792,7 +792,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 #ifndef ENABLE_SERIAL
 uint8_t checkButton()
 {
-printf("%s: add implementation\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 #endif
 
@@ -803,7 +803,7 @@ int navigateMenu(int min, int max, void (*printSelection)(int))
 	int i;
 	char c;
 
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
 	while(1) { // loop until something is chosen
 		i=min;
 		while(i < max) {
