@@ -589,7 +589,7 @@ void writeWord_MD(unsigned long myAddress, word myData) {
 #define MD_ENSRAM(addr)	((5 << 24) + ((addr) << 1))	// TIME impulse without WE
 #define MD_EEPMODE(addr)((6 << 24) + ((addr) << 1))
 
-printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   myData = htons(myData);
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
@@ -644,7 +644,7 @@ word readWord_MD(unsigned long myAddress) {
   lseek(md_fd, MD_P10(myAddress), SEEK_SET);
   read(md_fd, &myData, sizeof(myData));
   myData = ntohs(myData);
-// printf("%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+// fprintf(stderr, "%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   return myData;
 #endif
   PORTF = myAddress & 0xFF;
@@ -701,9 +701,9 @@ word readWord_MD(unsigned long myAddress) {
 void writeFlash_MD(unsigned long myAddress, word myData) {
 #ifdef __Linux__
   byte val = htons(myData);
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 // CHECKME: how is this different from writing ROM? it is a byte wide write
-printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &val, sizeof(val));
 #endif
@@ -747,8 +747,8 @@ printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 word readFlash_MD(unsigned long myAddress) {
 #ifdef __Linux__
   word myData;
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
-printf("%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &myData, sizeof(myData));
   return myData;
@@ -814,7 +814,7 @@ byte copyToRomName_MD(char* output, const byte* input, byte length) {
 
   for (byte i = 0; i < 48; i++) {
 #ifdef __Linux__
-// printf("%s: %d:%c %d:%c\n", __PRETTY_FUNCTION__, i, input[i], myLength, output[i]);
+// fprintf(stderr, "%s: %d:%c %d:%c\n", __PRETTY_FUNCTION__, i, input[i], myLength, output[i]);
     if (input[i] == ' ' && myLength > 0 && output[myLength-1] != ' ')
       output[myLength++] = input[i];	// preserve single and squeeze multiple spaces
     else
@@ -837,7 +837,7 @@ void getCartInfo_MD() {
   // Get cart size
   cartSize = ((long(readWord_MD(0xD2)) << 16) | readWord_MD(0xD3)) + 1;
 
-// printf("cartSize: %08x\n", cartSize);
+// fprintf(stderr, "cartSize: %08x\n", cartSize);
 
   // Check for 32x compatibility
   if ((readWord_MD(0x104 / 2) == 0x2033) && (readWord_MD(0x106 / 2) == 0x3258))
@@ -847,7 +847,7 @@ void getCartInfo_MD() {
 
   // Get cart checksum
   chksum = readWord_MD(0xC7);
-// printf("chksum: %08x\n", chksum);
+// fprintf(stderr, "chksum: %08x\n", chksum);
 
   // Get cart ID
   char id[15];
@@ -1348,7 +1348,7 @@ void getCartInfo_MD() {
     sdBuffer[c + 1] = loByte;
   }
   romName[copyToRomName_MD(romName, sdBuffer, sizeof(romName) - 1)] = 0;
-// printf("romName: \"%s\"\n", romName);
+// fprintf(stderr, "romName: \"%s\"\n", romName);
 
   //Check for Slaughter Sport
   if (!strncmp("GMT5604600jJ", romName, 12) && (chksum == 0xFFFF)) {
@@ -1483,7 +1483,7 @@ void getCartInfo_MD() {
 void writeSSF2Map(unsigned long myAddress, word myData) {
 #ifdef __Linux__
   myData = htons(myData);
-printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   myData = htons(myData);
   lseek(md_fd, MD_TIME(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
@@ -1540,7 +1540,7 @@ void readROM_MD() {
   uint16_t calcCKSLockon = 0;
   uint16_t calcCKSSonic2 = 0;
 
-//printf("%s\n", __PRETTY_FUNCTION__);
+//fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   // Set control
   dataIn_MD();
 
@@ -1627,7 +1627,7 @@ void readROM_MD() {
 
 #ifdef __Linux__
   unsigned long myAddress = currBuffer - (offsetSSF2Bank * 0x80000);
-//printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
+//fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
   lseek(md_fd, isSVP ? MD_P10(myAddress) : MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &buffer, sizeof(buffer));
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
@@ -1701,7 +1701,7 @@ void readROM_MD() {
 
 #ifdef __Linux__
   unsigned long myAddress = currBuffer + cartSize / 2;
-printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
+fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
   lseek(md_fd, isSVP ? MD_P10(myAddress) : MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &buffer, sizeof(buffer));
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
@@ -1775,7 +1775,7 @@ printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
 
 #ifdef __Linux__
   unsigned long myAddress = currBuffer + (cartSize + cartSizeLockon) / 2;
-printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
+fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
   lseek(md_fd, isSVP ? MD_P1(myAddress) : MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &buffer, sizeof(buffer));
   for(d = 0; d < 1024; d += 2)
@@ -1897,9 +1897,9 @@ printf("%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
 // Sonic 3 sram enable
 void enableSram_MD(boolean enableSram) {
   word myData = enableSram;
-printf("%s: %d\n", __PRETTY_FUNCTION__, enableSram);
+fprintf(stderr, "%s: %d\n", __PRETTY_FUNCTION__, enableSram);
 #ifdef __Linux__
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ENSRAM(0), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
@@ -1930,7 +1930,7 @@ printf("fixme: %s\n", __PRETTY_FUNCTION__);
 
 // Write sram to cartridge
 void writeSram_MD() {
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   dataOut_MD();
 
   // Create filepath
@@ -1985,7 +1985,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 
 // Read sram and save to the SD card
 void readSram_MD() {
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   dataIn_MD();
 
   // Get name, add extension and convert to char array for sd lib
@@ -2050,7 +2050,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 }
 
 unsigned long verifySram_MD() {
- printf("%s\n", __PRETTY_FUNCTION__);
+ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
  dataIn_MD();
   writeErrors = 0;
 
@@ -2103,7 +2103,7 @@ unsigned long verifySram_MD() {
 // Flashrom Functions
 //******************************************
 void resetFlash_MD() {
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   // Set data pins to output
   dataOut_MD();
 
@@ -2117,7 +2117,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 }
 
 void write29F1610_MD() {
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   // Create filepath
   sprintf(filePath, "%s/%s", filePath, fileName);
   print_STR(flashing_file_STR, 0);
@@ -2398,9 +2398,9 @@ void busyCheck_MD() {
 //******************************************
 void EepromInit(byte eepmode) {    // Acclaim Type 2
 #ifdef __Linux__
-printf("%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
+fprintf(stderr, "%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
 	word myData = eepmode;
-	printf("fixme: %s\n", __PRETTY_FUNCTION__);
+	fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 	lseek(md_fd, MD_EEPMODE(0x10 << 16), SEEK_SET);
 	write(md_fd, &myData, sizeof(myData));
 #endif
@@ -2443,8 +2443,8 @@ printf("%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
 void writeWord_SDA(unsigned long myAddress, word myData) { /* D0 goes to /SDA when only /LWR is asserted */
 #ifdef __Linux__
   myData = htons(myData);
-printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 // what is special with this mode? the extra delay of 100µs for tiny eepSize?
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
@@ -2494,8 +2494,8 @@ void writeWord_SCL(unsigned long myAddress, word myData) { /* D0 goes to /SCL wh
 #ifdef __Linux__
   myData = htons(myData);
 // what is special with this mode? the extra delay of 100µs for tiny eepSize?
-printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
@@ -2543,8 +2543,8 @@ printf("fixme: %s\n", __PRETTY_FUNCTION__);
 void writeWord_CM(unsigned long myAddress, word myData) {  // Codemasters
 #ifdef __Linux__
   myData = htons(myData);
-printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_P1(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
@@ -2962,7 +2962,7 @@ void writeEepromByte(word address) {
 
 // Read EEPROM and save to the SD card
 void readEEP_MD() {
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   dataIn_MD();
 
   // Get name, add extension and convert to char array for sd lib
@@ -3009,7 +3009,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 }
 
 void writeEEP_MD() {
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   dataOut_MD();
 
   // Create filepath
@@ -3056,7 +3056,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 // CD Backup RAM Functions
 //******************************************
 void readBram_MD() {
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   dataIn_MD();
 
   // Get name, add extension and convert to char array for sd lib
@@ -3132,8 +3132,8 @@ void writeBram_MD() {
 void writeRealtec(unsigned long address, byte value) {  // Realtec 0x404000 (UPPER)/0x400000 (LOWER)
 #ifdef __Linux__
   word myData = htons(value);
-printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, address, value);
-printf("fixme: %s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, address, value);
+fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ROM(address), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif

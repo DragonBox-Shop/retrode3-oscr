@@ -110,7 +110,7 @@ static const char* const menuOptionsReproCFI[] PROGMEM = { reproCFIItem1, reproC
 
 // Setup number of flashroms
 void reproCFIMenu() {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   boolean reversed = 1;
   // create menu with title and 7 options to choose from
   unsigned char snsReproCFI;
@@ -250,7 +250,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 
 // SNES repro menu
 void reproMenu() {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // create menu with title and 7 options to choose from
   unsigned char snsRepro;
   // Copy menuOptions out of progmem
@@ -326,7 +326,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 void snsMenu() {
   // create menu with title and 7 options to choose from
   unsigned char snsCart;
-// printf("%s:\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // Copy menuOptions out of progmem
   convertPgm(menuOptionsSNS, 7);
   snsCart = question_box(FS(FSTRING_SELECT_CART_TYPE), menuOptions, 7, 0);
@@ -402,7 +402,7 @@ void snsMenu() {
 void snesMenu() {
   // create menu with title and 7 options to choose from
   unsigned char mainMenu;
-//printf("%s:\n", __PRETTY_FUNCTION__);
+//fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // Copy menuOptions out of progmem
   convertPgm(menuOptionsSNES, 7);
   mainMenu = question_box(F("SNES Cart Reader"), menuOptions, 7, 0);
@@ -542,7 +542,7 @@ void snesMenu() {
 void confMenuManual() {
   // create menu with title and 5 options to choose from
   unsigned char subMenu;
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // Copy menuOptions out of progmem
   convertPgm(menuOptionsConfManual, 5);
   subMenu = question_box(F("Choose mapping"), menuOptions, 5, 0);
@@ -583,8 +583,8 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 
 void stopSnesClocks_resetCic_resetCart() {
 #ifdef __Linux__
-printf("%s\n", __PRETTY_FUNCTION__);
-printf("%s to be implemented\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s to be implemented\n", __PRETTY_FUNCTION__);
 #endif
   DDRG |= (1 << 1);    // Set cicrstPin(PG1) to Output
   PORTG |= (1 << 1);   // pull high = reset CIC
@@ -601,7 +601,7 @@ printf("%s to be implemented\n", __PRETTY_FUNCTION__);
    Setup
  *****************************************/
 void setup_Snes() {
-//printf("%s:\n", __PRETTY_FUNCTION__);
+//fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
   snes_fd = open("/dev/slot-snes", O_RDWR);	/* closed on exit() */
   if(snes_fd < 0) {
@@ -720,7 +720,7 @@ void setup_Snes() {
 // Switch control pins to write
 void controlOut_SNES() {
 #ifdef __Linux__
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   /* CS(PH3) handled by writeBank_SNES(), others by kernel driver */;
 #endif
   // Switch RD(PH6) and WR(PH5) to HIGH
@@ -732,7 +732,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
 // Switch control pins to read
 void controlIn_SNES() {
 #ifdef __Linux__
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   /* CS(PH3) handled by writeBank_SNES(), others by kernel driver */;
 #endif
   // Switch WR(PH5) to HIGH
@@ -753,7 +753,7 @@ void writeBank_SNES(byte myBank, word myAddress, byte myData) {
 #define SNES_HIROM	(9 << 24)
 #define SNES_ADDR(bank, address) ((CS_PH3 ? SNES_HIROM : SNES_REGULAR) + (((bank) & 0x7f) << 16) + (address))
 
-printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
+fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   lseek(snes_fd, SNES_ADDR(myBank, myAddress), SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
 #endif
@@ -818,7 +818,7 @@ printf("%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 
 // Read one byte of data from a location specified by bank and address, 00:0000
 byte readBank_SNES(byte myBank, word myAddress) {
-// printf("%s\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
   byte myData;
   lseek(snes_fd, SNES_ADDR(myBank, myAddress), SEEK_SET);
@@ -846,7 +846,7 @@ byte readBank_SNES(byte myBank, word myAddress) {
 }
 
 void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
-// printf("%s\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   byte buffer[1024] = { 0 };
 
   uint16_t c = 0;
@@ -865,7 +865,7 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
 
     currByte = 32768;
 #ifdef __Linux__
-// printf("%s: %d %04x %06x\n", __PRETTY_FUNCTION__, currBank, currByte, (currBank<<16)+currByte);
+// fprintf(stderr, "%s: %d %04x %06x\n", __PRETTY_FUNCTION__, currBank, currByte, (currBank<<16)+currByte);
 
     lseek(snes_fd, SNES_ADDR(currBank, currByte), SEEK_SET);
     while (1) {
@@ -907,7 +907,7 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
 }
 
 void readHiRomBanks(unsigned int start, unsigned int total, FsFile* file) {
-printf("%s\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   byte buffer[1024] = { 0 };
 
   uint16_t c = 0;
@@ -969,7 +969,7 @@ printf("%s\n", __PRETTY_FUNCTION__);
   SNES ROM Functions
 ******************************************/
 void getCartInfo_SNES() {
-// printf("%s\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   boolean manualConfig = 0;
 
 #ifdef __Linux__
@@ -1126,7 +1126,7 @@ void getCartInfo_SNES() {
 }
 
 void checkAltConf(char crcStr[9]) {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   char tempStr2[5];
   char tempStr3[9];
 
@@ -1223,7 +1223,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 
 // Read header
 boolean checkcart_SNES() {
-// printf("%s:\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // set control to read  dataIn();
 
   uint16_t headerStart = 0xFFB0;
@@ -1417,7 +1417,7 @@ unsigned int calc_checksum(char* fileName, char* folder) {
   if (myFile.open(fileName, O_READ)) {
     calcFilesize = myFile.fileSize() * 8 / 1024 / 1024;
 
-// printf("%s 2: NP=%d %d\n", __PRETTY_FUNCTION__, NP, calcFilesize);
+// fprintf(stderr, "%s 2: NP=%d %d\n", __PRETTY_FUNCTION__, NP, calcFilesize);
     // Nintendo Power (SF Memory Cassette)
     // Read up to 0x60000 then add FFs to 0x80000
     if (NP == true) {
@@ -1518,7 +1518,7 @@ unsigned int calc_checksum(char* fileName, char* folder) {
     }
     myFile.close();
     sd.chdir();
-// printf("%s: checksum %x\n", __PRETTY_FUNCTION__, calcChecksum);
+// fprintf(stderr, "%s: checksum %x\n", __PRETTY_FUNCTION__, calcChecksum);
     return (calcChecksum);
   } else {
     // Else show error
@@ -1528,7 +1528,7 @@ unsigned int calc_checksum(char* fileName, char* folder) {
 }
 
 boolean compare_checksum() {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   print_Msg(F("Checksum... "));
   display_Update();
 
@@ -1551,7 +1551,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 
 // Read rom to SD card
 void readROM_SNES() {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // Set control
   dataIn();
   controlIn_SNES();
@@ -1730,7 +1730,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 *****************************************/
 // Write file to SRAM
 void writeSRAM(boolean browseFile) {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   if (browseFile) {
     filePath[0] = '\0';
     sd.chdir("/");
@@ -1908,7 +1908,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 }
 
 void readSRAM() {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // set control
   controlIn_SNES();
 
@@ -2038,7 +2038,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 
 // Check if the SRAM was written without any error
 unsigned long verifySRAM() {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   //open file on sd card
   if (myFile.open(filePath, O_READ)) {
 
@@ -2249,7 +2249,7 @@ printf("%s:\n", __PRETTY_FUNCTION__);
 
 // Overwrite the entire SRAM
 boolean eraseSRAM(byte b) {
-printf("%s:\n", __PRETTY_FUNCTION__);
+fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   print_Msg(F("0x"));
   print_Msg(b, HEX);
   print_Msg(F(": "));
