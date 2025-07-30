@@ -434,7 +434,7 @@ static const char* const menuOptionsNESFlash[] PROGMEM = { nesFlashMenuItem1, ne
 void nesMenu() {
   unsigned char answer;
 
-// printf("%s:\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // create menu with title "NES CART READER" and 7 options to choose from
   convertPgm(menuOptionsNES, 7);
   answer = question_box(F("NES CART READER"), menuOptions, 7, 0);
@@ -443,7 +443,7 @@ void nesMenu() {
   switch (answer) {
     // Read Rom
     case 0:
-// printf("%s: 0\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: 0\n", __PRETTY_FUNCTION__);
       display_Clear();
       // Change working dir to root
       sd.chdir("/");
@@ -460,13 +460,13 @@ void nesMenu() {
 
     // Read single chip
     case 1:
- // printf("%s: 1\n", __PRETTY_FUNCTION__);
+ // fprintf(stderr, "%s: 1\n", __PRETTY_FUNCTION__);
       nesChipMenu();
       break;
 
     // Read RAM
     case 2:
-// printf("%s: 2\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: 2\n", __PRETTY_FUNCTION__);
       sd.chdir();
       sprintf(folder, "NES/SAVE");
       sd.mkdir(folder, true);
@@ -521,7 +521,7 @@ void nesMenu() {
 
 void nesChipMenu() {
   // create menu with title "Select NES Chip" and 4 options to choose from
-//printf("%s:\n", __PRETTY_FUNCTION__);
+//fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   convertPgm(menuOptionsNESChips, 4);
   unsigned char answer = question_box(F("Select NES Chip"), menuOptions, 4, 0);
 
@@ -529,7 +529,7 @@ void nesChipMenu() {
   switch (answer) {
     // Read combined PRG/CHR
     case 0:
-// printf("%s: 0\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s: 0\n", __PRETTY_FUNCTION__);
       display_Clear();
       // Change working dir to root
       sd.chdir("/");
@@ -636,8 +636,8 @@ void setup_NES() {
   uint32_t oldcrc32MMC3 = 0xFFFFFFFF;
   UPDATE_CRC(oldcrc32, 0x55);
   UPDATE_CRC(oldcrc32MMC3, 0xaa);
-  printf("crc: %08x\n", oldcrc32);
-  printf("crcMMC3: %08x\n", oldcrc32MMC3);
+  fprintf(stderr, "crc: %08x\n", oldcrc32);
+  fprintf(stderr, "crcMMC3: %08x\n", oldcrc32MMC3);
   exit(0);
   }
 #endif
@@ -814,7 +814,7 @@ uint32_t oldcrc32 = 0xFFFFFFFF;
 uint32_t oldcrc32MMC3 = 0xFFFFFFFF;
 
 void getMapping() {
-// printf("%s\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   FsFile database;
   char crcStr[9];
 
@@ -905,7 +905,7 @@ static void readDatabaseEntry(FsFile& database, struct database_entry* entry) {
   get_line(entry->filename, &database, sizeof(entry->filename));
   readDataLine_NES(database, entry);
   skip_line(&database);
-// printf("%s: %08X %08X %s\n", __func__, entry->crc, entry->crc512, entry->filename);
+// fprintf(stderr, "%s: %08X %08X %s\n", __func__, entry->crc, entry->crc512, entry->filename);
 }
 
 void readDataLine_NES(FsFile& database, void* e) {
@@ -948,7 +948,7 @@ bool selectMapping(FsFile& database) {
 
 void read_NES(const char* fileSuffix, const byte* header, const uint8_t headersize, const boolean renamerom) {
   // Get name, add extension and convert to char array for sd lib
-printf("%s: %s.%s\n", __PRETTY_FUNCTION__, romName, fileSuffix);
+fprintf(stderr, "%s: %s.%s\n", __PRETTY_FUNCTION__, romName, fileSuffix);
   createFolderAndOpenFile("NES", "ROM", romName, fileSuffix);
 
   //Initialize progress bar
@@ -965,14 +965,14 @@ printf("%s: %s.%s\n", __PRETTY_FUNCTION__, romName, fileSuffix);
     draw_progressbar(processedProgressBar, totalProgressBar);
   }
 
-  //Write PRG
+  //Read PRG
   readPRG(true);
 
   // update progress bar
   processedProgressBar += prgsize * 16 * 1024;
   draw_progressbar(processedProgressBar, totalProgressBar);
 
-  //Write CHR
+  //Read CHR
   readCHR(true);
 
   // update progress bar
@@ -1000,7 +1000,7 @@ void readRaw_NES() {
 static void set_address(unsigned int address) {
   unsigned char l = address & 0xFF;
   unsigned char h = address >> 8;
-// printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+// fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
   PORTL = l;
   PORTA = h;
 
@@ -1015,7 +1015,7 @@ static void set_address(unsigned int address) {
 }
 
 static void set_romsel(unsigned int address) {
-// printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+// fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
   if (address & 0x8000) {
     ROMSEL_LOW;
   } else {
@@ -1038,10 +1038,9 @@ static unsigned char read_prg_byte(unsigned int address) {
 #define NES_WRAM(addr)		((16 << 24) + (addr))	// CART RAM: D0..D7
 
   byte myData;
-// currently, PRG memory is at D0..D7 so we have to double the address
   lseek(nes_fd, NES_PRG(address), SEEK_SET);
   read(nes_fd, &myData, sizeof(myData));
-// printf("%s: %08x -> %02x\n", __PRETTY_FUNCTION__, address, myData);
+// fprintf(stderr, "%s: %08x -> %02x\n", __PRETTY_FUNCTION__, address, myData);
   return myData;
 #endif
   MODE_READ;
@@ -1055,7 +1054,7 @@ static unsigned char read_prg_byte(unsigned int address) {
 }
 
 static unsigned char read_chr_byte(unsigned int address) {
-printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 #ifdef __Linux__
   byte myData;
   lseek(nes_fd, NES_CHR(address), SEEK_SET);
@@ -1074,7 +1073,7 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
 }
 
 static void write_prg_byte(unsigned int address, uint8_t data) {
-printf("%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
+fprintf(stderr, "%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
 #ifdef __Linux__
   lseek(nes_fd, NES_PRG(address), SEEK_SET);
   write(nes_fd, &data, sizeof(data));
@@ -1134,7 +1133,7 @@ static void write_chr_byte(unsigned int address, uint8_t data) {
 #endif
 
 void resetROM() {
-// printf("%s\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
 #ifdef __Linux__
 // nothing to be done
 #endif
@@ -1144,7 +1143,7 @@ void resetROM() {
 }
 
 void write_mmc1_byte(unsigned int address, uint8_t data) {  // write loop for 5 bit register
-printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
   if (address >= 0xE000) {
     for (uint8_t i = 0; i < 5; i++) {
       write_reg_byte(address, data >> i);  // shift 1 bit into temp register [WRITE RAM SAFE]
@@ -1168,7 +1167,7 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
 
 // WRITE RAM SAFE TO REGISTERS 0xE000/0xF000
 static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC1 RAM CORRUPTION
-printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 #ifdef __Linux__
   lseek(nes_fd, NES_REG(address), SEEK_SET);
   write(nes_fd, &data, sizeof(data));
@@ -1196,7 +1195,7 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
 }
 
 static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (Namco 106/163) WRITE RAM SAFE ($E000-$FFFF)
-printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 #ifdef __Linux__
   lseek(nes_fd, NES_RAM(address), SEEK_SET);
   write(nes_fd, &data, sizeof(data));
@@ -1225,7 +1224,7 @@ printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
 }
 
 static void write_wram_byte(unsigned int address, uint8_t data) {  // Mapper 5 (MMC5) RAM
-printf("%s: %08x\n", __PRETTY_FUNCTION__, address);
+fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 #ifdef __Linux__
   lseek(nes_fd, NES_WRAM(address), SEEK_SET);
   write(nes_fd, &data, sizeof(data));
@@ -1362,7 +1361,7 @@ void CreateROMFolderInSD() {
 }
 
 FsFile createNewFile(const char* prefix, const char* extension) {
-printf("%s: %s %s\n", __PRETTY_FUNCTION__, prefix, extension);
+fprintf(stderr, "%s: %s %s\n", __PRETTY_FUNCTION__, prefix, extension);
   char filename[FILENAME_LENGTH];
   snprintf_P(filename, sizeof(filename), _file_name_no_number_fmt, prefix, extension);
   for (uint8_t i = 0; i < 100; i++) {
@@ -2123,7 +2122,7 @@ void dumpBankCHR(const size_t from, const size_t to) {
 }
 
 void readPRG(bool readrom) {
-printf("%s: %d\n", __PRETTY_FUNCTION__, readrom);
+fprintf(stderr, "%s: %d\n", __PRETTY_FUNCTION__, readrom);
   if (!readrom) {
     display_Clear();
     display_Update();
@@ -2142,7 +2141,7 @@ printf("%s: %d\n", __PRETTY_FUNCTION__, readrom);
   uint16_t banks;
 
   if (myFile) {
-printf("%s: myFile=%p mapper=%d\n", __PRETTY_FUNCTION__, myFile, mapper);
+fprintf(stderr, "%s: myFile=%p mapper=%d\n", __PRETTY_FUNCTION__, myFile, mapper);
     switch (mapper) {
       case 0:
       case 3:
