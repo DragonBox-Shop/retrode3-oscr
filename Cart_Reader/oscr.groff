@@ -1,0 +1,44 @@
+.\" Manpage for oscr
+.\" Contact retrode3@mailinglist to correct errors or typos.
+.TH man 1 "05 Nov 2025" "1.0" "oscr man page"
+.SH NAME
+oscr \- command line wrapper for Open Source Cartridge Reader
+.SH SYNOPSIS
+oscr [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]
+.SH DESCRIPTION
+oscr is a command line interface to the Open Source Cartridge Reader.
+
+Instead of controlling a hardware knob to choose a menu item, the command line interface directly accepts digits as inputs from stdin. These can be space or newline separated.
+
+Menu choices are numbers. Multiple choices of subsequent submenus can be concatenated into a single command.
+
+Choose the 'Reset' menu item to exit this tool or simply end the input file in a shell pipe.
+
+The eeprom file is used to store e.g.
+  folder number
+  cart mode (NES)
+  mapper (NES)
+  newmapper (NES)
+  prgsize (NES)
+  chrsize (NES)
+  ramsize (NES)
+
+.SH OPTIONS
+Options:
+  -h             Display this information
+  -e eeprom.bin  Define the eeprom file [default: "/usr/local/games/retrode/EEPROM.bin"]
+  -r sd-root     Define the SD root directory [default: "/usr/local/games/retrode"]
+
+.SH EXAMPLES
+ echo 200 | oscr
+
+ some echo commands to use:
+    echo 100      read SNES/SFC cart to file
+    echo 200      read Megadrive cart to file
+    echo 210      backup Sega RamCart to file
+.SH SEE ALSO
+ucon64(1), https://github.com/sanni/cartreader
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+H. Nikolaus Schaller (hns@goldelico.com)
