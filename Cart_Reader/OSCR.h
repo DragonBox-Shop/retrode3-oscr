@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 #ifdef __Linux__
-#include "retrode.h"
+#include "oscr-cmd.h"
 #else
 #include <Arduino.h>
 #include <SPI.h>

@@ -1,13 +1,15 @@
-/* new retrode driver simulating an Arduino environment for the *.ino files */
+/* new oscr command line driver simulating an Arduino environment for the *.ino files */
 // (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>	// for mkdir()
-#include "retrode.h"
+#include "oscr-cmd.h"
 #include "ino.h"	// to know all globals
 
+#ifndef PATH_MAX
 #define PATH_MAX 256
+#endif
 
 /*** global objects ***/
 

@@ -1,8 +1,8 @@
 // Compatibility-Header to be able to compile the code under Linux
 // (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 
-#ifndef RETRODE_H
-#define RETRODE_H
+#ifndef OSCR_CMD_H
+#define OSCR_CMD_H
 
 #define time imported_time	// names will be used for local variables
 #define clock imported_clock
@@ -56,7 +56,7 @@ typedef uint32_t dword;
 #define asm	// wipe out in GBS.ino, MD.ino, WS.ino
 #define volatile(...)
 
-/*** C++ objects defined in retrode.cpp ***/
+/*** C++ objects defined in oscr-cmd.cpp ***/
 
 class __FlashStringHelper;
 #define F(string_literal) (reinterpret_cast<const __FlashStringHelper *>(PSTR(string_literal)))
@@ -295,4 +295,4 @@ extern byte dummy;
 #define DDRK	dummy
 #define DDRL	dummy
 
-#endif
+#endif // !OSCR_CMD_H
