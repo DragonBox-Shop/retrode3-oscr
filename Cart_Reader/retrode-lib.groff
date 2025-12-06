@@ -1,0 +1,17 @@
+.\" Manpage for retrode-lib
+.\" Contact retrode3@mailinglist to correct errors or typos.
+.TH man 1 "05 Nov 2025" "1.0" "retrode-lib man page"
+.SH NAME
+oscr \- library for accessing the low-level busses and slots of a Retrode3
+.SH SYNOPSIS
+oscr DEVICE
+.SH DESCRIPTION
+retrode-lib is a testme.
+.SH OPTIONS
+The retrode-lib takes some options.
+.SH SEE ALSO
+
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+H. Nikolaus Schaller (hns@goldelico.com)
