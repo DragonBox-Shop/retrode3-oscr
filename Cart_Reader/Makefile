@@ -1,13 +1,12 @@
 #!/usr/bin/make -f
 # (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 #
-# an alternative to this simple approach may be: https://github.com/bxparks/EpoxyDuino
-# but it is difficult to manage the hardware access
+# a Command Line Tool "oscr" as a wrapper around the OSCR source code
+# internally uses the retrode-lib to access the slots
+#
 
 # you can also specify a cross-compiler here
 CC=g++
-LOAD_GCC=$(shell [ "`which g++`" ] || yes | apt-get install g++)
-
 CFLAGS=
 
 .SUFFIXES : .o .c .cpp .ino
@@ -16,16 +15,23 @@ CFLAGS=
 INO_SOURCES := $(wildcard *.ino) OSCR.cpp
 INO_SOURCES := Cart_Reader.ino SNES.ino MD.ino FLASH.ino NES.ino OSCR.cpp
 
-all: retrode
+all: get-g++ oscr
+
+get-g++:	# this installs the g++ package if g++ is missing
+	@echo '*** checking/installing g++ ***'
+	@if [ "`which g++`" ]; \
+	then echo g++ is available.; \
+	else apt-get update && yes | apt-get -y --force-yes install g++; \
+	fi
 
 %.o: %.ino	# directly compile .ino using C++
-	$(CC) -c $(CFLAGS) -include retrode.h -D__Linux__ -include retrode.h -include ino.h -x c++ $< -o $*.o
+	$(CC) -c $(CFLAGS) -D__Linux__ -include oscr-cmd.h -include ino.h -x c++ $< -o $*.o
 
 %.o: %.cpp
-	$(CC) -c $(CFLAGS) -D__Linux__ -include retrode.h -x c++ -std=c++11 $< -o $*.o
+	$(CC) -c $(CFLAGS) -D__Linux__ -include oscr-cmd.h -x c++ -std=c++11 $< -o $*.o
 
 %.o: %.c
-	$(CC) -c $(CFLAGS) -D__Linux__ $< -o $*.o
+	$(CC) -c $(CFLAGS) -D__Linux__ -x c $< -o $*.o
 
 ino.cpp: $(INO_SOURCES)	# collect all .ino source files into a single one and keep source file references --- FIXME: maybe we should preprocess first?
 	( echo "#include \"ino.h\""; for FILE in $^; do echo "# 1 \"$$FILE\""; cat "$$FILE"; done ) >$@
@@ -34,27 +40,41 @@ ino.h: ino.cpp	# derive forward declarations
 	( cat OSCR.h; sed -n '/^[a-zA-Z_0-9].*(.*).*{.*$$/s/{/;/p' $^ | sed 's/= [^,)]*[^,)]//g' | sed 's/\}//g' ) >ino.h
 
 clean:
-	rm -f *.o ino.* retrode
+	@echo '*** make clean ***'
+	rm -f *.o ino.* oscr
+
+# OSCR.o: oscr-cmd.h OSCR.h OSCR.cpp
+
+ino.o: oscr-cmd.h ino.h ino.cpp
+retrode-lib.o: retrode-lib.c retrode-lib.h
+
+oscr-cmd.o: oscr-cmd.h ino.h oscr-cmd.cpp
+
+# link command line tool
+oscr: retrode-lib.o oscr-cmd.o ino.o
+	$(CC) $(CFLAGS) retrode-lib.o oscr-cmd.o ino.o -o oscr
+
+install: oscr
+	@echo '*** make install ***'
+	cp oscr $(BINDIR)/
+	mkdir -p $(BINDIR)/../man/man1
+	gzip <oscr.groff >$(BINDIR)/../man/man1/oscr.1.gz
+	mkdir -p $(BINDIR)/../lib $(BINDIR)/../include $(BINDIR)/../man/man3
+	cp retrode-lib.o $(BINDIR)/../lib/
+	cp retrode-lib.h $(BINDIR)/../include/
+	gzip <retrode-lib.groff >$(BINDIR)/../man/man3/retrode-lib.3.gz
+
+# this allows to run "make remote" on the connected PC
 
 DEVICE=root@192.168.0.202
-SRCDIR=/usr/local/src/retrode
+SRCDIR=/usr/local/src/oscr
 BINDIR=/usr/local/bin/
 ROOTDIR=/usr/local/games/retrode/
 
-install: retrode
-	cp retrode $(BINDIR)/retrode
-
 remote: clean
+	@echo '*** make remote ***'
+	ssh $(DEVICE) sh -c "cd; mkdir -p $(SRCDIR) $(ROOTDIR)"
 	rsync -rltDvzh "./" "$(DEVICE):$(SRCDIR)"
 	rsync -rltDvzh "../sd/" "$(DEVICE):$(ROOTDIR)/"
 	ssh $(DEVICE) sh -c "cd; uname -a; cd $(SRCDIR) && make clean all install"
-	scp "$(DEVICE):$(BINDIR)/retrode" retrode	# pull binary from device
-
-OSCR.o: retrode.h OSCR.h OSCR.cpp
-
-ino.o: retrode.h ino.h ino.cpp
-
-retrode.o: ino.h retrode.h retrode.cpp
-
-# command line tool
-retrode: retrode.o ino.o
+	scp "$(DEVICE):$(SRCDIR)/oscr" "$(DEVICE):$(SRCDIR)/retrode-lib.o" .	# pull binaries from device
