@@ -15,9 +15,9 @@ CFLAGS=
 INO_SOURCES := $(wildcard *.ino) OSCR.cpp
 INO_SOURCES := Cart_Reader.ino SNES.ino MD.ino FLASH.ino NES.ino OSCR.cpp
 
-all: get-g++ oscr
+all: build-tools oscr
 
-get-g++:	# this installs the g++ package if g++ is missing
+build-tools:	# this installs the g++ package if g++ is missing
 	@echo '*** checking/installing g++ ***'
 	@if [ "`which g++`" ]; \
 	then echo g++ is available.; \
@@ -25,13 +25,13 @@ get-g++:	# this installs the g++ package if g++ is missing
 	fi
 
 %.o: %.ino	# directly compile .ino using C++
-	$(CC) -c $(CFLAGS) -D__Linux__ -include oscr-cmd.h -include all-ino.h -x c++ $< -o $*.o
+	$(CC) -c $(CFLAGS) -include oscr-cmd.h -include all-ino.h -x c++ $< -o $*.o
 
 %.o: %.cpp
-	$(CC) -c $(CFLAGS) -D__Linux__ -include oscr-cmd.h -x c++ -std=c++11 $< -o $*.o
+	$(CC) -c $(CFLAGS) -include oscr-cmd.h -x c++ -std=c++11 $< -o $*.o
 
 %.o: %.c
-	$(CC) -c $(CFLAGS) -D__Linux__ -x c $< -o $*.o
+	$(CC) -c $(CFLAGS) -x c $< -o $*.o
 
 all-ino.cpp: $(INO_SOURCES)	# collect all .ino source files into a single one and keep source file references --- FIXME: maybe we should preprocess first?
 	( echo "#include \"all-ino.h\""; for FILE in $^; do echo "# 1 \"$$FILE\""; cat "$$FILE"; done ) >$@
@@ -46,6 +46,8 @@ clean:
 # OSCR.o: oscr-cmd.h OSCR.h OSCR.cpp
 
 all-ino.o: oscr-cmd.h all-ino.h all-ino.cpp
+
+# NOTE: this is not built again on build host if we had run a remote build which copies the MIPS file from there...
 retrode-lib.o: retrode-lib.c retrode-lib.h
 
 oscr-cmd.o: oscr-cmd.h all-ino.h oscr-cmd.cpp
@@ -69,7 +71,7 @@ install: oscr
 DEVICE=root@192.168.0.202
 SRCDIR=/usr/local/src/oscr
 BINDIR=/usr/local/bin/
-ROOTDIR=/usr/local/games/retrode/
+ROOTDIR=/usr/local/games/oscr/
 
 remote: clean
 	@echo '*** make remote ***'
