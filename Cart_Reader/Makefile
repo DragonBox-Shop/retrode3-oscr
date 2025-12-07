@@ -25,7 +25,7 @@ get-g++:	# this installs the g++ package if g++ is missing
 	fi
 
 %.o: %.ino	# directly compile .ino using C++
-	$(CC) -c $(CFLAGS) -D__Linux__ -include oscr-cmd.h -include ino.h -x c++ $< -o $*.o
+	$(CC) -c $(CFLAGS) -D__Linux__ -include oscr-cmd.h -include all-ino.h -x c++ $< -o $*.o
 
 %.o: %.cpp
 	$(CC) -c $(CFLAGS) -D__Linux__ -include oscr-cmd.h -x c++ -std=c++11 $< -o $*.o
@@ -33,26 +33,26 @@ get-g++:	# this installs the g++ package if g++ is missing
 %.o: %.c
 	$(CC) -c $(CFLAGS) -D__Linux__ -x c $< -o $*.o
 
-ino.cpp: $(INO_SOURCES)	# collect all .ino source files into a single one and keep source file references --- FIXME: maybe we should preprocess first?
-	( echo "#include \"ino.h\""; for FILE in $^; do echo "# 1 \"$$FILE\""; cat "$$FILE"; done ) >$@
+all-ino.cpp: $(INO_SOURCES)	# collect all .ino source files into a single one and keep source file references --- FIXME: maybe we should preprocess first?
+	( echo "#include \"all-ino.h\""; for FILE in $^; do echo "# 1 \"$$FILE\""; cat "$$FILE"; done ) >$@
 
-ino.h: ino.cpp	# derive forward declarations
-	( cat OSCR.h; sed -n '/^[a-zA-Z_0-9].*(.*).*{.*$$/s/{/;/p' $^ | sed 's/= [^,)]*[^,)]//g' | sed 's/\}//g' ) >ino.h
+all-ino.h: all-ino.cpp	# derive forward declarations
+	( cat OSCR.h; sed -n '/^[a-zA-Z_0-9].*(.*).*{.*$$/s/{/;/p' $^ | sed 's/= [^,)]*[^,)]//g' | sed 's/\}//g' ) >all-ino.h
 
 clean:
 	@echo '*** make clean ***'
-	rm -f *.o ino.* oscr
+	rm -f *.o all-ino.* oscr
 
 # OSCR.o: oscr-cmd.h OSCR.h OSCR.cpp
 
-ino.o: oscr-cmd.h ino.h ino.cpp
+all-ino.o: oscr-cmd.h all-ino.h all-ino.cpp
 retrode-lib.o: retrode-lib.c retrode-lib.h
 
-oscr-cmd.o: oscr-cmd.h ino.h oscr-cmd.cpp
+oscr-cmd.o: oscr-cmd.h all-ino.h oscr-cmd.cpp
 
 # link command line tool
-oscr: retrode-lib.o oscr-cmd.o ino.o
-	$(CC) $(CFLAGS) oscr-cmd.o ino.o retrode-lib.o -o oscr
+oscr: retrode-lib.o oscr-cmd.o all-ino.o
+	$(CC) $(CFLAGS) oscr-cmd.o all-ino.o retrode-lib.o -o oscr
 
 install: oscr
 	@echo '*** make install ***'
