@@ -21,8 +21,8 @@ class EEPROM EEPROM;	// global EEPROM
 /*** main program ***/
 
 static char *arg0;
-static const char *sdroot = "/usr/local/games/retrode";
-static const char *eeprom = "/usr/local/games/retrode/EEPROM.bin";
+static const char *sdroot = "/usr/local/games/oscr";
+static const char *eeprom = "/usr/local/games/oscr/EEPROM.bin";
 
 static void usage(void)
 {
@@ -46,8 +46,8 @@ static void help(void)
 	printf("Usage: %s [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n", arg0);
 	printf("Options:\n");
 	printf("  -h             Display this information\n");
-	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/games/retrode/EEPROM.bin\"]\n");
-	printf("  -r sd-root     Define the SD root directory [default: \"/usr/local/games/retrode\"]\n");
+	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/games/oscr/EEPROM.bin\"]\n");
+	printf("  -r sd-root     Define the SD root directory [default: \"/usr/local/games/oscr\"]\n");
 	printf("\n");
 #ifdef ENABLED_CONFIG
 	printf("There is a config file called \"config.txt\".\n");
