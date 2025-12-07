@@ -7,8 +7,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-// call these from within the patched MD.ino
-
 #if 1
 #define DEBUG(FORMAT, ...) fprintf(stderr, "%s %d: " FORMAT "\n", __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__)
 #else
@@ -16,77 +14,199 @@
 #endif
 
 /* wrappers for direct access */
-static int fd_md = -1;
+static int md_fd = -1;
+static int nes_fd = -1;
+static int snes_fd = -1;
 
-int open_md(void)
+int md_open(void)
 {
-	DEBUG("%s %d:\n");
-
-	if (fd_md < 0) {
-		fd_md = open("/dev/slot-md", O_RDWR);
-		if (fd_md < 0) {
+	DEBUG("");
+	if (md_fd < 0) {
+		md_fd = open("/dev/slot-md", O_RDWR);
+		if (md_fd < 0) {
 			perror("no cart in MD slot");
 			return -1;
 		}
 	}
-	return fd_md;
+	return md_fd;
 }
 
-int close_md(void)
+int md_close(void)
 {
-	if (fd_md >= 0) {
-		if (close(fd_md) < 0) {
+	DEBUG("");
+	if (md_fd >= 0) {
+		if (close(md_fd) < 0) {
 			perror("can't close MD slot");
 			return -1;	/* unexpected error */
 		}
 	}
-	fd_md = -1;
+	md_fd = -1;
 	return 0;
 }
 
-int read_md(unsigned long addr, void *buf, int size, int mode)
+int md_read(uint32_t addr, void *buf, uint32_t size, int mode)
 {
 	int ret;
-	DEBUG("%s %d: addr=%06x data=%04x mode=%d\n", addr, size, mode);
-	if (open_md() < 0)
+	DEBUG("addr=%06x data=%04x mode=%d", addr, size, mode);
+	if (md_open() < 0)
 		return -1;
-	addr = (mode << 24) + ((addr) << 1);
-	DEBUG("%s %d: addr=%06x\n", addr);
-	if (lseek(fd_md, addr, SEEK_SET) < 0) {
+	addr = (mode << 24) + addr;
+	DEBUG("addr=%06x", addr);
+	if (lseek(md_fd, addr, SEEK_SET) < 0) {
 		perror("seek error on MD slot");
 		return -1;
 	}
-	ret = read(fd_md, buf, size);
+	ret = read(md_fd, buf, size);
 	if (ret < 0)
 		perror("read error on MD slot");
 	return ret;
 }
 
-int write_md(unsigned long addr, void *buf, int size, int mode)
+int md_write(uint32_t addr, void *buf, uint32_t size, int mode)
 {
 	int ret;
-	DEBUG("%s %d: addr=%06x data=%04x mode=%d\n", addr, size, mode);
-	if (open_md() < 0)
+	DEBUG("addr=%06x data=%04x mode=%d", addr, size, mode);
+	if (md_open() < 0)
 		return -1;
-	addr = (mode << 24) + ((addr) << 1);
-	DEBUG("%s %d: addr=%06x\n", addr);
-	if (lseek(fd_md, addr, SEEK_SET) < 0) {
+	addr = (mode << 24) + addr;
+	DEBUG("addr=%06x", addr);
+	if (lseek(md_fd, addr, SEEK_SET) < 0) {
 		perror("seek error on MD slot");
 		return -1;
 	}
-	ret = write(fd_md, buf, size);
+	ret = write(md_fd, buf, size);
 	if (ret < 0)
 		perror("write error on MD slot");
 	return ret;
 }
 
-int set_voltage_md(int mV)
+int md_set_voltage(int mV)
 { /* 3300 or 5000 */
+	DEBUG("");
 	// control /sys node
 }
 
-// more wrappers for SNES, NES
-// also for reading/writing RAM in different modes
+int nes_open(void)
+{
+	DEBUG("");
+	if (nes_fd < 0) {
+		nes_fd = open("/dev/slot-nes", O_RDWR);
+		if (nes_fd < 0) {
+			perror("no cart in NES slot");
+			return -1;
+		}
+	}
+	return nes_fd;
+}
 
-// the goal is to hide all kernel interfaces from user space
-// and to allow to write plugins for cards that are plugged in through adapters
+int nes_close(void)
+{
+	DEBUG("");
+	if (nes_fd >= 0) {
+		if (close(nes_fd) < 0) {
+			perror("can't close NES slot");
+			return -1;	/* unexpected error */
+		}
+	}
+	nes_fd = -1;
+	return 0;
+}
+
+int nes_read(uint16_t addr, void *buf, uint16_t size, int mode)
+{
+	int ret;
+	uint32_t a = (mode << 24) + addr;
+	DEBUG("addr=%04x data=%04x mode=%d", addr, size, mode);
+	if (nes_open() < 0)
+		return -1;
+	DEBUG("addr=%08x", a);
+	if (lseek(nes_fd, a, SEEK_SET) < 0) {
+		perror("seek error on NES slot");
+		return -1;
+	}
+	ret = read(nes_fd, buf, size);
+	if (ret < 0)
+		perror("read error on NES slot");
+	return ret;
+}
+
+int nes_write(uint16_t addr, void *buf, uint16_t size, int mode)
+{
+	int ret;
+	uint32_t a = (mode << 24) + addr;
+	DEBUG("addr=%04x data=%04x mode=%d", addr, size, mode);
+	if (nes_open() < 0)
+		return -1;
+	DEBUG("addr=%08x", a);
+	if (lseek(nes_fd, a, SEEK_SET) < 0) {
+		perror("seek error on NES slot");
+		return -1;
+	}
+	ret = write(nes_fd, buf, size);
+	if (ret < 0)
+		perror("write error on NES slot");
+	return ret;
+}
+
+int snes_open(void)
+{
+	DEBUG("");
+	if (snes_fd < 0) {
+		snes_fd = open("/dev/slot-md", O_RDWR);
+		if (snes_fd < 0) {
+			perror("no cart in SNES slot");
+			return -1;
+		}
+	}
+	return md_fd;
+}
+
+int snes_close(void)
+{
+	DEBUG("");
+	if (snes_fd >= 0) {
+		if (close(snes_fd) < 0) {
+			perror("can't close SNES slot");
+			return -1;	/* unexpected error */
+		}
+	}
+	snes_fd = -1;
+	return 0;
+}
+
+int snes_read(uint8_t bank, uint16_t addr, void *buf, uint16_t size, int mode)
+{
+	int ret;
+	uint32_t a = (mode << 24) + (bank << 16) + addr;
+	DEBUG("bank=%02x addr=%04x data=%04x mode=%d", bank, addr, size, mode);
+	if (md_open() < 0)
+		return -1;
+	DEBUG("addr=%08x", a);
+	if (lseek(snes_fd, a, SEEK_SET) < 0) {
+		perror("seek error on SNES slot");
+		return -1;
+	}
+	ret = read(snes_fd, buf, size);
+	if (ret < 0)
+		perror("read error on SNES slot");
+	return ret;
+}
+
+int snes_write(uint8_t bank, uint16_t addr, void *buf, uint16_t size, int mode)
+{
+	int ret;
+	uint32_t a = (mode << 24) + (bank << 16) + addr;
+	DEBUG("bank=%02x addr=%04x data=%04x mode=%d", bank, addr, size, mode);
+	if (md_open() < 0)
+		return -1;
+	DEBUG("addr=%08x", a);
+	if (lseek(snes_fd, a, SEEK_SET) < 0) {
+		perror("seek error on SNES slot");
+		return -1;
+	}
+	ret = write(snes_fd, buf, size);
+	if (ret < 0)
+		perror("write error on SNES slot");
+	return ret;
+}
+
