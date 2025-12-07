@@ -10,23 +10,24 @@ retrode library (-lretrode-lib)
 #include <retrode-lib.h>
 
 int
-open_md(void);
+md_open(void);
 
 int
-close_md(void);
+md_close(void);
 
 int
-read_md(unsigned long addr, void *buf, int size, int mode);
+md_read(unsigned long addr, void *buf, int size, int mode);
 
 int
-write_md(unsigned long, void *buf, int size, int mode);
+md_write(unsigned long, void *buf, int size, int mode);
 
 int
-set_voltage_md(int mV);	/* 3300 or 5000 */
+md_set_voltage(int mV);	/* 3300 or 5000 */
 
 
 .SH DESCRIPTION
-retrode-lib is a testme.
+retrode-lib is a library to wrap the details how to communicate through the kernel
+interfaces with the carts plugged into slots.
 
 .SH RETURN VALUES
 Most functions return a negative value on failure and >= 0 for success.
@@ -35,24 +36,29 @@ Most functions return a negative value on failure and >= 0 for success.
 To read the first 1024 byres from the Megadrive Slot:
 
 	#include <retrode-lib.h>
-	uint_16 buffer[512];
-	open_md();
-	read_md(0L, buffer, sizeof(buffer));
-	close_md();
+	int main(void) {
+		uint_16 buffer[512];
+		open_md();
+		read_md(0L, buffer, sizeof(buffer), MD_MODE_ROM);
+		close_md();
+		return 0;
+	}
 
+To build the tool:
 
 	cc -o mytool -I/usr/local/include mytool.c /usr/local/lib/retrode-lib.o
 
 .SH ERRORS
 
 .SH FILES
-	/usr/local/lib/retrode-lib.o
 	/usr/local/include/retrode-lib.h
+	/usr/local/lib/retrode-lib.o
 
 .SH SEE ALSO
+oscr(1).
 
 .SH BUGS
-No known bugs.
+No known bugs. But documentation is incomplete and some functions are missing.
 
 .SH AUTHOR
 H. Nikolaus Schaller (hns@goldelico.com)
