@@ -19,13 +19,13 @@
 
 #include <cstring>
 
-#include "retrode-lib.h"
-// #undef __Linux__
-// #define __Linux__
-// besser wäre __Linux__ wo noch nötig durch OSCR_CMD zu ersetzen!
+#include "retrode-lib.h"	// comment out to use old variant
 
 #undef time
 #undef clock
+
+/*** compile sources in command line mode ***/
+#define OSCR_CMDLINE
 
 /*** modules to compile ***/
 

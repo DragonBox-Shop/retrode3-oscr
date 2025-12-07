@@ -509,8 +509,6 @@ also needs ENABLE_FLASH8 and ENABLE_FLASH16 to be enabled
     **
 */
 
-//#define use_md_conf
-
 /*
     Configure how the MD core saves are formatted.
 

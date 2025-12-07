@@ -5,7 +5,7 @@
 #define OSCR_H_
 
 #include <stdint.h>
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
 #include "oscr-cmd.h"
 #else
 #include <Arduino.h>
@@ -30,7 +30,7 @@
 # endif
 
 #include "ClockedSerial.h"
-#endif
+#endif // OSCR_CMDLINE
 
 // Let user know unsafe configs are allowed
 # if defined(ALLOW_UNSAFE_CONFIG)
