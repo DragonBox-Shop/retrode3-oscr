@@ -25,9 +25,9 @@ The eeprom file is used to store e.g.
 
 .SH OPTIONS
 Options:
-  -h             Display this information
-  -e eeprom.bin  Define the eeprom file [default: "/usr/local/games/retrode/EEPROM.bin"]
-  -r sd-root     Define the SD root directory [default: "/usr/local/games/retrode"]
+  -h             Display help
+  -e eeprom.bin  Define the EEPROM file [default: "/usr/local/games/oscr/EEPROM.bin"]
+  -r sd-root     Define the SD root directory [default: "/usr/local/games/oscr"]
 
 .SH EXAMPLES
  echo 200 | oscr
@@ -36,6 +36,12 @@ Options:
     echo 100      read SNES/SFC cart to file
     echo 200      read Megadrive cart to file
     echo 210      backup Sega RamCart to file
+
+.SH FILES
+  /usr/local/games/oscr where cart content is stored [overwrite by -r]
+  /usr/local/games/oscr/config.txt configuration file
+  /usr/local/games/oscr/eeprom.bin simulated EEPROM
+
 .SH SEE ALSO
 ucon64(1), https://github.com/sanni/cartreader
 .SH BUGS
