@@ -52,7 +52,7 @@ oscr-cmd.o: oscr-cmd.h ino.h oscr-cmd.cpp
 
 # link command line tool
 oscr: retrode-lib.o oscr-cmd.o ino.o
-	$(CC) $(CFLAGS) retrode-lib.o oscr-cmd.o ino.o -o oscr
+	$(CC) $(CFLAGS) oscr-cmd.o ino.o retrode-lib.o -o oscr
 
 install: oscr
 	@echo '*** make install ***'
