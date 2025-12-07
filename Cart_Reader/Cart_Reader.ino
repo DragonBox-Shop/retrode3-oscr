@@ -213,7 +213,7 @@ static constexpr const char* const string_table[] PROGMEM = {
 
 void print_STR(byte string_number, boolean newline) {
   char string_buffer[22];
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
   strcpy_P(string_buffer, string_table[string_number]);	// code below assumes sizeof(char *) == sizeof(word)
 #else
   strcpy_P(string_buffer, (char*)pgm_read_word(&(string_table[string_number])));
@@ -228,7 +228,7 @@ void print_STR(byte string_number, boolean newline) {
   Defines
  *****************************************/
 
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
 #define NOP	// all timing related actions are done in kernel driver
 #else
 // optimization-safe nop delay
@@ -2422,10 +2422,11 @@ byte buildRomName(char* output, const byte* input, byte length) {
 // Converts a progmem array into a ram array
 void convertPgm(const char* const pgmOptions[], byte numArrays) {
   for (int i = 0; i < numArrays; i++) {
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
     strlcpy_P(menuOptions[i], pgmOptions[i], 20);	// code below assumes sizeof(char *) == sizeof(word)
 #else
-    strlcpy_P(menuOptions[i], (char*)pgm_read_word(&(pgmOptions[i])), 20);#endif
+    strlcpy_P(menuOptions[i], (char*)pgm_read_word(&(pgmOptions[i])), 20);
+#endif
   }
 }
 

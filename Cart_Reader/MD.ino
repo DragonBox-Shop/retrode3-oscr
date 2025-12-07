@@ -4,9 +4,7 @@
 // Writes to Sega CD Backup RAM Cart require an extra wire from MRES (B02) to VRES (B27)
 #ifdef ENABLE_MD
 
-#undef __Linux__	// use retrode-lib
-
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
 int md_fd;
 #endif
 
@@ -139,9 +137,7 @@ static word chksumSonic2 = 0x0635;
 /******************************************
    Configuration
  *****************************************/
-#if defined(use_md_conf) && !defined(ENABLE_CONFIG)
-
-#warning "DEPRECATED: use_md_conf is deprecated. You should use ENABLE_CONFIG instead."
+#if !defined(ENABLE_CONFIG)
 
 void mdLoadConf() {
   if (myFile.open("mdconf.txt", O_READ)) {
@@ -521,7 +517,7 @@ void segaCDMenu() {
    Setup
  *****************************************/
 void setup_MD() {
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   md_fd = open("/dev/slot-md", O_RDWR);
   if (md_fd < 0) {
     perror("no cart in MD slot");
@@ -529,7 +525,7 @@ void setup_MD() {
   }
 #endif
 #ifdef RETRODE_LIB_H
-	if (open_md() < 0)	/* not really necessary but let's fail early */
+	if (md_open() < 0)	/* not really necessary but let's fail early */
 		exit(1);
 #endif
   // Request 5V
@@ -537,8 +533,6 @@ void setup_MD() {
 
 #if defined(ENABLE_CONFIG)
   segaSram16bit = configGetLong(F("md.saveType"));
-#elif defined(use_md_conf)
-  mdLoadConf();
 #endif /*ENABLE_CONFIG*/
 
   // Set Address Pins to Output
@@ -585,7 +579,7 @@ void setup_MD() {
   Low level functions
 *****************************************/
 void writeWord_MD(unsigned long myAddress, word myData) {
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
 
 #define MD_ROM(addr)	((0 << 24) + ((addr) << 1))	// default read/write
 #define MD_P10(addr)	((1 << 24) + ((addr) << 1))	// 10 toggle pulses on CLK
@@ -602,7 +596,7 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
 #endif
 #ifdef RETRODE_LIB_H
   myData = htons(myData);
-  write_md(myAddress, &myData, sizeof(myData), MD_MODE_ROM);
+  md_write(myAddress << 1, &myData, sizeof(myData), MD_MODE_ROM);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -649,7 +643,7 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
 }
 
 word readWord_MD(unsigned long myAddress) {
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   word myData;
   lseek(md_fd, MD_P10(myAddress), SEEK_SET);
   read(md_fd, &myData, sizeof(myData));
@@ -659,7 +653,7 @@ word readWord_MD(unsigned long myAddress) {
 #endif
 #ifdef RETRODE_LIB_H
   word myData;
-	read_md(myAddress, &myData, sizeof(myData), MD_MODE_P10);
+	md_read(myAddress << 1, &myData, sizeof(myData), MD_MODE_P10);
 	return ntohs(myData);
 #endif
   PORTF = myAddress & 0xFF;
@@ -714,7 +708,7 @@ word readWord_MD(unsigned long myAddress) {
 }
 
 void writeFlash_MD(unsigned long myAddress, word myData) {
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   byte val = htons(myData);
 fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 // CHECKME: how is this different from writing ROM? it is a byte wide write
@@ -724,7 +718,7 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
 #endif
 #ifdef RETRODE_LIB_H
   byte val = htons(myData);
-  write_md(myAddress, &val, sizeof(val), MD_MODE_ROM);
+  md_write(myAddress << 1, &val, sizeof(val), MD_MODE_ROM);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -764,7 +758,7 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
 }
 
 word readFlash_MD(unsigned long myAddress) {
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   word myData;
 fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 fprintf(stderr, "%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
@@ -774,7 +768,7 @@ fprintf(stderr, "%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 #endif
 #ifdef RETRODE_LIB_H
   word myData;
-  read_md(myAddress, &myData, sizeof(myData), MD_MODE_ROM);
+  md_read(myAddress << 1, &myData, sizeof(myData), MD_MODE_ROM);
   return ntohs(myData);
 #endif
   PORTF = myAddress & 0xFF;
@@ -837,7 +831,7 @@ byte copyToRomName_MD(char* output, const byte* input, byte length) {
   byte myLength = 0;
 
   for (byte i = 0; i < 48; i++) {
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
 // fprintf(stderr, "%s: %d:%c %d:%c\n", __PRETTY_FUNCTION__, i, input[i], myLength, output[i]);
     if (input[i] == ' ' && myLength > 0 && output[myLength-1] != ' ')
       output[myLength++] = input[i];	// preserve single and squeeze multiple spaces
@@ -847,7 +841,7 @@ byte copyToRomName_MD(char* output, const byte* input, byte length) {
       output[myLength++] = input[i];
     }
   }
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
   while (myLength > 0 && output[myLength-1] == ' ')
 	myLength--;	// remove final space(s)
 #endif
@@ -1505,7 +1499,7 @@ void getCartInfo_MD() {
 }
 
 void writeSSF2Map(unsigned long myAddress, word myData) {
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   myData = htons(myData);
 fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   myData = htons(myData);
@@ -1515,7 +1509,7 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
 #endif
 #ifdef RETRODE_LIB_H
   myData = htons(myData);
-  write_md(myAddress, &myData, sizeof(myData), MD_MODE_TIME);
+  md_write(myAddress << 1, &myData, sizeof(myData), MD_MODE_TIME);
   return;
 #endif
   dataOut_MD();
@@ -1655,7 +1649,7 @@ void readROM_MD() {
 
     d = 0;
 
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   unsigned long myAddress = currBuffer - (offsetSSF2Bank * 0x80000);
 //fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
   lseek(md_fd, isSVP ? MD_P10(myAddress) : MD_ROM(myAddress), SEEK_SET);
@@ -1664,7 +1658,7 @@ void readROM_MD() {
 	calcCKS += ((buffer[d] << 8) | buffer[d + 1]);
 #elif defined(RETRODE_LIB_H)
   unsigned long myAddress = currBuffer - (offsetSSF2Bank * 0x80000);
-  read_md(myAddress, &buffer, sizeof(buffer), isSVP ? MD_MODE_P10 : MD_MODE_ROM);
+  md_read(myAddress << 1, &buffer, sizeof(buffer), isSVP ? MD_MODE_P10 : MD_MODE_ROM);
   // ntohs?
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
 	calcCKS += ((buffer[d] << 8) | buffer[d + 1]);
@@ -1735,7 +1729,7 @@ void readROM_MD() {
 
       d = 0;
 
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   unsigned long myAddress = currBuffer + cartSize / 2;
 fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
   lseek(md_fd, isSVP ? MD_P10(myAddress) : MD_ROM(myAddress), SEEK_SET);
@@ -1744,7 +1738,7 @@ fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer)
         calcCKSLockon += ((buffer[d] << 8) | buffer[d + 1]);
 #elif defined(RETRODE_LIB_H)
   unsigned long myAddress = currBuffer + cartSize / 2;
-  read_md(myAddress, &buffer, sizeof(buffer), isSVP ? MD_MODE_P10 : MD_MODE_ROM);
+  md_read(myAddress << 1, &buffer, sizeof(buffer), isSVP ? MD_MODE_P10 : MD_MODE_ROM);
   // htons?
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
         calcCKSLockon += ((buffer[d] << 8) | buffer[d + 1]);
@@ -1815,7 +1809,7 @@ fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer)
 
       d = 0;
 
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   unsigned long myAddress = currBuffer + (cartSize + cartSizeLockon) / 2;
 fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
   lseek(md_fd, isSVP ? MD_P1(myAddress) : MD_ROM(myAddress), SEEK_SET);
@@ -1824,7 +1818,7 @@ fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer)
         calcCKSSonic2 += ((buffer[d] << 8) | buffer[d + 1]);
 #elif defined(RETRODE_LIB_H)
   unsigned long myAddress = currBuffer + (cartSize + cartSizeLockon) / 2;
-  read_md(myAddress, &buffer, sizeof(buffer), isSVP ? MD_MODE_P1 : MD_MODE_ROM);
+  md_read(myAddress << 1, &buffer, sizeof(buffer), isSVP ? MD_MODE_P1 : MD_MODE_ROM);
   // htons?
   for(d = 0; d < 1024; d += 2)
         calcCKSSonic2 += ((buffer[d] << 8) | buffer[d + 1]);
@@ -1945,15 +1939,16 @@ fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer)
 // Sonic 3 sram enable
 void enableSram_MD(boolean enableSram) {
   word myData = enableSram;
+  // htons?
 fprintf(stderr, "%s: %d\n", __PRETTY_FUNCTION__, enableSram);
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
 fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ENSRAM(0), SEEK_SET);
   // ntohs???
   write(md_fd, &myData, sizeof(myData));
 #endif
 #ifdef RETRODE_LIB_H
-  write_md(0, &myData, sizeof(myData), MD_MODE_ENSRAM);
+  md_write(0, &myData, sizeof(myData), MD_MODE_ENSRAM);
 #endif
   dataOut_MD();
 
@@ -2449,7 +2444,7 @@ void busyCheck_MD() {
 // EEPROM Functions
 //******************************************
 void EepromInit(byte eepmode) {    // Acclaim Type 2
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
 fprintf(stderr, "%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
 	word myData = eepmode;
 	fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
@@ -2459,7 +2454,7 @@ fprintf(stderr, "%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
 #ifdef RETRODE_LIB_H
 	word myData = eepmode;
 	// htons?
-	write_md(0x10 << 16, &myData, sizeof(myData), MD_MODE_EEPMODE);
+	md_write(0x10 << (16 + 1), &myData, sizeof(myData), MD_MODE_EEPMODE);
 #endif
   PORTF = 0x00;                    // ADDR A0-A7
   PORTK = 0x00;                    // ADDR A8-A15
@@ -2498,7 +2493,7 @@ fprintf(stderr, "%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
 }
 
 void writeWord_SDA(unsigned long myAddress, word myData) { /* D0 goes to /SDA when only /LWR is asserted */
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   myData = htons(myData);
 fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
@@ -2509,7 +2504,7 @@ fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 #ifdef RETRODE_LIB_H
   myData = htons(myData);
 // what is special with this MODE? the extra delay of 100µs for tiny eepSize?
-  write_md(myAddress, &myData, sizeof(myData), MD_MODE_ROM);
+  md_write(myAddress << 1, &myData, sizeof(myData), MD_MODE_ROM);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -2553,7 +2548,7 @@ fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 }
 
 void writeWord_SCL(unsigned long myAddress, word myData) { /* D0 goes to /SCL when only /UWR is asserted */
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   myData = htons(myData);
 // what is special with this mode? the extra delay of 100µs for tiny eepSize?
 fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
@@ -2561,10 +2556,10 @@ fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
- #ifdef __Linux__
+#ifdef RETRODE_LIB_H
   myData = htons(myData);
 // what is special with this MODE? the extra delay of 100µs for tiny eepSize?
-  write_md(myAddress, &myData, sizeof(myData), MD_MODE_ROM);
+  md_write(myAddress << 1, &myData, sizeof(myData), MD_MODE_ROM);
 #endif
  PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -2608,7 +2603,7 @@ fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 }
 
 void writeWord_CM(unsigned long myAddress, word myData) {  // Codemasters
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   myData = htons(myData);
 fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
 fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
@@ -2617,7 +2612,7 @@ fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 #endif
 #ifdef RETRODE_LIB_H
   myData = htons(myData);
-  write_md(myAddress, &myData, sizeof(myData), MD_MODE_P1);
+  md_write(myAddress << 1, &myData, sizeof(myData), MD_MODE_P1);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -3201,16 +3196,16 @@ void writeBram_MD() {
 // Realtec Mapper Functions
 //******************************************
 void writeRealtec(unsigned long address, byte value) {  // Realtec 0x404000 (UPPER)/0x400000 (LOWER)
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   word myData = htons(value);
 fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, address, value);
 fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ROM(address), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
-#ifdef __Linux__
+#ifdef RETRODE_LIB_H
   word myData = htons(value);
-  write(address, &myData, sizeof(myData), MD_MODE_ROM);
+  md_write(address << 1, &myData, sizeof(myData), MD_MODE_ROM);
 #endif
   dataOut_MD();
   PORTF = address & 0xFF;          // 0x00 ADDR A0-A7
@@ -3609,5 +3604,3 @@ word readFlashCFI_MD(byte currChip, unsigned long myAddress) {
 //******************************************
 // End of File
 //******************************************
-
-#define __Linux__	// use __Linux__ again until we have switched everything to RETRODE_LIB and OSCR_CMD

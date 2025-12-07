@@ -178,7 +178,7 @@ void printVersionToSerial() {}
 *F*/
 void setClockScale(VOLTS __x)
 {
-#ifndef __Linux__
+#ifndef OSCR_CMDLINE
   uint8_t __tmp = _BV(CLKPCE); /*[1]*/
   __asm__ __volatile__ (
     "in __tmp_reg__,__SREG__" "\n\t"
@@ -197,7 +197,7 @@ void setClockScale(VOLTS __x)
 
 void setClockScale(CLKSCALE __x)
 {
-#ifndef __Linux__
+#ifndef OSCR_CMDLINE
   clock = (__x == CLKSCALE_16MHZ ? CS_16MHZ : CS_8MHZ);
   uint8_t __tmp = _BV(CLKPCE); /*[1]*/
   __asm__ __volatile__ (

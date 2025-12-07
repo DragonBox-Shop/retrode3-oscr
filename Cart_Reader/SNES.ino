@@ -3,8 +3,10 @@
 //******************************************
 #ifdef ENABLE_SNES
 
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
 int snes_fd;
+#endif
+#ifdef OSCR_CMDLINE 
 static byte local_porth;	// track assignments to PORTH especially PH3
 #undef PORTH
 #define PORTH local_porth
@@ -582,7 +584,7 @@ fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
 }
 
 void stopSnesClocks_resetCic_resetCart() {
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
 fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
 fprintf(stderr, "%s to be implemented\n", __PRETTY_FUNCTION__);
 #endif
@@ -602,12 +604,16 @@ fprintf(stderr, "%s to be implemented\n", __PRETTY_FUNCTION__);
  *****************************************/
 void setup_Snes() {
 //fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   snes_fd = open("/dev/slot-snes", O_RDWR);	/* closed on exit() */
   if(snes_fd < 0) {
     perror("no cart in SNES slot");
     exit(1);
   }
+#endif
+#ifdef RETRODE_LIB_H
+	if (snes_open() < 0)	/* not really necessary but let's fail early */
+		exit(1);
 #endif
   // Request 5V
   setVoltage(VOLTS_SET_5V);
@@ -671,7 +677,7 @@ void setup_Snes() {
   DDRJ |= (1 << 0);
   //PORTJ &= ~(1 << 0);
 
-// FIXME: this needs __Linux__
+// FIXME: this needs RETRODE_LIB_H helper
   // Adafruit Clock Generator
   initializeClockOffset();
 
@@ -719,7 +725,7 @@ void setup_Snes() {
  *****************************************/
 // Switch control pins to write
 void controlOut_SNES() {
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
 fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   /* CS(PH3) handled by writeBank_SNES(), others by kernel driver */;
 #endif
@@ -731,7 +737,7 @@ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
 
 // Switch control pins to read
 void controlIn_SNES() {
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
 fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   /* CS(PH3) handled by writeBank_SNES(), others by kernel driver */;
 #endif
@@ -746,7 +752,7 @@ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
  *****************************************/
 // Write one byte of data to a location specified by bank and address, 00:0000
 void writeBank_SNES(byte myBank, word myAddress, byte myData) {
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
 
 #define CS_PH3 (PORTH & (1 << 3))
 #define SNES_REGULAR	(0 << 24)
@@ -756,6 +762,9 @@ void writeBank_SNES(byte myBank, word myAddress, byte myData) {
 fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   lseek(snes_fd, SNES_ADDR(myBank, myAddress), SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
+#endif
+#ifdef RETRODE_LIB_H
+  snes_write(myAddress, myBank, &myData, sizeof(myData), (PORTH & (1 << 3)) ? SNES_MODE_HIROM : SNES_MODE_REGULAR);
 #endif
   PORTL = myBank;
   PORTF = myAddress & 0xFF;
@@ -819,12 +828,18 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
 // Read one byte of data from a location specified by bank and address, 00:0000
 byte readBank_SNES(byte myBank, word myAddress) {
 // fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   byte myData;
   lseek(snes_fd, SNES_ADDR(myBank, myAddress), SEEK_SET);
   write(snes_fd, &myData, sizeof(myData));
   return myData;
 #endif
+#ifdef RETRODE_LIB_H
+	byte myData;
+	snes_write(myBank, myAddress, &myData, sizeof(myData), SNES_MODE_REGULAR);
+	return myData;
+#endif
+
   PORTL = myBank;
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -864,12 +879,16 @@ void readLoRomBanks(unsigned int start, unsigned int total, FsFile* file) {
     blinkLED();
 
     currByte = 32768;
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
 // fprintf(stderr, "%s: %d %04x %06x\n", __PRETTY_FUNCTION__, currBank, currByte, (currBank<<16)+currByte);
 
     lseek(snes_fd, SNES_ADDR(currBank, currByte), SEEK_SET);
     while (1) {
       read(snes_fd, &buffer, sizeof(buffer));
+      currByte += sizeof(buffer);
+#elif defined(RETRODE_LIB_H)
+    while (1) {
+      snes_read(currBank, currByte, &buffer, sizeof(buffer), SNES_MODE_REGULAR);
       currByte += sizeof(buffer);
 #else
     while (1) {
@@ -925,13 +944,19 @@ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
     blinkLED();
 
     currByte = 0;
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
+// fprintf(stderr, "%s: %d %04x %06x\n", __PRETTY_FUNCTION__, currBank, currByte, (currBank<<16)+currByte);
+
     lseek(snes_fd, SNES_ADDR(currBank, currByte), SEEK_SET);
     while (1) {
       read(snes_fd, &buffer, sizeof(buffer));
       currByte += sizeof(buffer);
-#else
+#elif defined(RETRODE_LIB_H)
     while (1) {
+      snes_read(currBank, currByte, &buffer, sizeof(buffer), SNES_MODE_REGULAR);
+      currByte += sizeof(buffer);
+#else
+     while (1) {
       c = 0;
       while (c < 1024) {
         PORTF = (currByte & 0xFF);
@@ -972,12 +997,15 @@ void getCartInfo_SNES() {
 // fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   boolean manualConfig = 0;
 
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   byte buffer[1024];
   lseek(snes_fd, SNES_ADDR(192, 0), SEEK_SET);
   read(snes_fd, &buffer, 1024);
 #endif
-
+#ifdef RETRODE_LIB_H
+  byte buffer[1024];
+  snes_read(192, 0, &buffer, 1024, SNES_MODE_REGULAR);
+#endif
   //Prime SA1 cartridge
   PORTL = 192;
   for (uint16_t currByte = 0; currByte < 1024; currByte++) {
@@ -1228,9 +1256,11 @@ boolean checkcart_SNES() {
 
   uint16_t headerStart = 0xFFB0;
   byte snesHeader[80];
-#ifdef __Linux__
+#ifndef RETRODE_LIB_H
   lseek(snes_fd, SNES_ADDR(0, headerStart), SEEK_SET);
   read(snes_fd, &snesHeader, 80);
+#elif defined(RETRODE_LIB_H)
+  snes_read(0, headerStart, &snesHeader, 80, SNES_MODE_REGULAR);
 #else
   PORTL = 0;
   for (uint16_t c = 0, currByte = headerStart; c < 80; c++, currByte++) {
@@ -2561,7 +2591,7 @@ fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   display_Update();
 }
 
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
 #undef PORTH
 #define PORTH	dummy
 #endif

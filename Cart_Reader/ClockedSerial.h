@@ -4,7 +4,7 @@
 #ifndef CLOCKEDSERIAL_H_
 #define CLOCKEDSERIAL_H_
 
-#ifdef __Linux__
+#ifdef OSCR_CMDLINE
 /* based on https://github.com/arduino/ArduinoCore-avr/blob/master/cores/arduino/HardwareSerial.h */
 
 #define SERIAL_8N1 0x06
