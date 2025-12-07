@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>	// for mkdir()
 #include "oscr-cmd.h"
-#include "ino.h"	// to know all globals
+#include "all-ino.h"	// to know all globals from .ino files
 
 #ifndef PATH_MAX
 #define PATH_MAX 256
