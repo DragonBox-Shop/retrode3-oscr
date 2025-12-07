@@ -4,6 +4,8 @@
 // Writes to Sega CD Backup RAM Cart require an extra wire from MRES (B02) to VRES (B27)
 #ifdef ENABLE_MD
 
+#undef __Linux__	// use retrode-lib
+
 #ifdef __Linux__
 int md_fd;
 #endif
@@ -526,6 +528,10 @@ void setup_MD() {
     exit(1);
   }
 #endif
+#ifdef RETRODE_LIB_H
+	if (open_md() < 0)	/* not really necessary but let's fail early */
+		exit(1);
+#endif
   // Request 5V
   setVoltage(VOLTS_SET_5V);
 
@@ -594,6 +600,10 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
+#ifdef RETRODE_LIB_H
+  myData = htons(myData);
+  write_md(myAddress, &myData, sizeof(myData), MD_MODE_ROM);
+#endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
@@ -646,6 +656,11 @@ word readWord_MD(unsigned long myAddress) {
   myData = ntohs(myData);
 // fprintf(stderr, "%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   return myData;
+#endif
+#ifdef RETRODE_LIB_H
+  word myData;
+	read_md(myAddress, &myData, sizeof(myData), MD_MODE_P10);
+	return ntohs(myData);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -707,6 +722,10 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &val, sizeof(val));
 #endif
+#ifdef RETRODE_LIB_H
+  byte val = htons(myData);
+  write_md(myAddress, &val, sizeof(val), MD_MODE_ROM);
+#endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
@@ -752,6 +771,11 @@ fprintf(stderr, "%s: %06x -> %04x\n", __PRETTY_FUNCTION__, myAddress, myData);
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &myData, sizeof(myData));
   return myData;
+#endif
+#ifdef RETRODE_LIB_H
+  word myData;
+  read_md(myAddress, &myData, sizeof(myData), MD_MODE_ROM);
+  return ntohs(myData);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -1487,6 +1511,12 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
   myData = htons(myData);
   lseek(md_fd, MD_TIME(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
+  return;
+#endif
+#ifdef RETRODE_LIB_H
+  myData = htons(myData);
+  write_md(myAddress, &myData, sizeof(myData), MD_MODE_TIME);
+  return;
 #endif
   dataOut_MD();
 
@@ -1632,6 +1662,12 @@ void readROM_MD() {
   read(md_fd, &buffer, sizeof(buffer));
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
 	calcCKS += ((buffer[d] << 8) | buffer[d + 1]);
+#elif defined(RETRODE_LIB_H)
+  unsigned long myAddress = currBuffer - (offsetSSF2Bank * 0x80000);
+  read_md(myAddress, &buffer, sizeof(buffer), isSVP ? MD_MODE_P10 : MD_MODE_ROM);
+  // ntohs?
+  for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
+	calcCKS += ((buffer[d] << 8) | buffer[d + 1]);
 #else
     for (int currWord = 0; currWord < 512; currWord++) {
       unsigned long myAddress = currBuffer + currWord - (offsetSSF2Bank * 0x80000);
@@ -1706,6 +1742,12 @@ fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer)
   read(md_fd, &buffer, sizeof(buffer));
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
         calcCKSLockon += ((buffer[d] << 8) | buffer[d + 1]);
+#elif defined(RETRODE_LIB_H)
+  unsigned long myAddress = currBuffer + cartSize / 2;
+  read_md(myAddress, &buffer, sizeof(buffer), isSVP ? MD_MODE_P10 : MD_MODE_ROM);
+  // htons?
+  for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
+        calcCKSLockon += ((buffer[d] << 8) | buffer[d + 1]);
 #else
      for (int currWord = 0; currWord < 512; currWord++) {
         unsigned long myAddress = currBuffer + currWord + cartSize / 2;
@@ -1778,6 +1820,12 @@ fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer)
 fprintf(stderr, "%s: %06x[%d]\n", __PRETTY_FUNCTION__, myAddress, sizeof(buffer));
   lseek(md_fd, isSVP ? MD_P1(myAddress) : MD_ROM(myAddress), SEEK_SET);
   read(md_fd, &buffer, sizeof(buffer));
+  for(d = 0; d < 1024; d += 2)
+        calcCKSSonic2 += ((buffer[d] << 8) | buffer[d + 1]);
+#elif defined(RETRODE_LIB_H)
+  unsigned long myAddress = currBuffer + (cartSize + cartSizeLockon) / 2;
+  read_md(myAddress, &buffer, sizeof(buffer), isSVP ? MD_MODE_P1 : MD_MODE_ROM);
+  // htons?
   for(d = 0; d < 1024; d += 2)
         calcCKSSonic2 += ((buffer[d] << 8) | buffer[d + 1]);
 #else
@@ -1901,7 +1949,11 @@ fprintf(stderr, "%s: %d\n", __PRETTY_FUNCTION__, enableSram);
 #ifdef __Linux__
 fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ENSRAM(0), SEEK_SET);
+  // ntohs???
   write(md_fd, &myData, sizeof(myData));
+#endif
+#ifdef RETRODE_LIB_H
+  write_md(0, &myData, sizeof(myData), MD_MODE_ENSRAM);
 #endif
   dataOut_MD();
 
@@ -2404,6 +2456,11 @@ fprintf(stderr, "%s: eepmode=%d\n", __PRETTY_FUNCTION__, eepmode);
 	lseek(md_fd, MD_EEPMODE(0x10 << 16), SEEK_SET);
 	write(md_fd, &myData, sizeof(myData));
 #endif
+#ifdef RETRODE_LIB_H
+	word myData = eepmode;
+	// htons?
+	write_md(0x10 << 16, &myData, sizeof(myData), MD_MODE_EEPMODE);
+#endif
   PORTF = 0x00;                    // ADDR A0-A7
   PORTK = 0x00;                    // ADDR A8-A15
   PORTL = 0x10;                    // ADDR A16-A23
@@ -2448,6 +2505,11 @@ fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
 // what is special with this mode? the extra delay of 100µs for tiny eepSize?
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
+#endif
+#ifdef RETRODE_LIB_H
+  myData = htons(myData);
+// what is special with this MODE? the extra delay of 100µs for tiny eepSize?
+  write_md(myAddress, &myData, sizeof(myData), MD_MODE_ROM);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -2499,7 +2561,12 @@ fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ROM(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
-  PORTF = myAddress & 0xFF;
+ #ifdef __Linux__
+  myData = htons(myData);
+// what is special with this MODE? the extra delay of 100µs for tiny eepSize?
+  write_md(myAddress, &myData, sizeof(myData), MD_MODE_ROM);
+#endif
+ PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
   PORTC = myData;
@@ -2547,6 +2614,10 @@ fprintf(stderr, "%s: addr=%06x data=%04x\n", __PRETTY_FUNCTION__, myAddress, myD
 fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_P1(myAddress), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
+#endif
+#ifdef RETRODE_LIB_H
+  myData = htons(myData);
+  write_md(myAddress, &myData, sizeof(myData), MD_MODE_P1);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -3137,6 +3208,10 @@ fprintf(stderr, "fixme: %s\n", __PRETTY_FUNCTION__);
   lseek(md_fd, MD_ROM(address), SEEK_SET);
   write(md_fd, &myData, sizeof(myData));
 #endif
+#ifdef __Linux__
+  word myData = htons(value);
+  write(address, &myData, sizeof(myData), MD_MODE_ROM);
+#endif
   dataOut_MD();
   PORTF = address & 0xFF;          // 0x00 ADDR A0-A7
   PORTK = (address >> 8) & 0xFF;   // ADDR A8-A15
@@ -3534,3 +3609,5 @@ word readFlashCFI_MD(byte currChip, unsigned long myAddress) {
 //******************************************
 // End of File
 //******************************************
+
+#define __Linux__	// use __Linux__ again until we have switched everything to RETRODE_LIB and OSCR_CMD
