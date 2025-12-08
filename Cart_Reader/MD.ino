@@ -3326,6 +3326,10 @@ void resetFlashCFIChip_MD(byte currChip) {
   delay(100);
 }
 
+#ifdef OSCR_CMDLINE
+#define min(A, B) (((A) < (B))?(A) : (B))
+#endif
+
 void writeCFI_MD() {
   if (myFile.open(filePath, O_READ)) {
     // Get rom size from file
