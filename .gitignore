@@ -42,5 +42,5 @@ build/
 *.o
 *.a
 *.so
-ino.cpp
-ino.h
+all-ino.cpp
+all-ino.h
