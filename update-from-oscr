@@ -1,3 +1,4 @@
+#!/bin/bash
 # update and rebase on latest upstream version
 
 set -e
@@ -8,5 +9,5 @@ git pull sanni master
 git checkout for-upstream
 git rebase base || { git rebase --abort; git rebase -i base; }
 
-git checkout master
+git checkout -B temp master
 git rebase for-upstream || { git rebase --abort; git rebase -i for-upstream; }
