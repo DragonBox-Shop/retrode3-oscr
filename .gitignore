@@ -38,6 +38,10 @@ build/
 .~lock*
 /.vs
 
+# zipped files (e.g. man pages)
+*.gz
+*.zip
+
 # C-Code temporaries and results
 *.o
 *.a
