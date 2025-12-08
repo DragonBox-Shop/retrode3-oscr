@@ -38,7 +38,8 @@ build/
 .~lock*
 /.vs
 
-# zipped files (e.g. man pages)
+# binary and zipped files (e.g. man pages)
+*.bin
 *.gz
 *.zip
 
