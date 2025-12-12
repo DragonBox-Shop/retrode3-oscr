@@ -1,3 +1,13 @@
+# This is part of the Retrode3 project and is a command line wrapper of the OSCR software
+
+This repository is a clone of the https://github.com/sanni/cartreader and adds these components:
+1. a Linux command line interface instead of controlling the OSCR hardware user interface (knob and display)
+2. a Retrode.lib for wrapping the details of accessing the Cart Slots of a Retrode3 through Linux syscalls
+3. patches for MD.ino, NES.ino, SNES.ino to use the Retrode.lib instead of doing direct hardware control
+
+For details see the README.md in the Cart_Reader subdirectory
+
+# --- original README ---
 ![image](https://dl.dropboxusercontent.com/s/ioc5oewzcuvs8nz/logos.png?dl=1)
 
 # Open Source Cartridge Reader
