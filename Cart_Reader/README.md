@@ -1,3 +1,23 @@
+# This is part of the Retrode3 project and is a command line wrapper of the OSCR software
+
+The local patches in the "master" branch do add:
+1. a Linux command line interface instead of controlling the OSCR hardware user interface (knob and display)
+2. a Retrode.lib for wrapping the details of accessing the Cart Slots of a Retrode3 through Linux syscalls
+3. patches for MD.ino, NES.ino, SNES.ino to use the Retrode.lib instead of doing direct hardware control
+4. a Makefile to build it on the Retrode3 (or some MIPSEL machine)
+
+## How to compile
+- git clone this repository either on the Retrode3 or some (Linux/macOS) PC
+- connect and boot a Retrode3 and establish ssh root@192.168.0.202 access and access of the Retrode to the internet
+- cd Cart_Reader
+- either run "make" directly on the Retrode3 or run "make remote" on the host PC
+- the results are the retrode-lib.o retrode-lib.h and oscr binary
+- there is a man page in groff format
+- to update to latest upstream OSCR source run update-from-oscr - the result will be a new temp branch
+- for standard devices we regularly build Debian packages which can be loaded through apt-get update && apt-get upgrade
+
+# --- original README ---
+
 ## This Arduino sketch is licensed under the GNU GENERAL PUBLIC LICENSE Version 3 (GPL v3)    
 
 ### This means that you are free to:    
