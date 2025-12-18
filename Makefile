@@ -12,8 +12,8 @@ CFLAGS=
 .SUFFIXES : .o .c .cpp .ino
 .PHONY: all clean install remote
 
-INO_SOURCES := $(wildcard *.ino) OSCR.cpp
-INO_SOURCES := Cart_Reader.ino SNES.ino MD.ino FLASH.ino NES.ino OSCR.cpp
+#INO_SOURCES := $(wildcard Cart_Reader/*.ino) Cart_Reader/OSCR.cpp
+INO_SOURCES := Cart_Reader/Cart_Reader.ino Cart_Reader/SNES.ino Cart_Reader/MD.ino Cart_Reader/FLASH.ino Cart_Reader/NES.ino Cart_Reader/OSCR.cpp
 
 all: build-tools oscr
 
@@ -25,25 +25,23 @@ build-tools:	# this installs the g++ package if g++ is missing
 	fi
 
 %.o: %.ino	# directly compile .ino using C++
-	$(CC) -c $(CFLAGS) -include oscr-cmd.h -include all-ino.h -x c++ $< -o $*.o
+	$(CC) -c $(CFLAGS) -I Cart_Reader/ -include oscr-cmd.h -include all-ino.h -x c++ $< -o $*.o
 
 %.o: %.cpp
-	$(CC) -c $(CFLAGS) -include oscr-cmd.h -x c++ -std=c++11 $< -o $*.o
+	$(CC) -c $(CFLAGS) -I Cart_Reader/ -include oscr-cmd.h -x c++ -std=c++11 $< -o $*.o
 
 %.o: %.c
-	$(CC) -c $(CFLAGS) -x c $< -o $*.o
+	$(CC) -c $(CFLAGS) -I Cart_Reader/ -x c $< -o $*.o
 
 all-ino.cpp: $(INO_SOURCES)	# collect all .ino source files into a single one and keep source file references --- FIXME: maybe we should preprocess first?
 	( echo "#include \"all-ino.h\""; for FILE in $^; do echo "# 1 \"$$FILE\""; cat "$$FILE"; done ) >$@
 
 all-ino.h: all-ino.cpp	# derive forward declarations
-	( cat OSCR.h; sed -n '/^[a-zA-Z_0-9].*(.*).*{.*$$/s/{/;/p' $^ | sed 's/= [^,)]*[^,)]//g' | sed 's/\}//g' ) >all-ino.h
+	( cat Cart_Reader/OSCR.h; sed -n '/^[a-zA-Z_0-9].*(.*).*{.*$$/s/{/;/p' $^ | sed 's/= [^,)]*[^,)]//g' | sed 's/\}//g' ) >all-ino.h
 
 clean:
 	@echo '*** make clean ***'
 	rm -f *.o all-ino.* oscr
-
-# OSCR.o: oscr-cmd.h OSCR.h OSCR.cpp
 
 all-ino.o: oscr-cmd.h all-ino.h all-ino.cpp
 
@@ -76,7 +74,7 @@ ROOTDIR=/usr/local/games/oscr/
 remote: clean
 	@echo '*** make remote ***'
 	ssh $(DEVICE) sh -c "cd; mkdir -p $(SRCDIR) $(ROOTDIR)"
-	rsync -rltDvzh "./" "$(DEVICE):$(SRCDIR)"
-	rsync -rltDvzh "../sd/" "$(DEVICE):$(ROOTDIR)/"
+	rsync -rltDvzh --exclude .git Makefile "./Cart_Reader" *.h *.c *.cpp *.groff "$(DEVICE):$(SRCDIR)"
+	rsync -rltDvzh "sd/" "$(DEVICE):$(ROOTDIR)/"
 	ssh $(DEVICE) sh -c "cd; uname -a; cd $(SRCDIR) && make clean all install"
 	scp "$(DEVICE):$(SRCDIR)/oscr" "$(DEVICE):$(SRCDIR)/retrode-lib.o" .	# pull binaries from device
