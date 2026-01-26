@@ -7,10 +7,6 @@
 
 #ifdef ENABLE_NES
 
-#ifndef RETRODE_LIB_H
-int nes_fd;
-#endif
-
 #ifdef OSCR_CMDLINE
 #define string_error5 error_STR	// likely a mistake in upstream code...
 #endif
@@ -634,7 +630,7 @@ void nesFlashMenu() {
 void setup_NES() {
 #ifdef OSCR_CMDLINE
 #if 0
-  { // simple unit-test for certain functions
+  { // simple unit-test for some functions
   uint32_t oldcrc32 = 0xFFFFFFFF;
   uint32_t oldcrc32MMC3 = 0xFFFFFFFF;
   UPDATE_CRC(oldcrc32, 0x55);
@@ -644,13 +640,6 @@ void setup_NES() {
   exit(0);
   }
 #endif
-#endif
-#ifndef RETRODE_LIB_H
-  nes_fd = open("/dev/slot-nes", O_RDWR);	/* closed on exit() */
-  if(nes_fd < 0) {
-    perror("no cart in NES slot");
-    exit(1);
-  }
 #endif
 #ifdef RETRODE_LIB_H
 	if (nes_open() < 0)	/* not really necessary but let's fail early */
@@ -1036,22 +1025,6 @@ static void set_romsel(unsigned int address) {
 }
 
 static unsigned char read_prg_byte(unsigned int address) {
-#ifndef RETRODE_LIB_H
-
-#define NES_PRG(addr)		((10 << 24) + (addr))	// CPU ROM: D0..D7
-#define NES_CHR(addr)		((11 << 24) + (addr))	// PPU ROM: D8..D15
-#define NES_CHR_M2(addr)	((12 << 24) + (addr))
-#define NES_MMC5_SRAM(addr)	((13 << 24) + (addr)) 	// CPU ROM: D0..D7
-#define NES_REG(addr)		((14 << 24) + (addr))	// xE000/0xF000
-#define NES_RAM(addr)		((15 << 24) + (addr))	// CPU RAM:
-#define NES_WRAM(addr)		((16 << 24) + (addr))	// CART RAM: D0..D7
-
-  byte myData;
-  lseek(nes_fd, NES_PRG(address), SEEK_SET);
-  read(nes_fd, &myData, sizeof(myData));
-// fprintf(stderr, "%s: %08x -> %02x\n", __PRETTY_FUNCTION__, address, myData);
-  return myData;
-#endif
 #ifdef RETRODE_LIB_H
   byte myData;
   nes_read(address, &myData, sizeof(myData), NES_MODE_PRG);
@@ -1069,12 +1042,6 @@ static unsigned char read_prg_byte(unsigned int address) {
 
 static unsigned char read_chr_byte(unsigned int address) {
 fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
-#ifndef RETRODE_LIB_H
-  byte myData;
-  lseek(nes_fd, NES_CHR(address), SEEK_SET);
-  read(nes_fd, &myData, sizeof(myData));
-  return myData;
-#endif
 #ifdef RETRODE_LIB_H
   byte myData;
   nes_read(address, &myData, sizeof(myData), NES_MODE_CHR);
@@ -1093,11 +1060,6 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 
 static void write_prg_byte(unsigned int address, uint8_t data) {
 fprintf(stderr, "%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
-#ifndef RETRODE_LIB_H
-  lseek(nes_fd, NES_PRG(address), SEEK_SET);
-  write(nes_fd, &data, sizeof(data));
-  return;
-#endif
 #ifdef RETRODE_LIB_H
   nes_write(address, &data, sizeof(data), NES_MODE_PRG);
   return;
@@ -1191,11 +1153,6 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 // WRITE RAM SAFE TO REGISTERS 0xE000/0xF000
 static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC1 RAM CORRUPTION
 fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
-#ifndef RETRODE_LIB_H
-  lseek(nes_fd, NES_REG(address), SEEK_SET);
-  write(nes_fd, &data, sizeof(data));
-  return;
-#endif
 #ifdef RETRODE_LIB_H
   nes_write(address, &data, sizeof(data), NES_MODE_REG);
   return;
@@ -1223,11 +1180,6 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 
 static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (Namco 106/163) WRITE RAM SAFE ($E000-$FFFF)
 fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
-#ifndef RETRODE_LIB_H
-  lseek(nes_fd, NES_RAM(address), SEEK_SET);
-  write(nes_fd, &data, sizeof(data));
-  return;
-#endif
 #ifdef RETRODE_LIB_H
   nes_write(address, &data, sizeof(data), NES_MODE_RAM);
   return;
@@ -1256,11 +1208,6 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 
 static void write_wram_byte(unsigned int address, uint8_t data) {  // Mapper 5 (MMC5) RAM
 fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
-#ifndef RETRODE_LIB_H
-  lseek(nes_fd, NES_WRAM(address), SEEK_SET);
-  write(nes_fd, &data, sizeof(data));
-  return;
-#endif
 #ifdef RETRODE_LIB_H
   nes_write(address, &data, sizeof(data), NES_MODE_WRAM);
   return;
@@ -2080,10 +2027,7 @@ static void printNESSettings(void) {
    ROM Functions
  *****************************************/
 void dumpPRG(word base, word address) {
-#ifndef RETRODE_LIB_H
-  lseek(nes_fd, NES_PRG(base + address), SEEK_SET);
-  read(nes_fd, sdBuffer, 512);
-#elif defined(RETRODE_LIB_H)
+#ifdef RETRODE_LIB_H
   nes_read(base + address, sdBuffer, 512, NES_MODE_PRG);
 #else
   for (size_t x = 0; x < 512; x++) {
@@ -2094,10 +2038,7 @@ void dumpPRG(word base, word address) {
 }
 
 void dumpCHR(word address) {
-#ifndef RETRODE_LIB_H
-  lseek(nes_fd, NES_CHR(address), SEEK_SET);
-  read(nes_fd, sdBuffer, 512);
-#elif defined(RETRODE_LIB_H)
+#ifdef RETRODE_LIB_H
   nes_read(address, sdBuffer, 512, NES_MODE_CHR);
 #else
   for (size_t x = 0; x < 512; x++) {
@@ -2108,10 +2049,7 @@ void dumpCHR(word address) {
 }
 
 void dumpCHR_M2(word address) {  // MAPPER 45 - PULSE M2 LO/HI
-#ifndef RETRODE_LIB_H
-  lseek(nes_fd, NES_CHR_M2(address), SEEK_SET);
-  read(nes_fd, sdBuffer, 512);
-#elif defined(RETRODE_LIB_H)
+#ifdef RETRODE_LIB_H
   nes_read(address, sdBuffer, 512, NES_MODE_CHR_M2);
 #else
   for (size_t x = 0; x < 512; x++) {
@@ -2123,10 +2061,7 @@ void dumpCHR_M2(word address) {  // MAPPER 45 - PULSE M2 LO/HI
 }
 
 void dumpMMC5RAM(word base, word address) {  // MMC5 SRAM DUMP - PULSE M2 LO/HI
-#ifndef RETRODE_LIB_H
-  lseek(nes_fd, NES_MMC5_SRAM(base+address), SEEK_SET);
-  read(nes_fd, sdBuffer, 512);
-#elif defined(RETRODE_LIB_H)
+#ifdef RETRODE_LIB_H
   nes_read(address, sdBuffer, 512, NES_MODE_MMC5_SRAM);
 #else
   for (size_t x = 0; x < 512; x++) {
