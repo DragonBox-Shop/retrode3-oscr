@@ -239,6 +239,25 @@ static const char *_fileSystemPath(const char *path)
 	return newpath;	// only used temporarily - not thread safe!
 }
 
+int replace_sequence_number(char *folder)
+{ // replace last file path ('foldern' number from EEPROM) with current time string
+#undef time
+	extern time_t time(time_t *);
+	time_t now = time(NULL);
+#define time flash_time
+// fprintf(stderr, "%s: %u > %u\n", __PRETTY_FUNCTION__, now, (2020-1970)*365*24*3600);
+// fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, folder);
+	if(now > (2020-1970)*365*24*3600)	// time in seconds is after year 2020 - Retrode knows about current time
+		{ // derive folder number from current date/time
+		char *f = strrchr(folder, '/');
+		if (!f)
+			return 0;	// not found
+		strftime(f+1, 20, "%Y%m%d%H%M%S", localtime(&now));
+// fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, folder);
+		return 1;
+		}
+	return 0;	// invalid
+}
 
 /*** class implementations mapped to Linux/POSIX ***/
 

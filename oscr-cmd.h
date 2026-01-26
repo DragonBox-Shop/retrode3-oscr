@@ -4,8 +4,8 @@
 #ifndef OSCR_CMD_H
 #define OSCR_CMD_H
 
-#define time imported_time	// names will be used for local variables
-#define clock imported_clock
+//#define time imported_time	// names will be used for local variables
+//#define clock imported_clock
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -14,6 +14,7 @@
 #include <fcntl.h>	// for O_RDONLY
 #include <math.h>	// for log()
 #include <ctype.h>	// for isprint()
+#include <time.h>
 // #include <bsd/string.h>	// for strlcpy()
 #include <arpa/inet.h>	// for htons() and ntohs()
 
@@ -21,8 +22,8 @@
 
 #include "retrode-lib.h"	// comment out to use old variant
 
-#undef time
-#undef clock
+#define time flash_time	// avoid name conflict with time()
+#define clock flash_clock
 
 /*** compile sources in command line mode ***/
 #define OSCR_CMDLINE
@@ -263,6 +264,7 @@ extern size_t strlcpy(char *dst, const char *src, size_t size);
 #define snprintf_P(filename, size, format, prefix, ...) snprintf(filename, size, format, prefix, __VA_ARGS__)
 #define analogWrite(num, r)
 extern char *itoa(unsigned long value, char str[], int radix);
+extern int replace_sequence_number(char *folder);
 #define DEC 10
 #define HEX 16
 extern uint8_t checkButton(); // only with ENABLE_LCD or ENABLE_OLED
