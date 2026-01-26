@@ -834,7 +834,7 @@ void getCartInfo_MD() {
   // Get cart name
   for (byte c = 0; c < 48; c += 2) {
     // split word
-    word myWord = readWord_MD((0x150 + c) / 2);
+    word myWord = readWord_MD((0x120 + c) / 2);
     byte loByte = myWord & 0xFF;
     byte hiByte = myWord >> 8;
 
@@ -842,6 +842,7 @@ void getCartInfo_MD() {
     sdBuffer[c] = hiByte;
     sdBuffer[c + 1] = loByte;
   }
+
   romName[copyToRomName_MD(romName, sdBuffer, sizeof(romName) - 1)] = 0;
 
   // Identify games using SVP chip
@@ -1306,26 +1307,6 @@ void getCartInfo_MD() {
         sramBase = sramBase >> 1;
       }
     }
-  }
-
-  // Get name
-  for (byte c = 0; c < 48; c += 2) {
-    // split word
-    word myWord = readWord_MD((0x150 + c) / 2);
-    byte loByte = myWord & 0xFF;
-    byte hiByte = myWord >> 8;
-
-    // write to buffer
-    sdBuffer[c] = hiByte;
-    sdBuffer[c + 1] = loByte;
-  }
-  romName[copyToRomName_MD(romName, sdBuffer, sizeof(romName) - 1)] = 0;
-// fprintf(stderr, "romName: \"%s\"\n", romName);
-
-  //Check for Slaughter Sport
-  if (!strncmp("GMT5604600jJ", romName, 12) && (chksum == 0xFFFF)) {
-    strcpy(romName, "SLAUGHTERSPORT");
-    chksum = 0x6BAE;
   }
 
   //Get Lock-on cart name
