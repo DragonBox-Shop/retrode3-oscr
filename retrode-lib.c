@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#if 1
+#if 0
 #define DEBUG(FORMAT, ...) fprintf(stderr, "%s %d: " FORMAT "\n", __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__)
 #else
 #define DEBUG(FORMAT, ...)
