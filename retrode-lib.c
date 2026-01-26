@@ -152,13 +152,13 @@ int snes_open(void)
 {
 	DEBUG("");
 	if (snes_fd < 0) {
-		snes_fd = open("/dev/slot-md", O_RDWR);
+		snes_fd = open("/dev/slot-snes", O_RDWR);
 		if (snes_fd < 0) {
 			perror("no cart in SNES slot");
 			return -1;
 		}
 	}
-	return md_fd;
+	return snes_fd;
 }
 
 int snes_close(void)
@@ -179,7 +179,7 @@ int snes_read(uint8_t bank, uint16_t addr, void *buf, uint16_t size, int mode)
 	int ret;
 	uint32_t a = (mode << 24) + (bank << 16) + addr;
 	DEBUG("bank=%02x addr=%04x data=%04x mode=%d", bank, addr, size, mode);
-	if (md_open() < 0)
+	if (snes_open() < 0)
 		return -1;
 	DEBUG("addr=%08x", a);
 	if (lseek(snes_fd, a, SEEK_SET) < 0) {
@@ -197,7 +197,7 @@ int snes_write(uint8_t bank, uint16_t addr, void *buf, uint16_t size, int mode)
 	int ret;
 	uint32_t a = (mode << 24) + (bank << 16) + addr;
 	DEBUG("bank=%02x addr=%04x data=%04x mode=%d", bank, addr, size, mode);
-	if (md_open() < 0)
+	if (snes_open() < 0)
 		return -1;
 	DEBUG("addr=%08x", a);
 	if (lseek(snes_fd, a, SEEK_SET) < 0) {
