@@ -328,8 +328,13 @@ CORES mode = CORE_MAX;
 
 //remember folder number to create a new folder for every game
 int foldern;
-// 4 chars for console type, 4 chars for SAVE/ROM, 21 chars for ROM name, 4 chars for folder number, 3 chars for slashes, one char for termination, one char savety
+#ifndef OSCR_CMDLINE
+// 4 chars for console type, 4 chars for SAVE/ROM, 21 chars for ROM name, 4 chars for folder number, 3 chars for slashes, one char for termination, one char safety
 char folder[38];
+#else
+// we need and have more space for longer folder names
+char folder[200];
+#endif
 
 // Array that holds the data
 byte sdBuffer[512];
@@ -690,6 +695,11 @@ void createFolder(const char* system, const char* subfolder, const char* gameNam
   } else {
     sprintf(folder, "%s/%s/%s/%d", system, subfolder, gameName, foldern);
   }
+#ifdef OSCR_CMDLINE
+ fprintf(stderr, "%s %d: %s\n", __PRETTY_FUNCTION__, __LINE__, folder);
+  replace_sequence_number(folder);
+ fprintf(stderr, "%s %d: %s\n", __PRETTY_FUNCTION__, __LINE__, folder);
+#endif
   sd.mkdir(folder, true);
   sd.chdir(folder);
 }
