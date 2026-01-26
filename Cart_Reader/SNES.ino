@@ -1322,6 +1322,7 @@ boolean checkcart_SNES() {
         myLength++;
       }
     }
+    romName[myLength + 5] = 0;
     if (myLength == 0) {
       // Rom code unknown
       romName[0] = 'U';
@@ -1331,6 +1332,7 @@ boolean checkcart_SNES() {
       romName[4] = 'O';
       romName[5] = 'W';
       romName[6] = 'N';
+      romName[7] = 0;
     }
   }
 
