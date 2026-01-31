@@ -21,7 +21,7 @@ class EEPROM EEPROM;	// global EEPROM
 /*** main program ***/
 
 static char *arg0;
-static const char *sdroot = "/usr/local/games/oscr";
+const char *sdroot = "/usr/local/games/oscr";
 static const char *eeprom = "/usr/local/games/oscr/EEPROM.bin";
 
 static void usage(void)
@@ -546,7 +546,6 @@ void SdFs::mkdir(const char *dir, bool flag)
 void SdFs::chdir(const char *dir)
 {
 // fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, dir);
-// FIXME: prefix with sdroot
 	::chdir(_fileSystemPath(dir));
 }
 

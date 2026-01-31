@@ -710,6 +710,10 @@ void printAndIncrementFolder(bool displayClear = false) {
     display_Clear();
   }
   print_STR(saving_to_STR, 0);
+#ifdef OSCR_CMDLINE
+  extern char *sdroot;
+  printf("%s/", sdroot);
+#endif
   print_Msg(folder);
   println_Msg(F("/..."));
   display_Update();
