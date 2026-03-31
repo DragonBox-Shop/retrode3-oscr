@@ -2015,6 +2015,10 @@ fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
   // Signal end of process
   display_Clear();
   print_Msg(F("Saved to "));
+#ifdef OSCR_CMDLINE
+  extern char *sdroot;
+  printf("%s/", sdroot);
+#endif
   print_Msg(folder);
   println_Msg(F("/..."));
   display_Update();
