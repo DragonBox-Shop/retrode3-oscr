@@ -2922,7 +2922,7 @@ byte questionBox_Serial(const __FlashStringHelper* question, char answers[7][20]
   char incomingByte = Serial.read();
 
   // Page up (u)
-  if (incomingByte == 'u') {
+  if (incomingByte == 'u' || incomingByte == 'U') {
     if (currPage > 1) {
       lastPage = currPage;
       currPage--;
@@ -2932,7 +2932,7 @@ byte questionBox_Serial(const __FlashStringHelper* question, char answers[7][20]
   }
 
   // Page down (d)
-  else if (incomingByte == 'd') {
+  else if (incomingByte == 'd' || incomingByte == 'D') {
     if (numPages > currPage) {
       lastPage = currPage;
       currPage++;
@@ -3166,12 +3166,12 @@ uint8_t checkButton() {
   char incomingByte = Serial.read();
 
   //Next
-  if (incomingByte == 'd') {
+  if (incomingByte == 'd' || incomingByte == 'D') {
     return 1;
   }
 
   //Previous
-  else if (incomingByte == 'u') {
+  else if (incomingByte == 'u' || incomingByte == 'U') {
     return 2;
   }
 
