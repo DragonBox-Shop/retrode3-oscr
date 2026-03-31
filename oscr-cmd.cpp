@@ -6,6 +6,7 @@
 #include <sys/stat.h>	// for mkdir()
 #include "oscr-cmd.h"
 #include "all-ino.h"	// to know all globals from .ino files
+#include <cerrno>
 
 #ifndef PATH_MAX
 #define PATH_MAX 256
@@ -378,7 +379,7 @@ bool FsFile::getName(char *name, int maxlen)
 bool FsFile::open(const char *p, int flags)
 {
 	char wd[PATH_MAX];
-fprintf(stderr, "%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(wd)), p, flags);
+fprintf(stderr, "%s %d: wd='%s' p='%s' flags=%04o\n", __PRETTY_FUNCTION__, __LINE__, getcwd(wd, sizeof(wd)), p, flags);
 	close();	// may still be open
 	path = p;
 	int fd = ::open(_fileSystemPath(p), flags, 0644);	// -rw-r--r-- for O_CREAT
@@ -388,16 +389,23 @@ fprintf(stderr, "%s: '%s' '%s' %04o\n", __PRETTY_FUNCTION__, getcwd(wd, sizeof(w
 			case O_RDONLY: mode = "r"; break;
 			case O_WRONLY: mode = "w"; break;
 			case O_RDWR:
-				if (flags & O_CREAT && flags & O_TRUNC)
-					mode = "w+";
+#if 0
+				if ((flags & O_CREAT) || (flags & O_TRUNC))
+					mode = "w+";	// create or truncate
 				else
-					mode = "w";
+					mode = "w";	// truncate or create
+#endif
+				mode = "w";
 				break;
 		}
 // fprintf(stderr, "%s: mode = %s\n", __PRETTY_FUNCTION__, mode);
 		file = fdopen(fd, mode);
-	} else
-		perror(p);
+	} else {
+		if (errno != -ENOENT)
+			perror(p);
+		file = NULL;
+	}
+fprintf(stderr, "%s %d: file = %p\n", __PRETTY_FUNCTION__, __LINE__, file);
 	return file != NULL;
 }
 
@@ -518,7 +526,7 @@ void FsFile::flush()
 
 bool SdFs::begin(int unknown)	// called as sd.begin(SS)
 {
-// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
+	/* nothing to do */
 	return true;
 }
 
@@ -559,7 +567,8 @@ FsFile SdFs::open(char *path, int flags)
 {
 // fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	FsFile f;
-	f.open(path, flags);
+	if(!f.open(path, flags))
+		;
 	return f;
 }
 
@@ -567,7 +576,8 @@ bool SdFs::exists(char *path)
 {
 // fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 	FsFile f;
-	f.open(path);	// try to open
+	if (!f.open(path))	// try to open
+		return false;	// not found
 	return f.exists();
 }
 
