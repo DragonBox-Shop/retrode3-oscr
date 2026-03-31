@@ -1496,7 +1496,7 @@ void readROM_MD() {
   dataIn_MD();
 
   // Get name, add extension and convert to char array for sd lib
-  createFolderAndOpenFile("MD", "ROM", romName, "BIN");
+  createFolderAndOpenFile("MD", "ROM", romName, "md");
 
   byte buffer[1024] = { 0 };
 
@@ -1656,7 +1656,7 @@ void readROM_MD() {
   for(d = currBuffer > 0 ? 0 : 512; d < 1024; d += 2)
         calcCKSLockon += ((buffer[d] << 8) | buffer[d + 1]);
 #else
-      for (int currWord = 0; currWord < 512; currWord++) {
+     for (int currWord = 0; currWord < 512; currWord++) {
         unsigned long myAddress = currBuffer + currWord + cartSize / 2;
         PORTF = myAddress & 0xFF;
         PORTK = (myAddress >> 8) & 0xFF;
@@ -1997,7 +1997,7 @@ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
 }
 
 unsigned long verifySram_MD() {
- fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
+  fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   dataIn_MD();
   writeErrors = 0;
 
@@ -2438,7 +2438,7 @@ void writeWord_SCL(unsigned long myAddress, word myData) { /* D0 goes to /SCL wh
 // what is special with this MODE? the extra delay of 100µs for tiny eepSize?
   md_write(myAddress << 1, &myData, sizeof(myData), MD_MODE_ROM);
 #endif
-  PORTF = myAddress & 0xFF;
+ PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
   PORTL = (myAddress >> 16) & 0xFF;
   PORTC = myData;
@@ -3028,7 +3028,7 @@ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
 }
 
 void writeBram_MD() {
- printf("%s\n", __PRETTY_FUNCTION__);
+  printf("%s\n", __PRETTY_FUNCTION__);
   dataOut_MD();
 
   // Create filepath
