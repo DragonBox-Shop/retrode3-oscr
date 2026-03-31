@@ -16,12 +16,12 @@ extern "C" {
  *   the driver attempts to read/write words where possible
  */
 
-#define MD_MODE_ROM			0	// default read/write
-#define MD_MODE_P10			1	// 10 toggle pulses on CLK
-#define MD_MODE_P1			2	// 1 toggle pulse on CLK
-#define MD_MODE_TIME		3	// address with TIME impulse with WE
+#define MD_MODE_ROM		0	// default read/write
+#define MD_MODE_P10		1	// 10 toggle pulses on CLK
+#define MD_MODE_P1		2	// 1 toggle pulse on CLK
+#define MD_MODE_TIME		3	// address with TIME impulse and write with WE
 #define MD_MODE_FLASH		undefined?
-#define MD_MODE_ENSRAM		5	// TIME impulse without WE
+#define MD_MODE_ENSRAM		5	// write with TIME impulse (address ignored) without WE
 #define MD_MODE_EEPMODE		6	// ?
 
 int md_open(void);	/* select MD slot */
