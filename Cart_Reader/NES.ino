@@ -725,6 +725,9 @@ void setDefaultRomName() {
 
 void setRomnameFromString(const char* input) {
   uint8_t myLength = 0;
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s %d: %s\n", __func__, __LINE__, input);
+#endif
   for (uint8_t i = 0; i < 20 && myLength < 15; i++) {
     // Stop at first "(" to remove "(Country)"
     if (input[i] == '(') {
@@ -749,6 +752,9 @@ void printDataLine_NES(void* entry) {
   char* input;
 
   input = castEntry->iNES_str;
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s %d: input=%s\n", __func__, __LINE__, input);
+#endif
   output = iNES;
   for (uint8_t i = 0; i < sizeof(iNES); i++) {
     unsigned int buf;
@@ -759,7 +765,9 @@ void printDataLine_NES(void* entry) {
   }
 
   mapper = (iNES[6] >> 4) | (iNES[7] & 0xF0) | ((iNES[8] & 0x0F) << 8);
-
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s %d: mapper=%d\n", __func__, __LINE__, mapper);
+#endif
   if ((iNES[9] & 0x0F) != 0x0F) {
     // simple notation
     prgsize = (iNES[4] | ((iNES[9] & 0x0F) << 8));  //*16
@@ -887,6 +895,9 @@ void getMapping() {
   if (browseDatabase) {
     struct database_entry entry;
 
+#ifdef OSCR_CMDLINE
+ fprintf(stderr, "browseDatabase\n");
+#endif
     if (checkCartSelection(database, &readDataLine_NES, &entry, &printDataLine_NES, &setRomnameFromString)) {
       // anything else: select current record
       // Save Mapper
@@ -924,6 +935,7 @@ void readDataLine_NES(FsFile& database, void* e) {
 
   entry->crc = strtoul(entry->crc_str, NULL, 16);
   entry->crc512 = strtoul(entry->crc512_str, NULL, 16);
+// fprintf(stderr, "%s %d: %08X %08X %s\n", __func__, __LINE__, entry->crc, entry->crc512, entry->filename);
 }
 
 bool selectMapping(FsFile& database) {
@@ -946,7 +958,9 @@ bool selectMapping(FsFile& database) {
 
 void read_NES(const char* fileSuffix, const byte* header, const uint8_t headersize, const boolean renamerom) {
   // Get name, add extension and convert to char array for sd lib
+#ifdef OSCR_CMDLINE
 fprintf(stderr, "%s: %s.%s\n", __PRETTY_FUNCTION__, romName, fileSuffix);
+#endif
   createFolderAndOpenFile("NES", "ROM", romName, fileSuffix);
 
   //Initialize progress bar
@@ -1041,7 +1055,9 @@ static unsigned char read_prg_byte(unsigned int address) {
 }
 
 static unsigned char read_chr_byte(unsigned int address) {
+#ifdef OSCR_CMDLINE
 fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
+#endif
 #ifdef RETRODE_LIB_H
   byte myData;
   nes_read(address, &myData, sizeof(myData), NES_MODE_CHR);
@@ -1059,7 +1075,9 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 }
 
 static void write_prg_byte(unsigned int address, uint8_t data) {
+#ifdef OSCR_CMDLINE
 fprintf(stderr, "%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
+#endif
 #ifdef RETRODE_LIB_H
   nes_write(address, &data, sizeof(data), NES_MODE_PRG);
   return;
@@ -1128,7 +1146,9 @@ void resetROM() {
 }
 
 void write_mmc1_byte(unsigned int address, uint8_t data) {  // write loop for 5 bit register
-fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
+#endif
   if (address >= 0xE000) {
     for (uint8_t i = 0; i < 5; i++) {
       write_reg_byte(address, data >> i);  // shift 1 bit into temp register [WRITE RAM SAFE]
@@ -1152,7 +1172,9 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 
 // WRITE RAM SAFE TO REGISTERS 0xE000/0xF000
 static void write_reg_byte(unsigned int address, uint8_t data) {  // FIX FOR MMC1 RAM CORRUPTION
-fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
+#endif
 #ifdef RETRODE_LIB_H
   nes_write(address, &data, sizeof(data), NES_MODE_REG);
   return;
@@ -1179,7 +1201,9 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 }
 
 static void write_ram_byte(unsigned int address, uint8_t data) {  // Mapper 19 (Namco 106/163) WRITE RAM SAFE ($E000-$FFFF)
-fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
+#endif
 #ifdef RETRODE_LIB_H
   nes_write(address, &data, sizeof(data), NES_MODE_RAM);
   return;
@@ -1207,7 +1231,9 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 }
 
 static void write_wram_byte(unsigned int address, uint8_t data) {  // Mapper 5 (MMC5) RAM
-fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: %08x %02x\n", __PRETTY_FUNCTION__, address, data);
+#endif
 #ifdef RETRODE_LIB_H
   nes_write(address, &data, sizeof(data), NES_MODE_WRAM);
   return;
@@ -1351,7 +1377,9 @@ void CreateROMFolderInSD() {
 }
 
 FsFile createNewFile(const char* prefix, const char* extension) {
-fprintf(stderr, "%s: %s %s\n", __PRETTY_FUNCTION__, prefix, extension);
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s %d: %s %s\n", __PRETTY_FUNCTION__, __LINE__, prefix, extension);
+#endif
   char filename[FILENAME_LENGTH];
   snprintf_P(filename, sizeof(filename), _file_name_no_number_fmt, prefix, extension);
   for (uint8_t i = 0; i < 100; i++) {
@@ -1372,6 +1400,7 @@ fprintf(stderr, "%s: %s %s\n", __PRETTY_FUNCTION__, prefix, extension);
 
   display_Clear();
   print_Msg(filename);
+fprintf(stderr, "%s %d: %s %s\n", __PRETTY_FUNCTION__, __LINE__, filename);
   println_Msg(F(": no available name"));
   display_Update();
   print_FatalError(sd_error_STR);
@@ -1626,6 +1655,9 @@ setmapper:
 
   EEPROM_writeAnything(7, newmapper);
   mapper = newmapper;
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s %d: mapper=%d\n", __func__, __LINE__, mapper);
+#endif
 
 #ifdef ENABLE_GLOBAL_LOG
   // Enable log again
@@ -2040,6 +2072,9 @@ static void printNESSettings(void) {
    ROM Functions
  *****************************************/
 void dumpPRG(word base, word address) {
+#ifdef OSCR_CMDLINE
+// fprintf(stderr, "%s: base=%x address=%x\n", __PRETTY_FUNCTION__, base, address);
+#endif
 #ifdef RETRODE_LIB_H
   nes_read(base + address, sdBuffer, 512, NES_MODE_PRG);
 #else
@@ -2051,6 +2086,9 @@ void dumpPRG(word base, word address) {
 }
 
 void dumpCHR(word address) {
+#ifdef OSCR_CMDLINE
+// fprintf(stderr, "%s: base=%x address=%x\n", __PRETTY_FUNCTION__, base, address);
+#endif
 #ifdef RETRODE_LIB_H
   nes_read(address, sdBuffer, 512, NES_MODE_CHR);
 #else
@@ -2062,6 +2100,9 @@ void dumpCHR(word address) {
 }
 
 void dumpCHR_M2(word address) {  // MAPPER 45 - PULSE M2 LO/HI
+#ifdef OSCR_CMDLINE
+// fprintf(stderr, "%s: base=%x address=%x\n", __PRETTY_FUNCTION__, base, address);
+#endif
 #ifdef RETRODE_LIB_H
   nes_read(address, sdBuffer, 512, NES_MODE_CHR_M2);
 #else
@@ -2074,6 +2115,9 @@ void dumpCHR_M2(word address) {  // MAPPER 45 - PULSE M2 LO/HI
 }
 
 void dumpMMC5RAM(word base, word address) {  // MMC5 SRAM DUMP - PULSE M2 LO/HI
+#ifdef OSCR_CMDLINE
+// fprintf(stderr, "%s: base=%x address=%x\n", __PRETTY_FUNCTION__, base, address);
+#endif
 #ifdef RETRODE_LIB_H
   nes_read(address, sdBuffer, 512, NES_MODE_MMC5_SRAM);
 #else
@@ -2101,19 +2145,27 @@ void writeMMC5RAM(word base, word address) {  // MMC5 SRAM WRITE
 }
 
 void dumpBankPRG(const size_t from, const size_t to, const size_t base) {
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: from=%x to %x base=%x\n", __PRETTY_FUNCTION__, from, to, base);
+#endif
   for (size_t address = from; address < to; address += 512) {
     dumpPRG(base, address);
   }
 }
 
 void dumpBankCHR(const size_t from, const size_t to) {
+ #ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: from=%x to %x\n", __PRETTY_FUNCTION__, from, to);
+#endif
   for (size_t address = from; address < to; address += 512) {
     dumpCHR(address);
   }
 }
 
 void readPRG(bool readrom) {
-fprintf(stderr, "%s: %d\n", __PRETTY_FUNCTION__, readrom);
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: readrom=%d\n", __PRETTY_FUNCTION__, readrom);
+#endif
   if (!readrom) {
     display_Clear();
     display_Update();
@@ -2132,7 +2184,9 @@ fprintf(stderr, "%s: %d\n", __PRETTY_FUNCTION__, readrom);
   uint16_t banks;
 
   if (myFile) {
-fprintf(stderr, "%s: myFile=%p mapper=%d\n", __PRETTY_FUNCTION__, myFile, mapper);
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: myFile=%p mapper=%d\n", __PRETTY_FUNCTION__, &myFile, mapper);
+#endif
     switch (mapper) {
       case 0:
       case 3:
@@ -2153,12 +2207,18 @@ fprintf(stderr, "%s: myFile=%p mapper=%d\n", __PRETTY_FUNCTION__, myFile, mapper
 
       case 1:
       case 155:  // 32K/64K/128K/256K/512K
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: prgsize=%d\n", __PRETTY_FUNCTION__, prgsize);
+#endif
         if (prgsize == 1) {
           write_prg_byte(0x8000, 0x80);
           dumpBankPRG(0x0, 0x8000, base);
         } else {
           banks = int_pow(2, prgsize);
           for (size_t i = 0; i < banks; i++) {  // 16K Banks ($8000-$BFFF)
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: banks=%d i=%d\n", __PRETTY_FUNCTION__, banks, i);
+#endif
             write_prg_byte(0x8000, 0x80);       // Clear Register
             write_mmc1_byte(0x8000, 0x0C);      // Switch 16K Bank ($8000-$BFFF) + Fixed Last Bank ($C000-$FFFF)
             if (prgsize > 4)                    // 512K
@@ -3540,6 +3600,9 @@ fprintf(stderr, "%s: myFile=%p mapper=%d\n", __PRETTY_FUNCTION__, myFile, mapper
 }
 
 void readCHR(bool readrom) {
+#ifdef OSCR_CMDLINE
+// fprintf(stderr, "%s: readrom=%d\n", __PRETTY_FUNCTION__, readrom);
+#endif
   if (!readrom) {
     display_Clear();
     display_Update();
@@ -3569,11 +3632,17 @@ void readCHR(bool readrom) {
 
         case 1:
         case 155:
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: readrom=%d\n", __PRETTY_FUNCTION__, chrsize);
+#endif
           banks = int_pow(2, chrsize);
           write_prg_byte(0x8000, 0x80);            // Clear Register
           write_mmc1_byte(0x8000, 0x00);           // Mapper control
           for (size_t i = 0; i < banks; i += 2) {  // 8K/16K/32K/64K/128K (Bank #s are based on 4K Banks)
-            write_mmc1_byte(0xA000, i);
+#ifdef OSCR_CMDLINE
+fprintf(stderr, "%s: i=%d\n", __PRETTY_FUNCTION__, i);
+#endif
+           write_mmc1_byte(0xA000, i);
             dumpBankCHR(0x0, 0x2000);
           }
           break;
