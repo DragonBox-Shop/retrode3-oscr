@@ -1991,6 +1991,10 @@ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   // Close the file:
   myFile.close();
   print_Msg(F("Saved to "));
+#ifdef OSCR_CMDLINE
+  extern char *sdroot;
+  printf("%s/", sdroot);
+#endif
   print_Msg(folder);
   println_Msg(F("/"));
   display_Update();
@@ -2939,6 +2943,10 @@ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   println_Msg(FS(FSTRING_EMPTY));
   display_Clear();
   print_Msg(F("Saved to "));
+#ifdef OSCR_CMDLINE
+  extern char *sdroot;
+  printf("%s/", sdroot);
+#endif
   print_Msg(folder);
 
   display_Update();
@@ -3022,6 +3030,10 @@ fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
   println_Msg(FS(FSTRING_EMPTY));
   display_Clear();
   print_Msg(F("Saved to "));
+#ifdef OSCR_CMDLINE
+  extern char *sdroot;
+  printf("%s/", sdroot);
+#endif
   print_Msg(folder);
 
   display_Update();
