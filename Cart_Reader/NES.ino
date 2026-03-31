@@ -1234,6 +1234,10 @@ fprintf(stderr, "%s: %08x\n", __PRETTY_FUNCTION__, address);
 
 // Pirate Mapper 59
 static void write_reg_m59(unsigned int address) {
+#ifdef RETRODE_LIB_H
+fprintf(stderr, "%s: %08x FIXME!\n", __PRETTY_FUNCTION__, address);
+  return;
+#endif
   ROMSEL_HI;
   MODE_WRITE;
   PRG_WRITE;
@@ -1248,6 +1252,10 @@ static void write_reg_m59(unsigned int address) {
 
 // Multicart Mappers 226/289/332
 static void write_prg_pulsem2(unsigned int address, uint8_t data) {
+#ifdef RETRODE_LIB_H
+fprintf(stderr, "%s: %08x %02x FIXME!\n", __PRETTY_FUNCTION__, address, data);
+  return;
+#endif
   PHI2_LOW;
   ROMSEL_HI;
   PHI2_HI;
