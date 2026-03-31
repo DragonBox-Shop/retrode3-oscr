@@ -236,7 +236,7 @@ static const char *_fileSystemPath(const char *path)
 	else
 		newpath[0] = '\0';
 	strcat(newpath, path);		// includes the initial / as directory separator
-// fprintf(stderr, "%s: %s -> %s\n", __PRETTY_FUNCTION__, path, newpath);
+fprintf(stderr, "%s: %s -> %s\n", __PRETTY_FUNCTION__, path, newpath);
 	return newpath;	// only used temporarily - not thread safe!
 }
 
@@ -398,7 +398,7 @@ fprintf(stderr, "%s %d: wd='%s' p='%s' flags=%04o\n", __PRETTY_FUNCTION__, __LIN
 				mode = "w";
 				break;
 		}
-// fprintf(stderr, "%s: mode = %s\n", __PRETTY_FUNCTION__, mode);
+fprintf(stderr, "%s %d: mode = %s\n", __PRETTY_FUNCTION__, __LINE__, mode);
 		file = fdopen(fd, mode);
 	} else {
 		if (errno != -ENOENT)
@@ -424,7 +424,7 @@ fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 
 bool FsFile::rename(const char *name)
 { // file may be open since read/write goes through a file descriptor
-// fprintf(stderr, "%s: '%s' - add implementation\n", __PRETTY_FUNCTION__, name);
+fprintf(stderr, "%s: '%s' - add implementation\n", __PRETTY_FUNCTION__, name);
 	if (::rename(_fileSystemPath(path), name) == 0) {
 		path = name;	// new name - should this include the previous path or not?
 		return true;
@@ -533,7 +533,7 @@ bool SdFs::begin(int unknown)	// called as sd.begin(SS)
 // should likely be bool!
 void SdFs::mkdir(const char *dir, bool flag)
 { // not clear what "flag" means, but we assume it means "recursive"
-// fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, dir);
+ fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, dir);
 	if (flag) {
 		char tmp[PATH_MAX], *p = tmp;
 		strncpy(tmp, dir, sizeof(tmp));
@@ -553,7 +553,7 @@ void SdFs::mkdir(const char *dir, bool flag)
 // should likely be bool!
 void SdFs::chdir(const char *dir)
 {
-// fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, dir);
+ fprintf(stderr, "%s: %s\n", __PRETTY_FUNCTION__, dir);
 	::chdir(_fileSystemPath(dir));
 }
 
@@ -565,7 +565,8 @@ void SdFs::chdir()
 
 FsFile SdFs::open(char *path, int flags)
 {
-// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
+ char wd[PATH_MAX];
+ fprintf(stderr, "%s %d: %s @ %s\n", __PRETTY_FUNCTION__, __LINE__, path, getcwd(wd, sizeof(wd)));
 	FsFile f;
 	if(!f.open(path, flags))
 		;
@@ -574,7 +575,7 @@ FsFile SdFs::open(char *path, int flags)
 
 bool SdFs::exists(char *path)
 {
-// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
+ fprintf(stderr, "%s %d: %s\n", __PRETTY_FUNCTION__, __LINE__, path);
 	FsFile f;
 	if (!f.open(path))	// try to open
 		return false;	// not found
@@ -724,7 +725,7 @@ byte Serial::read()
 
 String Serial::readStringUntil(char until)
 { // char is usually '\n'
-// fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
 	char buffer[PATH_MAX];
 	int i = 0;
 	int c;
@@ -833,7 +834,7 @@ int navigateMenu(int min, int max, void (*printSelection)(int))
 	int i;
 	char c;
 
-fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
+// fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
 	while(1) { // loop until something is chosen
 		i=min;
 		while(i < max) {
