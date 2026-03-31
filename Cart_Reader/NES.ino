@@ -944,7 +944,7 @@ bool selectMapping(FsFile& database) {
   return 1;
 }
 
-void nes_read(const char* fileSuffix, const byte* header, const uint8_t headersize, const boolean renamerom) {
+void read_NES(const char* fileSuffix, const byte* header, const uint8_t headersize, const boolean renamerom) {
   // Get name, add extension and convert to char array for sd lib
 fprintf(stderr, "%s: %s.%s\n", __PRETTY_FUNCTION__, romName, fileSuffix);
   createFolderAndOpenFile("NES", "ROM", romName, fileSuffix);
@@ -985,11 +985,11 @@ fprintf(stderr, "%s: %s.%s\n", __PRETTY_FUNCTION__, romName, fileSuffix);
 }
 
 void readRom_NES() {
-  nes_read("nes", iNES_HEADER, 16, true);
+  read_NES("nes", iNES_HEADER, 16, true);
 }
 
 void readRaw_NES() {
-  nes_read("bin", NULL, 0, false);
+  read_NES("bin", NULL, 0, false);
 }
 
 /******************************************
@@ -1348,7 +1348,12 @@ fprintf(stderr, "%s: %s %s\n", __PRETTY_FUNCTION__, prefix, extension);
   snprintf_P(filename, sizeof(filename), _file_name_no_number_fmt, prefix, extension);
   for (uint8_t i = 0; i < 100; i++) {
     if (!sd.exists(filename)) {
-      return sd.open(fileName, O_RDWR | O_CREAT);
+#ifdef OSCR_CMDLINE
+  extern char *sdroot;
+  printf("Storing in %s/NES/ROM/", sdroot);
+#endif
+  println_Msg(filename);
+      return sd.open(filename, O_RDWR | O_CREAT);
     }
     snprintf_P(filename, sizeof(filename), _file_name_with_number_fmt, prefix, i, extension);
   }
