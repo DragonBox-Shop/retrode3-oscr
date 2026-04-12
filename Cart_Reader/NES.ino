@@ -2443,7 +2443,7 @@ fprintf(stderr, "%s: banks=%d i=%d\n", __PRETTY_FUNCTION__, banks, i);
             write_prg_byte(0x7FFD, i);  // NINA Bank select
             delay(200);                 // NINA seems slow to switch banks
           }
-          write_prg_byte(0x8000, i);
+          write_prg_byte(0x8003, i);
           dumpBankPRG(0x0, 0x8000, base);  // 32K Banks ($8000-$FFFF)
         }
         break;
