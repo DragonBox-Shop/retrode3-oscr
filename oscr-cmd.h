@@ -113,6 +113,7 @@ public:
 	byte read();
 	char peek();
 	void seek(off_t offset);
+	void seekSet(off_t offset);
 	void rewind();
 	void seekCur(off_t offset);
 	off_t curPosition();

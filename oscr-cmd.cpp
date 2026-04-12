@@ -500,6 +500,11 @@ void FsFile::seek(off_t offset)
 	fseek(file, 0, SEEK_SET);
 }
 
+void FsFile::seekSet(off_t offset)
+{
+	fseek(file, 0, SEEK_SET);
+}
+
 void FsFile::rewind()
 {
 	::rewind(file);
