@@ -44,11 +44,12 @@ static void exit_helper(void)
 
 static void help(void)
 {
-	printf("Usage: %s [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n", arg0);
+	printf("Usage: %s [-hv] [-e eeprom.bin] [-r sd-root] [command parameters ...]\n", arg0);
 	printf("Options:\n");
 	printf("  -h             Display this information\n");
 	printf("  -e eeprom.bin  Define the eeprom file [default: \"/usr/local/games/oscr/EEPROM.bin\"]\n");
 	printf("  -r sd-root     Define the SD root directory [default: \"/usr/local/games/oscr\"]\n");
+	printf("  -v             Print software and hardware versions\n");
 	printf("\n");
 #ifdef ENABLED_CONFIG
 	printf("There is a config file called \"config.txt\".\n");
@@ -109,6 +110,17 @@ int main(int argc, char *argv[])
 			case 'h':
 				help();
 				exit(0);
+			case 'v': {
+					FILE *f = fopen("/proc/device-tree/model", "r");
+					char *hardware = NULL;
+					size_t size = 0;
+					getline(&hardware, &size, f);	// there will be an extra \0 but no \n
+					printf("%s: %s %s\n", argv[0], FSTRING_VERSION, hardware);
+					free(hardware);
+					fclose(f);
+					exit(0);
+				}
+				break;
 			default:
 				fprintf(stderr, "%s: unknown option -%c\n", argv[0], argv[1][1]);
 				usage();

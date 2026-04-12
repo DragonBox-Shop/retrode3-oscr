@@ -4,7 +4,7 @@
 .SH NAME
 oscr \- command line wrapper for Open Source Cartridge Reader
 .SH SYNOPSIS
-oscr [-h] [-e eeprom.bin] [-r sd-root] [command parameters ...]
+oscr [-hv] [-e eeprom.bin] [-r sd-root] [command parameters ...]
 .SH DESCRIPTION
 oscr is a command line interface to the Open Source Cartridge Reader.
 
@@ -28,6 +28,7 @@ Options:
   -h             Display help
   -e eeprom.bin  Define the EEPROM file [default: "/usr/local/games/oscr/EEPROM.bin"]
   -r sd-root     Define the SD root directory [default: "/usr/local/games/oscr"]
+  -v             Print software and hardware versions
 
 .SH EXAMPLES
  echo 200 | oscr
