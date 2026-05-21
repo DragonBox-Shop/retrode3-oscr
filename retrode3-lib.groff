@@ -1,13 +1,13 @@
-.\" Manpage for retrode-lib
+.\" Manpage for retrode3-lib
 .\" Contact retrode3@mailinglist to correct errors or typos.
-.TH man 1 "05 Nov 2025" "1.0" "retrode-lib man page"
+.TH man 1 "05 Nov 2025" "1.0" "retrode3-lib man page"
 .SH NAME
-retrode-lib \- library for accessing the low-level busses and slots of a Retrode3
+retrode3-lib \- library for accessing the low-level busses and slots of a Retrode3
 .SH LIBRARY
-retrode library (-lretrode-lib)
+retrode library (-lretrode3-lib)
 
 .SH SYNOPSIS
-#include <retrode-lib.h>
+#include <retrode3-lib.h>
 
 int
 md_open(void);
@@ -26,7 +26,7 @@ md_set_voltage(int mV);	/* 3300 or 5000 */
 
 
 .SH DESCRIPTION
-retrode-lib is a library to wrap the details how to communicate through the kernel
+retrode3-lib is a library to wrap the details how to communicate through the kernel
 interfaces with the carts plugged into slots.
 
 .SH RETURN VALUES
@@ -35,7 +35,7 @@ Most functions return a negative value on failure and >= 0 for success.
 .SH EXAMPLES
 To read the first 1024 byres from the Megadrive Slot:
 
-	#include <retrode-lib.h>
+	#include <retrode3-lib.h>
 	int main(void) {
 		uint_16 buffer[512];
 		open_md();
@@ -46,13 +46,13 @@ To read the first 1024 byres from the Megadrive Slot:
 
 To build the tool:
 
-	cc -o mytool -I/usr/local/include mytool.c /usr/local/lib/retrode-lib.o
+	cc -o mytool -I/usr/local/include mytool.c /usr/local/lib/retrode3-lib.o
 
 .SH ERRORS
 
 .SH FILES
-	/usr/local/include/retrode-lib.h
-	/usr/local/lib/retrode-lib.o
+	/usr/local/include/retrode3-lib.h
+	/usr/local/lib/retrode3-lib.o
 
 .SH SEE ALSO
 oscr(1).

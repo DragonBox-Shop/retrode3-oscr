@@ -11,7 +11,7 @@ The local patches in the "master" branch do add:
 - connect and boot a Retrode3 and establish ssh root@192.168.0.202 access and access of the Retrode to the internet
 - cd Cart_Reader
 - either run "make" directly on the Retrode3 or run "make remote" on the host PC
-- the results are the retrode-lib.o retrode-lib.h and oscr binary
+- the results are the retrode3-lib.o retrode3-lib.h and oscr binary
 - there is a man page in groff format
 - to update to latest upstream OSCR source run update-from-oscr - the result will be a new temp branch
 - for standard devices we regularly build Debian packages which can be loaded through apt-get update && apt-get upgrade

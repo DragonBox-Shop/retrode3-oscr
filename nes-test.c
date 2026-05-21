@@ -2,12 +2,12 @@
  * tool for testing kernel and NES readout with different mappers
  * it is based on a simplified version of NES.ino
  *
- * gcc -std=c99 -o nes-test -I/usr/include -I/usr/local/include -L/usr/local/lib nes-test.c /usr/local/lib/retrode-lib.o
+ * gcc -std=c99 -o nes-test -I/usr/include -I/usr/local/include -L/usr/local/lib nes-test.c /usr/local/lib/retrode3-lib.o
  */
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <retrode-lib.h>
+#include <retrode3-lib.h>
 
 typedef uint8_t byte;
 typedef uint16_t word;

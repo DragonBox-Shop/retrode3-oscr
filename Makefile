@@ -2,7 +2,7 @@
 # (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 #
 # a Command Line Tool "oscr" as a wrapper around the OSCR source code
-# internally uses the retrode-lib to access the slots
+# internally uses the retrode3-lib to access the slots
 #
 
 # you can also specify a cross-compiler here
@@ -46,13 +46,13 @@ clean:
 all-ino.o: oscr-cmd.h all-ino.h all-ino.cpp
 
 # NOTE: this is not built again on build host if we had run a remote build which copies the MIPS file from there...
-retrode-lib.o: retrode-lib.c retrode-lib.h
+retrode3-lib.o: retrode3-lib.c retrode3-lib.h
 
 oscr-cmd.o: oscr-cmd.h all-ino.h oscr-cmd.cpp
 
 # link command line tool
-oscr: retrode-lib.o oscr-cmd.o all-ino.o
-	$(CC) $(CFLAGS) oscr-cmd.o all-ino.o retrode-lib.o -o oscr
+oscr: retrode3-lib.o oscr-cmd.o all-ino.o
+	$(CC) $(CFLAGS) oscr-cmd.o all-ino.o retrode3-lib.o -o oscr
 
 install: oscr
 	@echo '*** make install ***'
@@ -60,9 +60,9 @@ install: oscr
 	mkdir -p $(BINDIR)/../man/man1
 	gzip <oscr.groff >$(BINDIR)/../man/man1/oscr.1.gz
 	mkdir -p $(BINDIR)/../lib $(BINDIR)/../include $(BINDIR)/../man/man3
-	cp retrode-lib.o $(BINDIR)/../lib/
-	cp retrode-lib.h $(BINDIR)/../include/
-	gzip <retrode-lib.groff >$(BINDIR)/../man/man3/retrode-lib.3.gz
+	cp retrode3-lib.o $(BINDIR)/../lib/
+	cp retrode3-lib.h $(BINDIR)/../include/
+	gzip <retrode3-lib.groff >$(BINDIR)/../man/man3/retrode3-lib.3.gz
 
 # this allows to run "make remote" on the connected PC
 
@@ -77,4 +77,4 @@ remote: clean
 	rsync -rltDvzh --exclude .git Makefile "./Cart_Reader" *.h *.c *.cpp *.groff "$(DEVICE):$(SRCDIR)"
 	rsync -rltDvzh "sd/" "$(DEVICE):$(ROOTDIR)/"
 	ssh $(DEVICE) sh -c "cd; uname -a; cd $(SRCDIR) && make clean all install"
-	scp "$(DEVICE):$(SRCDIR)/oscr" "$(DEVICE):$(SRCDIR)/retrode-lib.o" .	# pull binaries from device
+	scp "$(DEVICE):$(SRCDIR)/oscr" "$(DEVICE):$(SRCDIR)/retrode3-lib.o" .	# pull binaries from device

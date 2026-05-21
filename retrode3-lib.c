@@ -1,7 +1,7 @@
 // Library to access retrode3 slots and devices
 // (C) by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 
-#include "retrode-lib.h"
+#include "retrode3-lib.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

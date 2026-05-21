@@ -20,7 +20,7 @@
 
 #include <cstring>
 
-#include "retrode-lib.h"	// comment out to use old variant
+#include "retrode3-lib.h"	// comment out to use old variant
 
 #define time flash_time	// avoid name conflict with time()
 #define clock flash_clock
