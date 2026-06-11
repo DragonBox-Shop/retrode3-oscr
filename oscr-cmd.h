@@ -20,13 +20,15 @@
 
 #include <cstring>
 
-#include "retrode3-lib.h"	// comment out to use old variant
+#include "retrode3-lib.h"
 
 #define time flash_time	// avoid name conflict with time()
 #define clock flash_clock
 
 /*** compile sources in command line mode ***/
+#ifndef OSCR_CMDLINE
 #define OSCR_CMDLINE
+#endif
 
 /*** modules to compile ***/
 
