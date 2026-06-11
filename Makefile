@@ -12,7 +12,7 @@ CXXFLAGS  = -O2 # -Wall
 LDFLAGS   =
 LIBS      =
 
-# call e.g. make clean all CROSS=mipsel
+# call e.g. make clean all ARCH=mipsel
 
 ifdef ARCH
 QSTEP	  = ~/QuantumSTEP/System/Library/Frameworks/System.framework/Versions/Current/8-Jessie/$(ARCH)/usr/bin
