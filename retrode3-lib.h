@@ -23,6 +23,7 @@ extern "C" {
 #define MD_MODE_FLASH		undefined?
 #define MD_MODE_ENSRAM		5	// write with TIME impulse (address ignored) without WE
 #define MD_MODE_EEPMODE		6	// ?
+#define MD_MODE_FRAM		7	// special FRAM mode for SONIC3 (pulses A10 to latch address)
 
 int md_open(void);	/* select MD slot */
 int md_close(void);	/* deselect MD slot */
