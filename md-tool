@@ -1,0 +1,165 @@
+#!/bin/bash
+
+if [ ! -d /sys/class/retrode3 ]
+then
+	# runs on development host!
+	[ "$DEVICE" ] || DEVICE=otg
+	# copy this script to device
+	rsync --rsh con -a "$0" "$DEVICE:$(basename "$0")"
+	# run on device
+	con $DEVICE "$0" "$@"
+	exit
+fi
+
+VERSION=-161	# default
+
+while [ "$1" ]
+do
+	case "$1" in
+		-161 ) VERSION=$1; shift; continue;;	# 74161 connected to D0, D5, D6, D7
+		-259 ) VERSION=$1; shift; continue;;	# 74259 connected to D0 and separate address lines
+		* ) break;
+	esac
+done
+
+function dump { # addr count device
+	# xxd has no -o $1 flag
+	dd if=$3 bs=1 skip=$(($1)) count=$(($2)) status=none | xxd -g 1 | \
+		awk -v off=$(($1)) '{sub(/^[0-9a-f]+:/, sprintf("%08x:", off)); print; off+=16}'
+}
+
+VAL=0x00
+function setmapper { # $1 = register $2 = bit d0
+	retrode3-setmdmapper $VERSION $1 $2
+}
+
+function enableram { # $1 = mode
+	# enable FRAM of SONIC3 (Mode 5 is MD_MODE_ENSRAM)
+	printf "\\x$(printf %02x "$1")" | dd of=/dev/slot-md bs=1 seek=$((0x05a13001)) count=1 status=none
+}
+
+function setvolt {
+	echo $1 >/sys/class/retrode3/slot-md/vcc
+}
+
+while [ "$1" ]
+do
+	case "$1" in
+		led )
+			setmapper 4 1	# turn on LED1
+			setmapper 6 1	# turn on LED2
+			setmapper 4 0	# turn off LED1
+			setmapper 6 0	# turn off LED2
+			;;		
+		rom )
+			echo "read ROM (initial)"
+			dump 0x00000100 0x10 /dev/slot-md
+			echo "read RAM (initial)"
+			dump 0x00200000 0x10 /dev/slot-md
+			;;
+		srom )
+			echo "select and read ROM"
+			setmapper 0 0	# deselect RAM for upper 2MB
+			dump 0x00000100 0x10 /dev/slot-md
+			echo "read ROM (actively chosen)"
+			dump 0x00200000 0x10 /dev/slot-md
+			;;
+		sram )
+			echo "select and read RAM"
+			setmapper 0 1	# select RAM for upper 2MB
+			setmapper 4 1	# turn on LED
+			setmapper 6 1	# turn on LED
+			dump 0x00200000 0x10 /dev/slot-md
+			;;
+		# simple RAM which is enabled through Mapper (e.g. DragonDrive Carts)
+		rram )
+			echo "read RAM"
+			setvolt 5000
+			setmapper 0 1	# select RAM for upper 2MB
+			setmapper 4 1	# turn on LED
+			setmapper 6 1	# turn on LED
+			dump 0x00200000 0x10 /dev/slot-md
+			setmapper 0 0	# deselect RAM for upper 2MB
+			setmapper 4 0	# turn off LED1
+			setmapper 6 0	# turn off LED2
+			setvolt 3300
+			;;
+		wram )
+			setvolt 5000
+			setmapper 0 1	# select RAM for upper 2MB
+			setmapper 4 1	# turn on LED
+			setmapper 6 1	# turn on LED
+			echo "dump RAM (before write)"
+			dump 0x00200000 0x10 /dev/slot-md
+			echo "write RAM"
+			dd if=/dev/urandom of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
+			echo "dump RAM (again)"
+			dump 0x00200000 0x10 /dev/slot-md
+			setmapper 0 0	# deselect RAM for upper 2MB
+			setmapper 4 0	# turn off LED1
+			setmapper 6 0	# turn off LED2
+			setvolt 3300
+			;;
+		tram )
+			setvolt 5000
+			setmapper 0 1	# select RAM for upper 2MB
+			setmapper 4 1	# turn on LED
+			setmapper 6 1	# turn on LED
+			echo "dump RAM (before write)"
+			dump 0x00200000 0x10 /dev/slot-md
+			echo "write RAM"
+			echo "*R E*T R*O D*E 3" | dd of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
+			echo "dump RAM (again)"
+			dump 0x00200000 0x10 /dev/slot-md
+			setmapper 0 0	# deselect RAM for upper 2MB
+			setmapper 4 0	# turn off LED1
+			setmapper 6 0	# turn off LED2
+			setvolt 3300
+			;;
+		# FRAM of SONIC3 is at address 0x200000 but needs to be enabled by a unique mode
+		rfram )
+			echo "read FRAM"
+			setvolt 5000
+			enableram 1
+			# read in MD_MODE_P10 (although MD_MODE_SIMPLE_BUS would also work)
+			dump 0x01200000 0x10 /dev/slot-md
+			enableram 0
+			setvolt 3300
+			;;
+		wfram )
+			echo "write FRAM"
+			setvolt 5000
+			enableram 1
+			echo "dump FRAM (before write)"
+			# read in MD_MODE_P10 (although MD_MODE_SIMPLE_BUS would also work)
+			dump 0x01200000 0x10 /dev/slot-md
+			echo "write FRAM"
+			dd if=/dev/urandom of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
+			echo "dump FRAM (again)"
+			dump 0x01200000 0x10 /dev/slot-md
+			enableram 0
+			setvolt 3300
+			;;
+		tfram )
+			echo "write FRAM"
+			setvolt 5000
+			enableram 1
+			echo "dump FRAM (before write)"
+			# read in MD_MODE_P10 (although MD_MODE_SIMPLE_BUS would also work)
+			dump 0x01200000 0x10 /dev/slot-md
+			echo "write FRAM"
+			echo " R E T R O D E 3" | dd of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
+			echo "dump FRAM (again)"
+			dump 0x01200000 0x10 /dev/slot-md
+			enableram 0
+			setvolt 3300
+			;;
+		* )
+			echo "unknown command $1"
+			echo "  Options:  -161 -259"
+			echo "  Commands: led rom srom sram rram wram tram rfram wfram tfram"
+			exit 1
+			;;
+	esac
+	shift
+done
