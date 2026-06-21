@@ -1,5 +1,5 @@
 // Library to access retrode3 slots and devices
-// (C) 2025 by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
+// (C) 2025-26 by H. N. Schaller (hns@goldelico.com) - licenced under GPL V3
 
 #ifndef RETRODE_LIB_H
 #define RETRODE_LIB_H
@@ -12,21 +12,25 @@ extern "C" {
 #endif
 
 /* NOTES:
- *   megadrive has 24 bit wide are byte addresses
- *   the driver attempts to read/write words where possible
+ *   - megadrive has 24 bit wide address bus and addresses are byte addresses
+ *   - the driver attempts to read/write full words where possible
+ *   - using MD_MODE_TIME with address 0xa13001 can in theory be used to enable the FRAM on SONIC3
+ *     -- but this is strongly discouraged as timing is not precise and has glitches
+ *     The FRAM may loose data even on pure read commands!
+ *   - use MD_MODE_ENSRAM instead (address is ignored)
  */
 
 #define MD_MODE_ROM		0	// default read/write
-#define MD_MODE_P10		1	// 10 toggle pulses on CLK
-#define MD_MODE_P1		2	// 1 toggle pulse on CLK
-#define MD_MODE_TIME		3	// address with TIME impulse and write with WE
-#define MD_MODE_FLASH		undefined?
-#define MD_MODE_ENSRAM		5	// write with TIME impulse (address ignored) without WE
-#define MD_MODE_EEPMODE		6	// ?
-#define MD_MODE_FRAM		7	// special FRAM mode for SONIC3 (pulses A10 to latch address)
+#define MD_MODE_SIMPLE_BUS	0	// default read/write
+#define MD_MODE_P10		1	// with 10 toggle pulses on CLK
+#define MD_MODE_P1		2	// with 1 toggle pulse on CLK
+#define MD_MODE_TIME		3	// address with TIME impulse and read with OE and write data with WE
+#define MD_MODE_FLASH		undefined
+#define MD_MODE_ENSRAM		5	// write D0 with TIME impulse (address ignored) but neither OE nor WE - switches to FRAM mode
+#define MD_MODE_EEPMODE		6	// ? (mode to access EEPROM in some i2c usage pattern of the bus)
 
-int md_open(void);	/* select MD slot */
-int md_close(void);	/* deselect MD slot */
+int md_open(void);		/* select MD slot */
+int md_close(void);		/* deselect MD slot */
 int md_read(uint32_t addr, void *buf, uint32_t size, int mode);
 int md_write(uint32_t addr, void *buf, uint32_t size, int mode);
 int md_set_voltage(int mV);	/* 3300 or 5000 */
@@ -39,16 +43,16 @@ int md_set_voltage(int mV);	/* 3300 or 5000 */
 #define NES_MODE_RAM		15	// CPU RAM:
 #define NES_MODE_WRAM		16	// CART RAM: D0..D7
 
-int nes_open(void);	/* select MD slot */
-int nes_close(void);	/* deselect MD slot */
+int nes_open(void);		/* select MD slot */
+int nes_close(void);		/* deselect MD slot */
 int nes_read(uint16_t addr, void *buf, uint16_t size, int mode);
 int nes_write(uint16_t addr, void *buf, uint16_t size, int mode);
 
 #define SNES_MODE_REGULAR	0
 #define SNES_MODE_HIROM		9
 
-int snes_open(void);	/* select MD slot */
-int snes_close(void);	/* deselect MD slot */
+int snes_open(void);		/* select MD slot */
+int snes_close(void);		/* deselect MD slot */
 int snes_read(uint8_t bank, uint16_t addr, void *buf, uint16_t size, int mode);
 int snes_write(uint8_t bank, uint16_t addr, void *buf, uint16_t size, int mode);
 
