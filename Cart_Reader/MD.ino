@@ -676,7 +676,8 @@ word readWord_MD(unsigned long myAddress) {
 void writeFlash_MD(unsigned long myAddress, word myData) {
 #ifdef RETRODE_LIB_H
   byte val = htons(myData);
-  md_write(myAddress << 1, &val, sizeof(val), MD_MODE_ROM);
+  // FIXME:
+  md_write(myAddress << 1, &val, sizeof(val), MD_MODE_FLASH);
 #endif
   PORTF = myAddress & 0xFF;
   PORTK = (myAddress >> 8) & 0xFF;
@@ -718,7 +719,7 @@ void writeFlash_MD(unsigned long myAddress, word myData) {
 word readFlash_MD(unsigned long myAddress) {
 #ifdef RETRODE_LIB_H
   word myData;
-  md_read(myAddress << 1, &myData, sizeof(myData), MD_MODE_ROM);
+  md_read(myAddress << 1, &myData, sizeof(myData), MD_MODE_FLASH);
   return ntohs(myData);
 #endif
   PORTF = myAddress & 0xFF;
