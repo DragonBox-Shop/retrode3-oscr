@@ -3,7 +3,7 @@
 if [ ! -d /sys/class/retrode3 ]
 then
 	# runs on development host!
-	[ "$DEVICE" ] || DEVICE=otg
+	[ "$DEVICE" ] || DEVICE=otg@raspi2
 	# copy this script to device
 	rsync --rsh con -a "$0" "$DEVICE:$(basename "$0")"
 	# run on device
@@ -22,10 +22,13 @@ do
 	esac
 done
 
+function xxd_with_offset {
+	# older xxd has no -o $1 flag
+	xxd -g 1 | awk -v off=$(($1)) '{sub(/^[0-9a-f]+:/, sprintf("%08x:", off)); print; off+=16}'
+}
+
 function dump { # addr count device
-	# xxd has no -o $1 flag
-	dd if=$3 bs=1 skip=$(($1)) count=$(($2)) status=none | xxd -g 1 | \
-		awk -v off=$(($1)) '{sub(/^[0-9a-f]+:/, sprintf("%08x:", off)); print; off+=16}'
+	dd if=$3 bs=1 skip=$(($1)) count=$(($2)) status=none | xxd_with_offset "$1"
 }
 
 VAL=0x00
@@ -91,8 +94,10 @@ do
 			setmapper 6 1	# turn on LED
 			echo "dump RAM (before write)"
 			dump 0x00200000 0x10 /dev/slot-md
-			echo "write RAM"
-			dd if=/dev/urandom of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
+			echo "write RAM with random data"
+			DATA=$(dd if=/dev/urandom bs=1 count=$((0x10)) status=none)
+			echo -n "$DATA" | xxd_with_offset $((0x00200000))
+			echo -n "$DATA" | dd of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
 			echo "dump RAM (again)"
 			dump 0x00200000 0x10 /dev/slot-md
 			setmapper 0 0	# deselect RAM for upper 2MB
@@ -107,8 +112,10 @@ do
 			setmapper 6 1	# turn on LED
 			echo "dump RAM (before write)"
 			dump 0x00200000 0x10 /dev/slot-md
-			echo "write RAM"
-			echo "*R E*T R*O D*E 3" | dd of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
+			echo "write RAM with known data"
+			DATA="*R E*T R*O D*E 3"
+			echo -n "$DATA" | xxd_with_offset $((0x00200000))
+			echo -n "$DATA" | dd of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
 			echo "dump RAM (again)"
 			dump 0x00200000 0x10 /dev/slot-md
 			setmapper 0 0	# deselect RAM for upper 2MB
@@ -127,28 +134,30 @@ do
 			setvolt 3300
 			;;
 		wfram )
-			echo "write FRAM"
 			setvolt 5000
 			enableram 1
 			echo "dump FRAM (before write)"
 			# read in MD_MODE_P10 (although MD_MODE_SIMPLE_BUS would also work)
 			dump 0x01200000 0x10 /dev/slot-md
-			echo "write FRAM"
-			dd if=/dev/urandom of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
+			echo "write FRAM with random data"
+			DATA=$(dd if=/dev/urandom bs=1 count=$((0x10)) status=none)
+			echo -n "$DATA" | xxd_with_offset $((0x00200000))
+			echo -n "$DATA" | dd of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
 			echo "dump FRAM (again)"
 			dump 0x01200000 0x10 /dev/slot-md
 			enableram 0
 			setvolt 3300
 			;;
 		tfram )
-			echo "write FRAM"
 			setvolt 5000
 			enableram 1
 			echo "dump FRAM (before write)"
 			# read in MD_MODE_P10 (although MD_MODE_SIMPLE_BUS would also work)
 			dump 0x01200000 0x10 /dev/slot-md
-			echo "write FRAM"
-			echo " R E T R O D E 3" | dd of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
+			echo "write FRAM with known data"
+			DATA=" R E T R O D E 3"
+			echo -n "$DATA" | xxd_with_offset $((0x00200000))
+			echo -n "$DATA" | dd of=/dev/slot-md bs=1 seek=$((0x00200000)) count=$((0x10)) status=none
 			echo "dump FRAM (again)"
 			dump 0x01200000 0x10 /dev/slot-md
 			enableram 0
