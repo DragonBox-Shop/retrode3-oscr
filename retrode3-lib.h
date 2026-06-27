@@ -12,16 +12,20 @@ extern "C" {
 #endif
 
 /* NOTES:
- *   - megadrive has 24 bit wide address bus and addresses are byte addresses
- *   - the driver attempts to read/write full words where possible
- *   - using MD_MODE_TIME with address 0xa13001 can in theory be used to enable the FRAM on SONIC3
- *     -- but this is strongly discouraged as timing is not precise and has glitches
- *     The FRAM may loose data even on pure read commands!
- *   - use MD_MODE_ENSRAM instead (address is ignored)
+ * - Mega Drive uses 24-bit byte addressing.
+ * - Driver reads/writes full words where possible.
+ *
+ * - WARNING: using MD_MODE_TIME (addr 0xa13001) for Sonic 3 FRAM is glitchy.
+ *   - Timing is imprecise.
+ *   - Pure reads can corrupt/lose data!
+ *   - What you should do instead: Use MD_MODE_ENSRAM instead (address is ignored).
+ *   - Exception: MD_MODE_ENSRAM does NOT enable standard RAM Carts.
+ *   - You should know from ROM checksum if it is a Sonic 3 Cart or not.
  */
 
+#define MD_MODE_SIMPLE_BUS	MD_MODE_ROM	// default read/write
+
 #define MD_MODE_ROM		0	// default read/write
-#define MD_MODE_SIMPLE_BUS	0	// default read/write
 #define MD_MODE_P10		1	// with 10 toggle pulses on CLK
 #define MD_MODE_P1		2	// with 1 toggle pulse on CLK
 #define MD_MODE_TIME		3	// address with TIME impulse and read with OE and write data with WE
