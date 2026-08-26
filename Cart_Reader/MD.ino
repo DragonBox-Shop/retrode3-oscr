@@ -1849,7 +1849,7 @@ void enableSram_MD(boolean enableSram) {
   // htons?
 fprintf(stderr, "%s: %d\n", __PRETTY_FUNCTION__, enableSram);
 #ifdef RETRODE_LIB_H
-  md_write(0, &myData, sizeof(myData), MD_MODE_ENSRAM);
+  md_enablefram(enableSram);
 #endif
   dataOut_MD();
 
