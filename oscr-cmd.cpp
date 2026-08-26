@@ -807,32 +807,52 @@ void EEPROM::println()
 fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
 }
 
-/*** Si5351 ***/
+/*** Si5351 we simulate https://github.com/etherkit/Si5351Arduino ***/
 
-bool Si5351::init(int load, int param2, int param3)
+Si5351::Si5351(uint8_t i2c_address)
 {
-fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
-	// should control some PWM through /sys
-	return true;
+	// address is ignored
 }
 
-void Si5351::output_enable(int clockport, bool onoff)
+bool Si5351::init(uint8_t xtal_load_cap, uint32_t ref_freq, uint32_t freq_correction)
 {
-fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
-	// should control some PWM through /sys
+fprintf(stderr, "%s: initialize and check presence\n", __PRETTY_FUNCTION__);
+	// we ignore all paramerters as they are defined by the hardware in Linux
+	// freq_correction would be in parts per billion
+	// is successful if we can set the frequency to 0 Hz (= output off)
+	return snes_clk_set_frequency(0, 0) == 0;
 }
 
-void Si5351::set_freq(unsigned long freq, int clockport)
+static unsigned int last_freq_Hz;
+
+void Si5351::output_enable(enum si5351_clock clockport, uint8_t onoff)
 {
-fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
-	// should control some PWM through /sys
+fprintf(stderr, "%s: port %d onoff %d\n", __PRETTY_FUNCTION__, clockport, onoff);
+	if (onoff)
+		snes_clk_set_frequency(clockport, last_freq_Hz);
+	else
+		snes_clk_set_frequency(clockport, 0);
 }
 
-void Si5351::update_status()
+#define SI5351_FREQ_MULT 100	// frequencies are specified in 0.01 Hz
+
+void Si5351::set_freq(uint64_t freq, enum si5351_clock clockport)
+{
+fprintf(stderr, "%s: add implementation\n", __PRETTY_FUNCTION__);
+	snes_clk_set_frequency(clockport, last_freq_Hz=freq/SI5351_FREQ_MULT);
+}
+
+void Si5351::update_status(void)
 {
 fprintf(stderr, "%s:\n", __PRETTY_FUNCTION__);
 	/* NOP */
 }
+
+// these things are not available directly
+// drive_strength(channel, strength)
+// set_clock_invert(channel, invert)
+// set_phase()
+// set_clock_fanout()
 
 /*** substitutes for Cart_Reader.ino not available if we have neither ENABLE_LCD nor ENABLE_OLED ***/
 

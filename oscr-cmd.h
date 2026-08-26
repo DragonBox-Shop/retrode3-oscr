@@ -169,17 +169,20 @@ public:
 	void println();
 } EEPROM;
 
-const int SI5351_CLK0 = 0;
-const int SI5351_CLK1 = 1;
-const int SI5351_CLK2 = 2;
-const int SI5351_CRYSTAL_LOAD_8PF = 8;
+enum si5351_clock {
+	SI5351_CLK0,
+	SI5351_CLK1,
+	SI5351_CLK2
+	};
+#define SI5351_CRYSTAL_LOAD_8PF	8
 
 extern class Si5351 {
 public:
-	bool init(int load, int param2, int param3);
-	void output_enable(int clockport, bool onoff);
-	void set_freq(unsigned long freq, int clockport);
-	void update_status();
+	Si5351(uint8_t i2c_addr = 0);
+	bool init(uint8_t xtal_load_cap, uint32_t ref_freq, uint32_t freq_correction);
+	void output_enable(enum si5351_clock clockport, uint8_t onoff);
+	void set_freq(uint64_t freq, enum si5351_clock clockport);
+	void update_status(void);
 } clockgen;
 
 /*** global variables from Cart_reader.ino ***/
