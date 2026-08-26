@@ -1,13 +1,16 @@
 #!/bin/bash
 
+SCRIPTPATH=$(dirname "$0")
+SCRIPTNAME=$(basename "$0")
+
 if [ ! -d /sys/class/retrode3 ]
 then
 	# runs on development host!
 	[ "$DEVICE" ] || DEVICE=otg@raspi2
 	# copy this script to device
-	rsync --rsh con -a "$0" "$DEVICE:$(basename "$0")"
+	rsync --rsh con -a "$SCRIPTPATH/$SCRIPTNAME" "$DEVICE:$SCRIPTNAME"
 	# run on device
-	con $DEVICE "$0" "$@"
+	con "$DEVICE" "./$SCRIPTNAME" "$@"
 	exit
 fi
 
