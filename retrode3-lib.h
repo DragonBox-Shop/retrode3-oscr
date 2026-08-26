@@ -29,7 +29,7 @@ extern "C" {
 #define MD_MODE_P10		1	// with 10 toggle pulses on CLK
 #define MD_MODE_P1		2	// with 1 toggle pulse on CLK
 #define MD_MODE_TIME		3	// address with TIME impulse and read with OE and write data with WE
-#define MD_MODE_FLASH		undefined
+#define MD_MODE_FLASH		4	// to be determined
 #define MD_MODE_ENSRAM		5	// write D0 with TIME impulse (address ignored) but neither OE nor WE - switches to FRAM mode
 #define MD_MODE_EEPMODE		6	// ? (mode to access EEPROM in some i2c usage pattern of the bus)
 
@@ -37,7 +37,14 @@ int md_open(void);		/* select MD slot */
 int md_close(void);		/* deselect MD slot */
 int md_read(uint32_t addr, void *buf, uint32_t size, int mode);
 int md_write(uint32_t addr, void *buf, uint32_t size, int mode);
-int md_set_voltage(int mV);	/* 3300 or 5000 */
+int md_set_voltage(unsigned int mV);	/* set cart voltage 3300 or 5000 */
+int md_set_mapper(unsigned int version, unsigned int reg, int val);	/* set mapper register (do not use for Sonic3 FRAM); version=74161 or 74259 */
+/* register values */
+#define MD_MAPPER_ENABLE	0
+#define MD_MAPPER_A22		1
+#define MD_MAPPER_LED1		2
+#define MD_MAPPER_LED2		3
+int md_enablefram(int enable);	/* set Sonic3 FRAM mapper */
 
 #define NES_MODE_PRG		10	// CPU ROM: D0..D7
 #define NES_MODE_CHR		11	// PPU ROM: D8..D15
@@ -61,7 +68,7 @@ int snes_read(uint8_t bank, uint16_t addr, void *buf, uint16_t size, int mode);
 int snes_write(uint8_t bank, uint16_t addr, void *buf, uint16_t size, int mode);
 
 int snes_cic(void /* to be defined */);		/* CIC operations - not implemented */
-int snes_clk_set_frequency(int num, int Hz);	/* clk=0/1/2, use 0Hz to turn off - not implemented */
+int snes_clk_set_frequency(unsigned int channel, unsigned int Hz);	/* channel=0/1, use 0Hz to turn off */
 
 #ifdef __cplusplus
 }
