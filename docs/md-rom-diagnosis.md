@@ -21,6 +21,21 @@ python3 tools/md-rom-diagnose.py /tmp/retrode3-md-test.bin \
   --compare /tmp/retrode3-md-repeat.bin
 ```
 
+## Compare against your existing Sonic 2 reference ROM
+
+The cartridge header `GM 00001051-01` identifies revision 01; the expected raw `.bin` reference CRC32 is `7B905383`. The header's `D951` checksum also matches the documented Sonic 2 ROM header. A `D962` checksum in our 1 MiB dump is therefore a real mismatch to investigate, not proof of an overdump.
+
+Copy an unmodified **raw/deinterleaved** Sonic 2 Rev 01 `.bin` reference onto the Retrode3 (e.g. `/tmp/sonic2-reference.bin`) and run:
+
+```sh
+python3 tools/md-rom-diagnose.py /tmp/retrode3-md-test.bin \
+  --compare /tmp/sonic2-reference.bin
+```
+
+The report shows `different_bytes`, the first 20 differing byte positions and values, and `different_bytes_by_64k_block` to reveal whether corruption is isolated or repeated. Do not compare against `.smd` interleaved files without converting them first. If the reference has another revision or is patched, differences do not automatically indicate a reader bug.
+
+If the first read differs from the reference, repeat with a **new destination file** and compare against the first read. This separates intermittent bus/timing errors from reproducible distortions.
+
 If reproducible but still not matching, compare the alternate kernel read mode without writing to the cartridge:
 
 ```sh
