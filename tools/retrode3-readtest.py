@@ -20,6 +20,8 @@ class ReadError(Exception):
 
 
 class Slot:
+    md_chunk_size = 2048
+
     def __init__(self, system, path=None):
         if path is not None:
             raise ReadError('Device override is intentionally unsupported')
@@ -45,7 +47,7 @@ class Slot:
         while len(result) < size:
             start = address + len(result)
             os.lseek(self.fd, (MODES[mode] << 24) | start, os.SEEK_SET)
-            data = os.read(self.fd, min(size - len(result), 512 if mode.startswith('nes-') else 2048))
+            data = os.read(self.fd, min(size - len(result), 512 if mode.startswith('nes-') else self.md_chunk_size))
             if not data:
                 raise ReadError('Short read from {} at {:#x}'.format(self.path, start))
             result.extend(data)
@@ -229,6 +231,7 @@ def run(args):
             raise ReadError('NES mapper/database overrides require --system nes')
         mode = 'md-' + args.md_mode
         with Slot('md') as bus:
+            bus.md_chunk_size = args.md_chunk_size
             info = detect_md(bus, mode)
             if args.action == 'probe':
                 return info, 0
@@ -268,6 +271,8 @@ def main(argv=None):
     p.add_argument('--chr-kib', type=int)
     p.add_argument('--mirroring', choices=['horizontal', 'vertical'])
     p.add_argument('--md-mode', choices=['rom', 'p10', 'p1'], default='rom')
+    p.add_argument('--md-chunk-size', type=int, choices=[2, 512, 1024, 2048], default=2048,
+                   help='Read size in bytes (1024 matches the legacy OSCR MegaDrive bulk reader)')
     p.add_argument('--size-bytes', type=int)
     args = p.parse_args(argv)
     try:
