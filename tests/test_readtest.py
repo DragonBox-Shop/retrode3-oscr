@@ -141,6 +141,18 @@ class TestReadTest(unittest.TestCase):
             self.assertEqual(result,0)
             self.assertEqual(len(read_bytes(dest)),1024)
 
+    def test_md_read_chunk_size_matches_legacy_reader(self):
+        with patch.object(module.os, 'open', return_value=88), \
+             patch.object(module.os, 'lseek', return_value=0) as seek, \
+             patch.object(module.os, 'read', side_effect=lambda fd, size: b'X' * size) as read, \
+             patch.object(module.os, 'close'):
+            with module.Slot('md') as bus:
+                bus.md_chunk_size = 1024
+                data = bus.read('md-rom', 0, 3072)
+        self.assertEqual(len(data), 3072)
+        self.assertEqual([call[0][1] for call in read.call_args_list], [1024, 1024, 1024])
+        self.assertEqual([call[0][1] for call in seek.call_args_list], [0, 1024, 2048])
+
     def test_slot_kernel_address_encoding(self):
         with patch.object(module.os, 'open', return_value=123), \
              patch.object(module.os, 'lseek', return_value=0) as seek, \
