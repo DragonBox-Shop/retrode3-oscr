@@ -1,4 +1,5 @@
 import importlib.util
+import binascii
 import json
 import tempfile
 from pathlib import Path
@@ -6,9 +7,20 @@ import unittest
 from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'tools/retrode3-readtest.py'
-spec = importlib.util.spec_from_file_location('retrode3_readtest', SCRIPT)
+spec = importlib.util.spec_from_file_location('retrode3_readtest', str(SCRIPT))
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+
+
+def read_bytes(path):
+    with open(str(path), 'rb') as handle:
+        return handle.read()
+
+
+def write_json(path, data):
+    with open(str(path), 'w') as handle:
+        json.dump(data, handle)
+
 
 
 class FakeBus:
@@ -30,7 +42,7 @@ class TestReadTest(unittest.TestCase):
             def read(self, mode, address, size): return bytes([0x5a]) * size
         with tempfile.TemporaryDirectory() as tmp:
             db=Path(tmp)/'nes.json'
-            db.write_text(json.dumps({'records': []}))
+            write_json(db, {'records': []})
             with patch.object(module, 'Slot', StubSlot):
                 self.assertEqual(module.main(['--system','nes','--action','read-rom',
                     '--database',str(db),'--match-crc32','nothex',
@@ -80,8 +92,8 @@ class TestReadTest(unittest.TestCase):
                                     '--prg-kib','16','--chr-kib','8','--mirroring','horizontal',
                                     '--output',str(dest)])
             self.assertEqual(result,0)
-            self.assertEqual(len(dest.read_bytes()),16+16384+8192)
-            self.assertEqual(dest.read_bytes()[:4],b'NES\x1a')
+            self.assertEqual(len(read_bytes(dest)),16+16384+8192)
+            self.assertEqual(read_bytes(dest)[:4],b'NES\x1a')
 
     def test_md_read_cli(self):
         class DummySlot:
@@ -99,7 +111,7 @@ class TestReadTest(unittest.TestCase):
             with patch.object(module, 'Slot', DummySlot):
                 result=module.main(['--system','md','--action','read-rom','--output',str(dest)])
             self.assertEqual(result,0)
-            self.assertEqual(len(dest.read_bytes()),1024)
+            self.assertEqual(len(read_bytes(dest)),1024)
 
     def test_slot_kernel_address_encoding(self):
         with patch.object(module.os, 'open', return_value=123), \
@@ -120,7 +132,7 @@ class TestReadTest(unittest.TestCase):
         last=prg[8192:8704]
         record={'name':'Known NROM Demo', 'mapper':0, 'submapper':0,
                 'id32a':module.crc(first), 'id32b':module.crc(last),
-                'crc32':module.crc(prg + chr_data), 'iNES':header.hex()}
+                'crc32':module.crc(prg + chr_data), 'iNES':binascii.hexlify(header).decode('ascii')}
         class DummySlot:
             def __init__(self, system): pass
             def __enter__(self): return self
@@ -136,7 +148,7 @@ class TestReadTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             dest=Path(tmp)/'known.nes'
             db=Path(tmp)/'nes.json'
-            db.write_text(json.dumps({'records':[record]}))
+            write_json(db, {'records':[record]})
             result_capture=io.StringIO()
             with patch.object(module,'Slot',DummySlot), redirect_stdout(result_capture):
                 result=module.main(['--system','nes','--action','read-rom',
@@ -144,16 +156,16 @@ class TestReadTest(unittest.TestCase):
             self.assertEqual(result,0)
             info=json.loads(result_capture.getvalue())
             self.assertTrue(info['verified'])
-            self.assertEqual(dest.read_bytes(),header+prg+chr_data)
+            self.assertEqual(read_bytes(dest),header+prg+chr_data)
 
     def test_save_no_clobber(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/'a.nes'
             module.save_atomic(p,b'hello')
-            self.assertEqual(p.read_bytes(),b'hello')
+            self.assertEqual(read_bytes(p),b'hello')
             with self.assertRaises(module.ReadError):
                 module.save_atomic(p,b'evil')
-            self.assertEqual(p.read_bytes(),b'hello')
+            self.assertEqual(read_bytes(p),b'hello')
 
 
 if __name__=='__main__':
