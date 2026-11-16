@@ -29,7 +29,7 @@ python3 -m unittest discover -s tests -p 'test_readtest.py' -v
 # NES cartridge identification, read-only (uses original OSCR data/nes.json)
 python3 tools/retrode3-readtest.py --system nes --action probe
 
-# NES mapper 0/NROM: dump with the original detected iNES header, verify CRC32
+# NES mapper 0/NROM: dump with original iNES or NES 2.0 header, verify CRC32
 python3 tools/retrode3-readtest.py --system nes --action read-rom \
     --output /tmp/retrode3-test.nes
 
@@ -53,8 +53,21 @@ python3 tools/retrode3-readtest.py --system md --action read-rom \
 
 The executable prints **one JSON result** on stdout and JSON errors on stderr. Exit status 0 means the requested read completed, 2 indicates an error, 3 indicates an NES ROM CRC mismatch. In the latter case the data is saved under `<output>.unverified`, and is **not** claimed to be a good dump. Existing output files are never overwritten; incomplete files are not published.
 
-**Current limits:** NES mapper 0 only (NROM 16/32 KiB PRG, 0/8 KiB CHR) and standard/linear MegaDrive ROMs with a valid SEGA header, or a caller-supplied even ROM size. No NES bank-switching mappers, no SRAM/EEPROM dumps, no SNES yet, no Sonic & Knuckles/32X/SVP/EEPROM special cases, no restore/flash/write paths. This CLI is a practical hardware test and does **not** implement the new OSCR cartridge algorithms yet.
+**Current limits:** NES mapper 0 only (NROM 16/32 KiB PRG, 0/8 KiB CHR, iNES 1.0 and simple NES 2.0 headers) and standard/linear MegaDrive ROMs with a valid SEGA header, or a caller-supplied even ROM size. No NES bank-switching mappers, no SRAM/EEPROM dumps, no SNES yet, no Sonic & Knuckles/32X/SVP/EEPROM special cases, no restore/flash/write paths. This CLI is a practical hardware test and does **not** implement the new OSCR cartridge algorithms yet.
 
 The automatic NES recognition uses **Sanni's original NES cartridge database** `nes.json` and the same first/last 512-byte PRG CRC32 candidates as the new OSCR NES core; if zero or multiple matches occur, normal ROM reading stops instead of guessing. A manual NROM override is possible. The separate `nes-mappers.json` remains the source for future dropdown selection; it does not identify games.
 
 For MegaDrive, if the original OSCR `md.json` database is present and its full-ROM CRC32 matches, the JSON result includes the game name and `verified:true`. Missing or unmatched MD records leave `verified:null` (not automatically corrupt). Compare the resulting ROM against an independently trusted dump using `sha256sum`. On errors, keep the JSON output for diagnosis. If a test fails, do not keep cycling cartridge power or attempt save/flash writes.
+
+## Excitebike (Europe) live test
+
+The OSCR cartridge database record for the real European Excitebike cartridge uses NES 2.0 header `4E45531A010101080000000001000020`; the header specifies mapper 0, 16 KiB PRG and 8 KiB CHR. The first test mistakenly rejected NES 2.0 outright. The corrected test supports these safe NROM sizes while still blocking nonzero NES 2.0 submappers and exponent-encoded sizes.
+
+```sh
+git pull --ff-only
+python3 -m unittest discover -s tests -p 'test_readtest.py' -v
+python3 tools/retrode3-readtest.py --system nes --action read-rom \
+  --match-crc32 8A0C7337 --output /tmp/excitebike-europe.nes
+```
+
+A known-good original dump should report `verified: true`. This is a real cartridge verification still to be performed.
