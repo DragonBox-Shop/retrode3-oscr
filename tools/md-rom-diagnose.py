@@ -78,12 +78,29 @@ def compare(a, b):
         return {'same': False, 'size_a': len(a), 'size_b': len(b)}
     count = 0
     first = None
+    samples = []
+    changed_blocks = {}
     for index in range(len(a)):
         if a[index] != b[index]:
             count += 1
             if first is None:
                 first = index
-    return {'same': count == 0, 'different_bytes': count, 'first_differing_offset': first}
+            block = index // 65536
+            changed_blocks[block] = changed_blocks.get(block, 0) + 1
+            if len(samples) < 20:
+                samples.append({
+                    'offset': index,
+                    'hex_offset': '0x{:06X}'.format(index),
+                    'first_file_hex': '{:02X}'.format(a[index]),
+                    'second_file_hex': '{:02X}'.format(b[index]),
+                    'xor_hex': '{:02X}'.format(a[index] ^ b[index])
+                })
+    return {'same': count == 0, 'different_bytes': count,
+            'first_differing_offset': first,
+            'first_20_differences': samples,
+            'different_bytes_by_64k_block': [
+                {'block_index': i, 'difference_count': changed_blocks[i]}
+                for i in sorted(changed_blocks)]}
 
 
 def main(args=None):
@@ -101,6 +118,10 @@ def main(args=None):
                 other = handle.read()
             report['comparison'] = compare(data, other)
             report['comparison_crc32'] = crc32(other)
+            reference = analyze(other)
+            report['comparison_header_checksum_matches'] = reference['header_checksum_matches']
+            report['comparison_reference_name'] = reference['sonic2_reference_match']
+            report['comparison_serial'] = reference['serial']
         print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))
         return 0
     except (IOError, OSError, ValueError) as error:
