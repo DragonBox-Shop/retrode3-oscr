@@ -2,7 +2,19 @@
 
 **State:** Experimental hardware-acceptance CLI, **not** the new OSCR C++ core port. It is deliberately separate from the stable \`oscr\` program and exercises the same Linux \`/dev/slot-nes\` / \`/dev/slot-md\` ABI without changing \`master\`. Test with a known expendable cartridge first; no voltage/power setup or save writing has been added here. The existing kernel must already initialize the slots correctly.
 
-Requirements: Python 3 and readable kernel slot devices. From a checked-out **migration branch**:
+Requirements: **Debian 8 / Python 3.4** are supported by the read-test script. No `git switch`, new Python or Node.js is needed for this test. The original OSCR C++ firmware is not yet the executable. Clone before running commands:
+
+```sh
+mkdir -p /usr/local/src
+cd /usr/local/src
+git clone -b migration/oscr-firmware https://github.com/DragonBox-Shop/retrode3-oscr.git
+cd retrode3-oscr
+```
+
+If already cloned earlier, from within the repository use `git fetch origin` followed by `git checkout migration/oscr-firmware` or `git pull --ff-only` on the migration branch. Debian 8 Git lacks `git switch`.
+
+**Submodules and tests:**
+
 
 \`\`\`sh
 # The nested OSCR databases submodule uses an SSH URL. Rewrite it temporarily
