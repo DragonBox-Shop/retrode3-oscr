@@ -156,7 +156,7 @@ def save_atomic(path, content):
     tmp = None
     try:
         with tempfile.NamedTemporaryFile(prefix='.' + path.name + '.', suffix='.partial',
-                                         dir=path.parent, delete=False) as f:
+                                         dir=str(path.parent), delete=False) as f:
             tmp = Path(f.name)
             f.write(content)
             f.flush()
