@@ -52,6 +52,27 @@ class TestReadTest(unittest.TestCase):
         with self.assertRaises(module.ReadError):
             module.nrom_layout(bytes.fromhex('4e45531a020110000000000000000000'))
 
+    def test_real_oscr_excitebike_europe_nes2_header(self):
+        # Original OSCR nes.json header for Excitebike (Europe), CRC32 8A0C7337.
+        header=bytes.fromhex('4E45531A010101080000000001000020')
+        self.assertEqual(module.nrom_layout(header), (16384, 8192))
+
+    def test_nes2_guard_unsupported_mapper_and_sizes(self):
+        header=bytearray.fromhex('4E45531A010101080000000001000020')
+        header[8]=0x01  # mapper 256, NOT mapper 0
+        with self.assertRaises(module.ReadError):
+            module.nrom_layout(header)
+        header[8]=0x10  # submapper 1
+        with self.assertRaises(module.ReadError):
+            module.nrom_layout(header)
+        header[8]=0
+        header[9]=0x0f  # exponent encoding
+        with self.assertRaises(module.ReadError):
+            module.nrom_layout(header)
+        header[9]=0x01  # > 2 PRG banks
+        with self.assertRaises(module.ReadError):
+            module.nrom_layout(header)
+
     def test_nes_probe(self):
         a = bytes(range(256))*2
         b = bytes(reversed(range(256)))*2
