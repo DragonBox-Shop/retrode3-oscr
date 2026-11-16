@@ -250,8 +250,9 @@ def main(argv=None):
     args = p.parse_args(argv)
     try:
         info, code = run(args)
-        print(json.dumps({'ok': code == 0, 'system': args.system, 'action': args.action,
-                          **info}, ensure_ascii=False, sort_keys=True))
+        result = {'ok': code == 0, 'system': args.system, 'action': args.action}
+        result.update(info)
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         return code
     except (ReadError, OSError, ValueError, KeyError, TypeError) as exc:
         print(json.dumps({'ok': False, 'error': str(exc)}, ensure_ascii=False), file=sys.stderr)
