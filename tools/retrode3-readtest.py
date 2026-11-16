@@ -90,15 +90,29 @@ def nes_header(value):
 
 
 def nrom_layout(header):
-    # NES 2.0 uses additional size bits and exponent encoding; do not guess these.
-    if (header[7] & 0x0c) == 0x08:
-        raise ReadError('NES 2.0 header is not yet supported by the NROM test path')
+    if len(header) != 16 or header[:4] != b'NES\x1a':
+        raise ReadError('Invalid NES ROM header')
+    nes2 = (header[7] & 0x0c) == 0x08
     mapper = (header[6] >> 4) | (header[7] & 0xf0)
-    if mapper != 0 or header[4] not in (1, 2) or header[5] not in (0, 1):
+    if nes2:
+        mapper |= (header[8] & 0x0f) << 8
+        submapper = header[8] >> 4
+        # NES 2.0 upper size nibbles of 0xF use an exponent/multiplier
+        # encoding and are intentionally unsupported by the NROM test.
+        if (header[9] & 0x0f) == 15 or (header[9] >> 4) == 15:
+            raise ReadError('NES 2.0 exponent-encoded ROM sizes are unsupported')
+        prg_banks = header[4] | ((header[9] & 0x0f) << 8)
+        chr_banks = header[5] | ((header[9] >> 4) << 8)
+        if submapper != 0:
+            raise ReadError('NES 2.0 submapper is unsupported in the NROM test')
+    else:
+        prg_banks = header[4]
+        chr_banks = header[5]
+    if mapper != 0 or prg_banks not in (1, 2) or chr_banks not in (0, 1):
         raise ReadError('Only mapper 0, 16/32 KiB PRG and 0/8 KiB CHR are supported in the first test')
     if header[6] & 0x04:
         raise ReadError('Trainer cartridges are unsupported in the first test')
-    return header[4] * 16384, header[5] * 8192
+    return prg_banks * 16384, chr_banks * 8192
 
 
 def manual_nrom_header(args):
