@@ -22,6 +22,20 @@ class FakeBus:
 
 
 class TestReadTest(unittest.TestCase):
+    def test_bad_candidate_crc_argument(self):
+        class StubSlot:
+            def __init__(self, system): pass
+            def __enter__(self): return self
+            def __exit__(self, *exc): pass
+            def read(self, mode, address, size): return bytes([0x5a]) * size
+        with tempfile.TemporaryDirectory() as tmp:
+            db=Path(tmp)/'nes.json'
+            db.write_text(json.dumps({'records': []}))
+            with patch.object(module, 'Slot', StubSlot):
+                self.assertEqual(module.main(['--system','nes','--action','read-rom',
+                    '--database',str(db),'--match-crc32','nothex',
+                    '--output',str(Path(tmp)/'x.nes')]),2)
+
     def test_nrom_header(self):
         x = bytes.fromhex('4e45531a020100000000000000000000')
         self.assertEqual(module.nrom_layout(x), (32768, 8192))

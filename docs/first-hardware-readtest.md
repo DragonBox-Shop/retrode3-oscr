@@ -21,6 +21,11 @@ python3 tools/retrode3-readtest.py --system nes --action probe
 python3 tools/retrode3-readtest.py --system nes --action read-rom \
     --output /tmp/retrode3-test.nes
 
+# If probe returns multiple candidates, select the chosen original database entry
+# by the 'rom_crc32' value in the probe JSON:
+python3 tools/retrode3-readtest.py --system nes --action read-rom \
+    --match-crc32 12345678 --output /tmp/retrode3-selected.nes
+
 # If recognition fails, try a KNOWN NROM board with explicit parameters
 # Only mapper 0 is enabled; manual mode cannot verify against a known ROM CRC.
 python3 tools/retrode3-readtest.py --system nes --action read-rom \
