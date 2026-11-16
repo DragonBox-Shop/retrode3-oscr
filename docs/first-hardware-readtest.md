@@ -1,8 +1,8 @@
 # First Retrode3 read-only hardware test
 
-**State:** Experimental hardware-acceptance CLI, **not** the new OSCR C++ core port. It is deliberately separate from the stable \`oscr\` program and exercises the same Linux \`/dev/slot-nes\` / \`/dev/slot-md\` ABI without changing \`master\`. Test with a known expendable cartridge first; no voltage/power setup or save writing has been added here. The existing kernel must already initialize the slots correctly.
+**State:** Experimental hardware-acceptance CLI, **not** the new OSCR C++ core port. It is deliberately separate from the stable `oscr` program and exercises the same Linux `/dev/slot-nes` / `/dev/slot-md` ABI without changing `master`. Test with a known expendable cartridge first; no voltage/power setup or save writing has been added here. The existing kernel must already initialize the slots correctly.
 
-Requirements: **Debian 8 / Python 3.4** are supported by the read-test script. No `git switch`, new Python or Node.js is needed for this test. The original OSCR C++ firmware is not yet the executable. Clone before running commands:
+Requirements: The read-test script has been adapted for **Debian 8 / Python 3.4** (physical-device validation is still outstanding). No `git switch`, new Python or Node.js is needed for this test. The original OSCR C++ firmware is not yet the executable. Clone before running commands:
 
 ```sh
 mkdir -p /usr/local/src
@@ -16,7 +16,7 @@ If already cloned earlier, from within the repository use `git fetch origin` fol
 **Submodules and tests:**
 
 
-\`\`\`sh
+```sh
 # The nested OSCR databases submodule uses an SSH URL. Rewrite it temporarily
 # if this host has HTTPS but no GitHub SSH credentials:
 git submodule update --init third_party/oscr-firmware
@@ -48,12 +48,12 @@ python3 tools/retrode3-readtest.py --system nes --action read-rom \
 python3 tools/retrode3-readtest.py --system md --action probe
 python3 tools/retrode3-readtest.py --system md --action read-rom \
     --output /tmp/retrode3-md-test.bin
-\`\`\`
+```
 
-The executable prints **one JSON result** on stdout and JSON errors on stderr. Exit status 0 means the requested read completed, 2 indicates an error, 3 indicates an NES ROM CRC mismatch. In the latter case the data is saved under \`<output>.unverified\`, and is **not** claimed to be a good dump. Existing output files are never overwritten; incomplete files are not published.
+The executable prints **one JSON result** on stdout and JSON errors on stderr. Exit status 0 means the requested read completed, 2 indicates an error, 3 indicates an NES ROM CRC mismatch. In the latter case the data is saved under `<output>.unverified`, and is **not** claimed to be a good dump. Existing output files are never overwritten; incomplete files are not published.
 
 **Current limits:** NES mapper 0 only (NROM 16/32 KiB PRG, 0/8 KiB CHR) and standard/linear MegaDrive ROMs with a valid SEGA header, or a caller-supplied even ROM size. No NES bank-switching mappers, no SRAM/EEPROM dumps, no SNES yet, no Sonic & Knuckles/32X/SVP/EEPROM special cases, no restore/flash/write paths. This CLI is a practical hardware test and does **not** implement the new OSCR cartridge algorithms yet.
 
-The automatic NES recognition uses **Sanni's original NES cartridge database** \`nes.json\` and the same first/last 512-byte PRG CRC32 candidates as the new OSCR NES core; if zero or multiple matches occur, normal ROM reading stops instead of guessing. A manual NROM override is possible. The separate \`nes-mappers.json\` remains the source for future dropdown selection; it does not identify games.
+The automatic NES recognition uses **Sanni's original NES cartridge database** `nes.json` and the same first/last 512-byte PRG CRC32 candidates as the new OSCR NES core; if zero or multiple matches occur, normal ROM reading stops instead of guessing. A manual NROM override is possible. The separate `nes-mappers.json` remains the source for future dropdown selection; it does not identify games.
 
-For MegaDrive, if the original OSCR `md.json` database is present and its full-ROM CRC32 matches, the JSON result includes the game name and `verified:true`. Missing or unmatched MD records leave `verified:null` (not automatically corrupt). Compare the resulting ROM against an independently trusted dump using \`sha256sum\`. On errors, keep the JSON output for diagnosis. If a test fails, do not keep cycling cartridge power or attempt save/flash writes.
+For MegaDrive, if the original OSCR `md.json` database is present and its full-ROM CRC32 matches, the JSON result includes the game name and `verified:true`. Missing or unmatched MD records leave `verified:null` (not automatically corrupt). Compare the resulting ROM against an independently trusted dump using `sha256sum`. On errors, keep the JSON output for diagnosis. If a test fails, do not keep cycling cartridge power or attempt save/flash writes.
