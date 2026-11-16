@@ -132,7 +132,7 @@ class TestReadTest(unittest.TestCase):
         last=prg[8192:8704]
         record={'name':'Known NROM Demo', 'mapper':0, 'submapper':0,
                 'id32a':module.crc(first), 'id32b':module.crc(last),
-                'crc32':module.crc(prg + chr_data), 'iNES':binascii.hexlify(header).decode('ascii')}
+                'crc32':module.crc(prg + chr_data), 'header':binascii.hexlify(header).decode('ascii')}
         class DummySlot:
             def __init__(self, system): pass
             def __enter__(self): return self
