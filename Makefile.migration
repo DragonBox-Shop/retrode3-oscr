@@ -8,3 +8,7 @@ test-read-bus:
 	./build/migration/read_bus_test
 clean-migration:
 	rm -rf build/migration
+
+.PHONY: test-readtest
+test-readtest:
+	python3 -m unittest discover -s tests -p 'test_readtest.py' -v
