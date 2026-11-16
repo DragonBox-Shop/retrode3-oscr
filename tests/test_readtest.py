@@ -1,4 +1,4 @@
-import importlib.util
+import imp
 import binascii
 import json
 import tempfile
@@ -7,9 +7,7 @@ import unittest
 from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'tools/retrode3-readtest.py'
-spec = importlib.util.spec_from_file_location('retrode3_readtest', str(SCRIPT))
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+module = imp.load_source('retrode3_readtest', str(SCRIPT))
 
 
 def read_bytes(path):
