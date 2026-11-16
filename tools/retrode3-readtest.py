@@ -169,6 +169,8 @@ def save_atomic(path, content):
 
 def run(args):
     if args.system == 'nes':
+        if args.mapper is not None and args.match_crc32 is not None:
+            raise ReadError('Select either an OSCR candidate CRC32 or a manual mapper override, not both')
         if args.mapper is None and any(v is not None for v in (args.prg_kib, args.chr_kib, args.mirroring)):
             raise ReadError('NES size/mirroring override requires --mapper 0')
         db_path = Path(args.database) if args.database else NES_DB
@@ -177,8 +179,13 @@ def run(args):
                 info, candidates = detect_nes(bus, load_database(db_path, 'NES'))
                 if args.action == 'probe':
                     return info, 0
+                if args.match_crc32 is not None:
+                    wanted = args.match_crc32.upper()
+                    if len(wanted) != 8 or any(ch not in '0123456789ABCDEF' for ch in wanted):
+                        raise ReadError('--match-crc32 must contain exactly eight hex digits')
+                    candidates = [r for r in candidates if f'{hex_integer(r["crc32"]):08X}' == wanted]
                 if len(candidates) != 1:
-                    raise ReadError(f'OSCR found {len(candidates)} matching games; select a manual NROM override or probe first')
+                    raise ReadError(f'OSCR found {len(candidates)} matching records for this selection; use --action probe to inspect candidates and optionally --match-crc32')
                 chosen = candidates[0]
                 header = nes_header(chosen.get('iNES', chosen.get('ines')))
                 data, full_crc = read_nes(bus, header)
@@ -194,8 +201,8 @@ def run(args):
                 data, full_crc = read_nes(bus, header)
                 info = {'manual_mapper': 0, 'dump_crc32': full_crc, 'verified': None}
     else:
-        if args.mapper is not None:
-            raise ReadError('--mapper is only supported with --system nes')
+        if args.mapper is not None or args.match_crc32 is not None:
+            raise ReadError('NES mapper/database overrides require --system nes')
         mode = 'md-' + args.md_mode
         with Slot('md') as bus:
             info = detect_md(bus, mode)
@@ -226,6 +233,7 @@ def main(argv=None):
     p.add_argument('--output', help='Destination for .nes or .bin (must not exist)')
     p.add_argument('--database', help='Override original OSCR NES JSON database path')
     p.add_argument('--mapper', type=int, help='Manual NES mapper, currently only 0')
+    p.add_argument('--match-crc32', help='Select an OSCR NES database candidate by its full-ROM CRC32')
     p.add_argument('--prg-kib', type=int)
     p.add_argument('--chr-kib', type=int)
     p.add_argument('--mirroring', choices=['horizontal', 'vertical'])
