@@ -140,13 +140,21 @@ def read_nes(bus, header):
     return header + prg + chr_data, crc(prg + chr_data)
 
 
+def md_header_text(header, start, end):
+    return header[start:end].decode('ascii', 'replace').replace('\x00', ' ').strip()
+
+
 def detect_md(bus, mode):
     header = bus.read(mode, 0, 0x200)
     end_address = int.from_bytes(header[0x1a4:0x1a8], 'big')
     size = end_address + 1
     valid = header[0x100:0x104] == b'SEGA' and 0x200 <= size <= 0x1000000
     return {'sega_header': header[0x100:0x104] == b'SEGA',
-            'header_size_bytes': size if valid else None, 'valid_header': valid}
+            'header_size_bytes': size if valid else None, 'valid_header': valid,
+            'domestic_title': md_header_text(header, 0x120, 0x150),
+            'overseas_title': md_header_text(header, 0x150, 0x180),
+            'serial': md_header_text(header, 0x180, 0x18e),
+            'region': md_header_text(header, 0x1f0, 0x200)}
 
 
 def save_atomic(path, content):
