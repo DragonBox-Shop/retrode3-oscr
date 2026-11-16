@@ -46,6 +46,7 @@ python3 tools/retrode3-readtest.py --system nes --action read-rom \
 
 # MegaDrive basic read-only header probe / dump (standard linear ROM mapping)
 python3 tools/retrode3-readtest.py --system md --action probe
+# The JSON now includes domestic_title, overseas_title, serial and region
 python3 tools/retrode3-readtest.py --system md --action read-rom \
     --output /tmp/retrode3-md-test.bin
 ```
