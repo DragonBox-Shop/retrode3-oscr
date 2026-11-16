@@ -66,14 +66,25 @@ Concrete examples in upstream commit `e5a0832`:
 - [x] Establish isolated migration branch
 - [x] Pin pristine upstream firmware as a Git submodule
 - [ ] Implement Linux architecture target and compile-time smoke-test without Retrode3 hardware
-- [ ] Design/implement NES bus operations, including PRG/CHR, mapper writes, and proper M2 timing
+- [x] Implement and mock-test the initial read-only NES/MD/SNES kernel bus adapter (not wired into OSCR yet)
+- [x] Generate the preliminary web menu schema from upstream C++ arrays and NES mapper database (all actions disabled)
+- [ ] Connect OSCR NES core to the kernel bus adapter, including PRG/CHR, mapper writes and proper M2 timing
 - [ ] Design/implement MegaDrive bus operations, including 16-bit words, SRAM/EEPROM, and Sonic 3 FRAM mode
 - [ ] Design/implement SNES bus operations, including bank/mapping modes, SRAM, and clock
 - [ ] Provide a deterministic, noninteractive CLI compatible with the web-UI integration
 - [ ] Add mock kernel-device tests and CI with strict warnings and sanitizers where possible
 - [ ] Test on real Retrode3 with known NES, MegaDrive, and SNES cartridges and validate dump hashes
-- [ ] Validate save backup and read-only operations before allowing any save write or flash command
+- [ ] Validate ROM dump and save backup/read-only operations first; implement save restore and Flash workflows in a separate later phase
 - [ ] Review changes and merge to `master` only after hardware acceptance
+
+## Web interface and recognition policy (2026-11-16)
+
+- Preserve OSCR's **original automatic cartridge recognition** via the cartridge CRDB (for NES, `nes.json`). Do not replace it with a mandatory manual mapper choice.
+- Allow **manual override** only when recognition fails or is wrong. Populate mapper/submapper and legal size fields from the same upstream database (`nes-mappers.json`) and the core's size tables. The currently pinned firmware's nested database revision is `87a48948c6a04260205f148d313614cc44e05cd5`.
+- Generate stable menu IDs and guarded choices from upstream menu arrays; the first version is `tools/oscr-export-web-menu.js` plus `generated/oscr-web-menu.json`. The catalog describes actions; it **does not execute them**.
+- Web UI calls should use a deterministic CLI command with explicit system/action and validated options, not Arduino navigation sequences. No shell interpolation, no arbitrary filesystem paths.
+- Flash functions are **in scope**, but are implemented after stable cartridge ROM and save reads. They are present in the preliminary catalog as **disabled** write-risk actions.
+- The `ReadBus` adapter under `include/retrode3/` and `src/retrode3/` is an isolated tested foundation. It does not power slots on or run new OSCR core code yet.
 
 ## Updating upstream
 
