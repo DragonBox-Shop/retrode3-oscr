@@ -11,7 +11,7 @@
 
 ## Non-negotiable goals
 
-1. **Never edit the upstream cartridge cores in-tree.** All files underneath `third_party/oscr-firmware` are the unchanged upstream Git revision. Update upstream by changing the submodule pointer, not by hand-merging `src/cores/NES.cpp`, `src/cores/MegaDrive.cpp`, or `src/cores/SNES.cpp`.
+1. **Minimize changes to upstream cartridge cores; pristine upstream remains the reference.** All files underneath `third_party/oscr-firmware` are tracked unchanged as an upstream Git revision. A few narrowly scoped core modifications are acceptable when technically necessary, but must be versioned outside the upstream checkout as reproducible build overlays/patches; never manually rework every core on each upstream update. Prefer sending the tiny hooks upstream.
 2. Retain Linux kernel slot ABI and the existing Retrode3 device library (`/dev/slot-nes`, `/dev/slot-md`, `/dev/slot-snes`) unless a separately coordinated kernel change is necessary.
 3. Keep the command-line program usable non-interactively from a web interface. Return reliable exit status, machine-readable progress/status, and output-file paths.
 4. Preserve `master` until builds, integration tests, and real-cartridge verification pass.
@@ -22,7 +22,7 @@ The new upstream has moved from a large collection of Arduino `.ino` files to Pl
 
 | Upstream | Retrode3 Linux integration needed |
 | --- | --- |
-| `src/cores/{NES,MegaDrive,SNES}.cpp` | Preserve unchanged; attach cartridge operations through suitable HAL |
+| `src/cores/{NES,MegaDrive,SNES}.cpp` | Keep cartridge logic upstream; permit small reproducible overlays for low-level bus boundaries when unavoidable |
 | `include/arch.h`, `include/arch/syslibinc.h` | Introduce a Linux target/architecture path |
 | `src/arch/avr/**`, `include/arch/avr/**` | Supply Linux equivalents rather than emulating AVR hardware |
 | `OSCR::Storage` / `OSCR::Time` | POSIX files, clock, data directories |
@@ -30,7 +30,36 @@ The new upstream has moved from a large collection of Arduino `.ino` files to Pl
 | `OSCR::UI`, `OSCR::Menus` | Noninteractive command dispatch and deterministic output |
 | Database submodule | Fetch/generate supported database formats, independent of Arduino SD layout |
 
-**Important blocker:** The rewritten NES, MegaDrive and SNES cores still directly manipulate `PORTx`, `DDRx`, and `PINx`. Namespaces and the current `OSCR::Hardware::PinControl` are not yet a per-console bus abstraction. Therefore, simply swapping in the new core files or defining `OSCR_ARCH_LINUX` is insufficient. A native kernel-backed cartridge bus interface is required. Prefer an upstream-accepted HAL API so future core updates can really be consumed without local code patches. Any interim build overlay must be independently tracked, automated, and verified rather than editing upstream sources by hand.
+**Important blocker:** The rewritten NES, MegaDrive and SNES cores still directly manipulate `PORTx`, `DDRx`, and `PINx`. Namespaces and the current `OSCR::Hardware::PinControl` are not yet a per-console bus abstraction. Therefore, simply swapping in the new core files or defining `OSCR_ARCH_LINUX` is insufficient. A native kernel-backed cartridge bus interface is required. Prefer an upstream-accepted HAL API so future core updates can be consumed with zero or near-zero local core changes. Any necessary interim build overlay must be independently tracked, automated, and verified rather than editing upstream sources by hand.
+
+## Porting policy: thin CLI wrapper + hardware adapter (decision 2026-11-16)
+
+Our priority is **automatic mapping to the Retrode3 Linux kernel interface with the fewest possible upstream core changes**, not an absolute ban on patches.
+
+Suggested layout:
+
+```text
+third_party/oscr-firmware/  upstream submodule, not edited
+src/retrode3/cli/          CLI dispatch, machine-readable status and errors
+src/retrode3/compat/       Linux replacements for Arduino/UI/Storage/Time
+src/retrode3/hal/          Typed NES/MD/SNES bus API backed by retrode3-lib
+patches/oscr-firmware/     Only minimal, deterministic core hooks if required
+tests/                     Mock bus tests and upgrade checks
+```
+
+**Two different sorts of compatibility are needed:**
+
+1. Most generic Arduino facilities can be provided as a **compile-time compatibility wrapper** without touching the firmware's cartridge algorithms.
+2. The electrical cartridge bus must be translated as **complete semantic operations** (e.g. NES read PRG/CHR in specific mapper/timing modes, MD read/write word and FRAM toggles, SNES banked reads). Do **not** naively map individual AVR `PORTF`, `PINK`, and `DDRx` changes to individual Linux syscalls: the bus needs atomic timing, and a read of a virtual register is not enough to infer whether the core intends a PRG access, CHR access, mapper write, or another transaction.
+
+Concrete examples in upstream commit `e5a0832`:
+- NES `read_prg_byte()`, `read_chr_byte()`, mapper writes, and pulse-M2 variants encode different bus semantics. An MMC1 register-write comment explicitly requires approximately 33 ns between two control signals; this cannot be reproduced by userspace bit-by-bit syscalls.
+- MegaDrive `readWord()` drives AVR ports directly, while its callers use word-addressing; Retrode3 `md_read()` expects **byte addresses** and has bus mode selections (`MD_MODE_ROM`, `MD_MODE_P10`, etc.). A single adapter must convert address units, byte order and modes carefully.
+- SNES `readBank()` is not the only direct-bus path: `readLoRomBanks()`, `readHiRomBanks()` and header/probe functions also read ports directly. Those require routing or replacing with **bulk kernel reads** for reasonable performance.
+
+**How to keep patches tiny:** First implement a typed, testable bus API and POSIX command-line/Storage/UI compatibility. Then audit **all** direct register accesses in the three enabled upstream cores, route a small number of I/O functions and bulk-read paths through the HAL via tracked overlays, and leave all mapper, ROM format, checksum and menu logic intact. If possible, contribute the platform hooks upstream so the overlays disappear later.
+
+**Update acceptance criteria:** Checking out a newer upstream commit and re-running a deterministic build must either (a) succeed with the exact unchanged compatibility overlays and tests or (b) fail loudly and identify which small boundary changed. Never silently fuzz or best-effort-rewrite unknown source patterns; never mutate the submodule during an update. Gate destructive operations until real hardware has been tested. A Linux compile alone does not demonstrate electrical safety or correct output.
 
 ## Milestones
 
