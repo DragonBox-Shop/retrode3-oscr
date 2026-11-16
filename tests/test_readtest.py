@@ -101,6 +101,51 @@ class TestReadTest(unittest.TestCase):
             self.assertEqual(result,0)
             self.assertEqual(len(dest.read_bytes()),1024)
 
+    def test_slot_kernel_address_encoding(self):
+        with patch.object(module.os, 'open', return_value=123), \
+             patch.object(module.os, 'lseek', return_value=0) as seek, \
+             patch.object(module.os, 'read', return_value=b'Z'), \
+             patch.object(module.os, 'close'):
+            with module.Slot('nes') as bus:
+                self.assertEqual(bus.read('nes-prg', 0x8000, 1), b'Z')
+        seek.assert_called_once_with(123, (10 << 24) | 0x8000, module.os.SEEK_SET)
+
+    def test_auto_nes_dump_and_crc(self):
+        import io
+        from contextlib import redirect_stdout
+        header=bytes.fromhex('4e45531a010100000000000000000000')
+        prg=bytes((i // 64) & 255 for i in range(16384))
+        chr_data=bytes((i * 19) & 255 for i in range(8192))
+        first=prg[:512]
+        last=prg[8192:8704]
+        record={'name':'Known NROM Demo', 'mapper':0, 'submapper':0,
+                'id32a':module.crc(first), 'id32b':module.crc(last),
+                'crc32':module.crc(prg + chr_data), 'iNES':header.hex()}
+        class DummySlot:
+            def __init__(self, system): pass
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, mode, address, size):
+                if mode=='nes-prg':
+                    if address==0x8000:
+                        return prg if size==16384 else first
+                    if address==0xe000:
+                        return last
+                if mode=='nes-chr': return chr_data
+                raise AssertionError((mode,address,size))
+        with tempfile.TemporaryDirectory() as tmp:
+            dest=Path(tmp)/'known.nes'
+            db=Path(tmp)/'nes.json'
+            db.write_text(json.dumps({'records':[record]}))
+            result_capture=io.StringIO()
+            with patch.object(module,'Slot',DummySlot), redirect_stdout(result_capture):
+                result=module.main(['--system','nes','--action','read-rom',
+                                    '--database',str(db),'--output',str(dest)])
+            self.assertEqual(result,0)
+            info=json.loads(result_capture.getvalue())
+            self.assertTrue(info['verified'])
+            self.assertEqual(dest.read_bytes(),header+prg+chr_data)
+
     def test_save_no_clobber(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/'a.nes'
