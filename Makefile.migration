@@ -1,0 +1,10 @@
+# Separate migration-only tests; does not compile or replace the existing OSCR CLI.
+CXX ?= c++
+CXXFLAGS ?= -std=c++20 -Wall -Wextra -Werror -pedantic -O2
+.PHONY: test-read-bus clean-migration
+test-read-bus:
+	mkdir -p build/migration
+	$(CXX) $(CXXFLAGS) -I. -Iinclude src/retrode3/read_bus.cpp tests/read_bus_test.cpp -o build/migration/read_bus_test
+	./build/migration/read_bus_test
+clean-migration:
+	rm -rf build/migration
