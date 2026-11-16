@@ -34,6 +34,9 @@ class DiagnoseTests(unittest.TestCase):
         result = mod.compare(fixture(), data)
         self.assertEqual(result['different_bytes'], 1)
         self.assertEqual(result['first_differing_offset'],0x300)
+        self.assertEqual(result['even_address_differences'], 1)
+        self.assertEqual(result['odd_address_differences'], 0)
+        self.assertEqual(result['bit_difference_counts_d0_to_d7'], [1,0,0,0,0,0,0,0])
         self.assertEqual(result['first_20_differences'][0]['hex_offset'], '0x000300')
         self.assertEqual(result['different_bytes_by_64k_block'],
                          [{'block_index': 0, 'difference_count': 1}])
@@ -48,6 +51,39 @@ class DiagnoseTests(unittest.TestCase):
         self.assertEqual(differences['different_bytes_by_64k_block'],
                          [{'block_index': 0, 'difference_count': 1},
                           {'block_index': 1, 'difference_count': 1}])
+
+    def test_odd_address_d0_corruption(self):
+        reference = bytearray(0x2000)
+        corrupted = bytearray(reference)
+        corrupted[0x301] = 1
+        corrupted[0x503] = 1
+        result = mod.compare(corrupted, reference)
+        self.assertEqual(result['odd_address_differences'], 2)
+        self.assertEqual(result['even_address_differences'], 0)
+        self.assertEqual(result['bit_difference_counts_d0_to_d7'], [2,0,0,0,0,0,0,0])
+        self.assertEqual(result['bit_transitions_first_one_second_zero'], 2)
+        self.assertEqual(result['bit_transitions_first_zero_second_one'], 0)
+
+    def test_compare_command_with_short_second_file(self):
+        import tempfile
+        import json
+        import io
+        from contextlib import redirect_stdout
+        with tempfile.TemporaryDirectory() as temp:
+            first = str(Path(temp) / 'first.bin')
+            short = str(Path(temp) / 'short.bin')
+            with open(first, 'wb') as handle:
+                handle.write(fixture())
+            with open(short, 'wb') as handle:
+                handle.write(b'bad')
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = mod.main([first, '--compare', short])
+            self.assertEqual(code, 0)
+            report = json.loads(output.getvalue())
+            self.assertEqual(report['comparison_size_bytes'], 3)
+            self.assertTrue(report['comparison']['size_mismatch'])
+            self.assertIn('comparison_warning', report)
 
     def test_swap_and_same_compare(self):
         data = bytes([1,2,3,4,5])
