@@ -74,8 +74,17 @@ class TestReadTest(unittest.TestCase):
         d=bytearray(512)
         d[0x100:0x104]=b'SEGA'
         d[0x1a4:0x1a8]=(0x3ffff).to_bytes(4,'big')
+        d[0x120:0x129]=b'JP TITLE '
+        d[0x150:0x15a]=b'GAME NAME '
+        d[0x180:0x18e]=b'GM DEMO123-00 '
+        d[0x1f0:0x1f3]=b'JUE'
         bus=FakeBus({('md-rom',0):bytes(d)})
-        self.assertEqual(module.detect_md(bus,'md-rom')['header_size_bytes'],262144)
+        info=module.detect_md(bus,'md-rom')
+        self.assertEqual(info['header_size_bytes'],262144)
+        self.assertEqual(info['domestic_title'], 'JP TITLE')
+        self.assertEqual(info['overseas_title'], 'GAME NAME')
+        self.assertEqual(info['serial'], 'GM DEMO123-00')
+        self.assertEqual(info['region'], 'JUE')
 
     def test_manual_cli_dump(self):
         class DummySlot:
