@@ -44,4 +44,4 @@ The executable prints **one JSON result** on stdout and JSON errors on stderr. E
 
 The automatic NES recognition uses **Sanni's original NES cartridge database** \`nes.json\` and the same first/last 512-byte PRG CRC32 candidates as the new OSCR NES core; if zero or multiple matches occur, normal ROM reading stops instead of guessing. A manual NROM override is possible. The separate \`nes-mappers.json\` remains the source for future dropdown selection; it does not identify games.
 
-Compare the resulting ROM against an independently trusted dump using \`sha256sum\`. On errors, keep the JSON output for diagnosis. If a test fails, do not keep cycling cartridge power or attempt save/flash writes.
+For MegaDrive, if the original OSCR `md.json` database is present and its full-ROM CRC32 matches, the JSON result includes the game name and `verified:true`. Missing or unmatched MD records leave `verified:null` (not automatically corrupt). Compare the resulting ROM against an independently trusted dump using \`sha256sum\`. On errors, keep the JSON output for diagnosis. If a test fails, do not keep cycling cartridge power or attempt save/flash writes.

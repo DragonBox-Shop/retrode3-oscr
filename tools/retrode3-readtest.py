@@ -214,7 +214,13 @@ def run(args):
             if size < 512 or size > 0x1000000 or size % 2:
                 raise ReadError('MegaDrive size must be even and between 512 bytes and 16 MiB')
             data = bus.read(mode, 0, size)
-            info.update({'size_bytes': size, 'dump_crc32': crc(data), 'verified': None})
+            full_crc = crc(data)
+            matches = []
+            if MD_DB.is_file():
+                matches = [r.get('name', '') for r in load_database(MD_DB, 'MegaDrive')
+                           if hex_integer(r.get('crc32', 0)) == int(full_crc, 16)]
+            info.update({'size_bytes': size, 'dump_crc32': full_crc,
+                         'database_matches': matches, 'verified': True if matches else None})
     if args.output is None:
         raise ReadError('read-rom requires --output')
     target = Path(args.output).expanduser()

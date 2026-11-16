@@ -83,6 +83,24 @@ class TestReadTest(unittest.TestCase):
             self.assertEqual(len(dest.read_bytes()),16+16384+8192)
             self.assertEqual(dest.read_bytes()[:4],b'NES\x1a')
 
+    def test_md_read_cli(self):
+        class DummySlot:
+            def __init__(self, system): pass
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, mode, address, size):
+                a=bytearray(size)
+                if address==0 and size==512:
+                    a[0x100:0x104]=b'SEGA'
+                    a[0x1a4:0x1a8]=(1023).to_bytes(4,'big')
+                return bytes(a)
+        with tempfile.TemporaryDirectory() as tmp:
+            dest=Path(tmp)/'md.bin'
+            with patch.object(module, 'Slot', DummySlot):
+                result=module.main(['--system','md','--action','read-rom','--output',str(dest)])
+            self.assertEqual(result,0)
+            self.assertEqual(len(dest.read_bytes()),1024)
+
     def test_save_no_clobber(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/'a.nes'

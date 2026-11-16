@@ -68,7 +68,7 @@ Concrete examples in upstream commit `e5a0832`:
 - [ ] Implement Linux architecture target and compile-time smoke-test without Retrode3 hardware
 - [x] Implement and mock-test the initial read-only NES/MD/SNES kernel bus adapter (not wired into OSCR yet)
 - [x] Generate the preliminary web menu schema from upstream C++ arrays and NES mapper database (all actions disabled)
-- [x] Add separate **runnable** hardware acceptance CLI for NES mapper 0 (NROM) and standard MegaDrive ROMs, with original OSCR NES database probing, safe output and mock tests. This is **not yet** the new C++ core port.
+- [x] Add separate **runnable** hardware acceptance CLI for NES mapper 0 (NROM) and standard MegaDrive ROMs, with original OSCR NES database probing, optional MD CRC verification, safe output and mock tests. This is **not yet** the new C++ core port.
 - [ ] Connect OSCR NES core to the kernel bus adapter, including PRG/CHR, mapper writes and proper M2 timing
 - [ ] Design/implement MegaDrive bus operations, including 16-bit words, SRAM/EEPROM, and Sonic 3 FRAM mode
 - [ ] Design/implement SNES bus operations, including bank/mapping modes, SRAM, and clock
