@@ -47,13 +47,13 @@ class Slot:
             os.lseek(self.fd, (MODES[mode] << 24) | start, os.SEEK_SET)
             data = os.read(self.fd, min(size - len(result), 512 if mode.startswith('nes-') else 2048))
             if not data:
-                raise ReadError(f'Short read from {self.path} at {start:#x}')
+                raise ReadError('Short read from {} at {:#x}'.format(self.path, start))
             result.extend(data)
         return bytes(result)
 
 
 def crc(value):
-    return f'{zlib.crc32(value):08X}'
+    return '{:08X}'.format(zlib.crc32(value) & 0xffffffff)
 
 
 def hex_integer(value):
@@ -66,10 +66,11 @@ def hex_integer(value):
 
 def load_database(path, name):
     if not path.is_file():
-        raise ReadError(f'OSCR {name} database not found: {path}; initialize nested submodules')
-    data = json.loads(path.read_text(encoding='utf-8'))
+        raise ReadError('OSCR {} database not found: {}; initialize nested submodules'.format(name, path))
+    with open(str(path), 'r', encoding='utf-8') as database_file:
+        data = json.load(database_file)
     if not isinstance(data, dict) or not isinstance(data.get('records'), list):
-        raise ReadError(f'Invalid OSCR {name} database')
+        raise ReadError('Invalid OSCR {} database'.format(name))
     return data['records']
 
 
@@ -126,7 +127,7 @@ def detect_nes(bus, database):
         if keys & {int(p, 16) for p in probes}:
             candidates.append(row)
     info = {'first512_crc32': crc(first), 'last512_crc32': crc(last), 'candidates': [
-        {'name': r.get('name', ''), 'rom_crc32': f'{hex_integer(r.get("crc32", 0)):08X}',
+        {'name': r.get('name', ''), 'rom_crc32': '{:08X}'.format(hex_integer(r.get('crc32', 0))),
          'mapper': r.get('mapper'), 'submapper': r.get('submapper')}
         for r in candidates]}
     return info, candidates
@@ -149,9 +150,9 @@ def detect_md(bus, mode):
 
 
 def save_atomic(path, content):
-    path = Path(path).expanduser()
+    path = Path(os.path.expanduser(str(path)))
     if path.exists():
-        raise ReadError(f'Output file already exists: {path}')
+        raise ReadError('Output file already exists: {}'.format(path))
     tmp = None
     try:
         with tempfile.NamedTemporaryFile(prefix='.' + path.name + '.', suffix='.partial',
@@ -161,10 +162,11 @@ def save_atomic(path, content):
             f.flush()
             os.fsync(f.fileno())
         # Atomic, no-overwrite publication on the same filesystem.
-        os.link(tmp, path)
+        os.link(str(tmp), str(path))
     finally:
         if tmp is not None:
-            tmp.unlink(missing_ok=True)
+            if os.path.lexists(str(tmp)):
+                os.unlink(str(tmp))
 
 
 def run(args):
@@ -183,13 +185,13 @@ def run(args):
                     wanted = args.match_crc32.upper()
                     if len(wanted) != 8 or any(ch not in '0123456789ABCDEF' for ch in wanted):
                         raise ReadError('--match-crc32 must contain exactly eight hex digits')
-                    candidates = [r for r in candidates if f'{hex_integer(r["crc32"]):08X}' == wanted]
+                    candidates = [r for r in candidates if '{:08X}'.format(hex_integer(r['crc32'])) == wanted]
                 if len(candidates) != 1:
-                    raise ReadError(f'OSCR found {len(candidates)} matching records for this selection; use --action probe to inspect candidates and optionally --match-crc32')
+                    raise ReadError('OSCR found {} matching records for this selection; use --action probe to inspect candidates and optionally --match-crc32'.format(len(candidates)))
                 chosen = candidates[0]
-                header = nes_header(chosen.get('iNES', chosen.get('ines')))
+                header = nes_header(chosen.get('header'))
                 data, full_crc = read_nes(bus, header)
-                expected = f'{hex_integer(chosen["crc32"]):08X}'
+                expected = '{:08X}'.format(hex_integer(chosen['crc32']))
                 verified = full_crc == expected
                 info.update({'matched_name': chosen.get('name'), 'expected_crc32': expected,
                              'dump_crc32': full_crc, 'verified': verified})
@@ -223,7 +225,7 @@ def run(args):
                          'database_matches': matches, 'verified': True if matches else None})
     if args.output is None:
         raise ReadError('read-rom requires --output')
-    target = Path(args.output).expanduser()
+    target = Path(os.path.expanduser(args.output))
     if info['verified'] is False:
         target = target.with_name(target.name + '.unverified')
     save_atomic(target, data)
@@ -251,7 +253,7 @@ def main(argv=None):
         print(json.dumps({'ok': code == 0, 'system': args.system, 'action': args.action,
                           **info}, ensure_ascii=False, sort_keys=True))
         return code
-    except (ReadError, OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (ReadError, OSError, ValueError, KeyError, TypeError) as exc:
         print(json.dumps({'ok': False, 'error': str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2
 
