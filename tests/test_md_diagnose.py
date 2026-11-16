@@ -34,6 +34,20 @@ class DiagnoseTests(unittest.TestCase):
         result = mod.compare(fixture(), data)
         self.assertEqual(result['different_bytes'], 1)
         self.assertEqual(result['first_differing_offset'],0x300)
+        self.assertEqual(result['first_20_differences'][0]['hex_offset'], '0x000300')
+        self.assertEqual(result['different_bytes_by_64k_block'],
+                         [{'block_index': 0, 'difference_count': 1}])
+
+    def test_multiblock_error_distribution(self):
+        left = bytearray(131072)
+        right = bytearray(left)
+        right[1] = 1
+        right[65538] = 2
+        differences = mod.compare(left, right)
+        self.assertEqual(differences['different_bytes'], 2)
+        self.assertEqual(differences['different_bytes_by_64k_block'],
+                         [{'block_index': 0, 'difference_count': 1},
+                          {'block_index': 1, 'difference_count': 1}])
 
     def test_swap_and_same_compare(self):
         data = bytes([1,2,3,4,5])
