@@ -196,7 +196,7 @@ def snes_header_info(header):
     checksum = int.from_bytes(header[0x2e:0x30], 'little')
     mapping = SNES_MAP_MODES.get(mapping_byte)
     size = 1 << (exponent + 10) if 7 <= exponent <= 12 else None
-    checksum_valid = (checksum ^ complement) == 0xffff and checksum not in (0, 0xffff)
+    checksum_valid = (checksum ^ complement) == 0xffff and checksum != 0
     return {
         'title': header[0x10:0x25].decode('ascii', 'replace').replace('\x00', ' ').strip(),
         'mapping_byte': '{:02X}'.format(mapping_byte),
