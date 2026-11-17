@@ -9,6 +9,9 @@ not yet a native compilation of the rewritten upstream C++ cartridge core.
 - Original algorithm: third_party/oscr-firmware/src/cores/SNES.cpp
   (checkcart, readLoRomBanks, readHiRomBanks, readROM). The submodule is unmodified.
 - Original database: third_party/oscr-firmware/databases/data/snes.json
+  Note: source `size` entries are BIT counts. The CLI reports both
+  `size_bits` and the converted `size_bytes`, and compares byte counts
+  when applying OSCR 10/12/20/24 Mbit overrides.
 - 80-byte SNES header probe at physical address 00:FFB0.
 - LoROM: 32 KiB per bank, bank:8000, starting at bank 00 for up to 24 Mbit
   and bank 80 for larger 32 Mbit ROMs, following OSCR.
