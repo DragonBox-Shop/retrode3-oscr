@@ -9,12 +9,13 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 MOCK = ROOT / "build/migration/oscr-snes-native-mock"
 BANK_SOURCE = ROOT / "build/migration/oscr_snes_banks.cpp"
+BANK_LIBRARY = ROOT / "build/migration/liboscr-snes-core.a"
 
 
 class TestNativeSnes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        if not MOCK.is_file() or not BANK_SOURCE.is_file():
+        if not MOCK.is_file() or not BANK_SOURCE.is_file() or not BANK_LIBRARY.is_file():
             raise RuntimeError("Run make -f Makefile.migration test-native-snes")
 
     def call(self, *args, **kwargs):
@@ -24,6 +25,12 @@ class TestNativeSnes(unittest.TestCase):
         out, err = p.communicate()
         stream = out if p.returncode == 0 else err
         return p.returncode, json.loads(stream.decode("utf-8"))
+
+    def test_oscr_core_is_linkable_archive_not_entire_firmware(self):
+        archive_members = subprocess.check_output(
+            ["ar", "t", str(BANK_LIBRARY)]).decode("ascii")
+        self.assertIn("oscr_snes_banks.o", archive_members)
+        self.assertNotIn("oscr_snes_native.o", archive_members)
 
     def test_original_oscr_checkcart_lorom_probe(self):
         code, result = self.call("--action", "probe")
