@@ -110,7 +110,8 @@ class TestNativeSnes(unittest.TestCase):
         self.assertIn("void readLoRomBanks(", source)
         self.assertIn("void readHiRomBanks(", source)
         self.assertEqual(source.count("while (currByte != 0);"), 2)
-        self.assertEqual(source.count("OSCR::RetroDe3::readBlock("), 2)
+        self.assertEqual(source.count("OSCR::RetroDe3::readBlock("), 3)
+        self.assertIn("bool checkcart()", source)
         self.assertNotIn("buffer[c] = PINC;", source)
 
 
