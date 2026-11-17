@@ -20,7 +20,9 @@ not yet a native compilation of the rewritten upstream C++ cartridge core.
   64 KiB (HiROM). The OSCR database may correct 10/12/20/24 Mbit headers
   when a unique header identity is found.
 - Database identification: header CRC32 matches OSCR id32 AND checksum,
-  then full ROM CRC32 is checked. Database miss means verified: null.
+  then full ROM CRC32 is checked. No header/database match means verified: null.
+  Recognized header but mismatching full-ROM CRC means verified: false, exit
+  code 3, and an output filename ending in .unverified.
 - Output: raw headerless .sfc with atomic no-overwrite publication.
 
 ## Safety and limitations
