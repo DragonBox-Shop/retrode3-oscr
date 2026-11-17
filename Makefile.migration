@@ -12,3 +12,22 @@ clean-migration:
 .PHONY: test-readtest
 test-readtest:
 	python3 -m unittest discover -s tests -p 'test_readtest.py' -v
+
+# Build a first native Linux executable from ORIGINAL pinned OSCR SNES C++
+# bank-reading functions. This is NOT yet the complete upstream C++ core.
+# The generator refuses unknown upstream changes and never edits the submodule.
+NATIVE_CXXFLAGS = -std=c++17 -Wall -Wextra -Werror -pedantic -O2
+NATIVE_SOURCES = src/retrode3/read_bus.cpp src/retrode3/oscr_snes_native.cpp build/migration/oscr_snes_banks.cpp
+NATIVE_INCLUDES = -I. -Iinclude
+
+build/migration/oscr_snes_banks.cpp: tools/build-linux-snes-core.py third_party/oscr-firmware/src/cores/SNES.cpp
+	python3 tools/build-linux-snes-core.py --output $@
+
+.PHONY: native-snes test-native-snes
+native-snes: build/migration/oscr_snes_banks.cpp
+	$(CC) -std=gnu11 -O2 -I. -c retrode3-lib.c -o build/migration/retrode3-lib.o
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) $(NATIVE_SOURCES) build/migration/retrode3-lib.o -o build/migration/oscr-snes-native
+
+test-native-snes: build/migration/oscr_snes_banks.cpp
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) $(NATIVE_SOURCES) tests/mock_snes_kernel.cpp -o build/migration/oscr-snes-native-mock
+	python3 -m unittest discover -s tests -p 'test_native_snes.py' -v
