@@ -186,6 +186,15 @@ SNES_STANDARD_CHIPS = (0, 1, 2)  # plain ROM, ROM+RAM, ROM+save RAM
 SNES_NONSTANDARD_SIZES = (1310720, 1572864, 2621440, 3145728)
 
 
+def snes_database_size_bytes(record):
+    # OSCR snes.json records store ROM size in *bits* (e.g. 4 Mbit =
+    # 4194304), whereas the Linux reader and .sfc file sizes use bytes.
+    bits = record.get('size')
+    if isinstance(bits, bool) or not isinstance(bits, int) or bits <= 0 or bits % 8:
+        raise ReadError('Invalid bit-based SNES ROM size in OSCR database')
+    return bits // 8
+
+
 def snes_header_info(header):
     if len(header) != 80:
         raise ReadError('Expected exactly 80 bytes of SNES header')
@@ -227,7 +236,8 @@ def detect_snes(bus, database):
     info['candidates'] = [{
         'name': row.get('name', ''),
         'rom_crc32': '{:08X}'.format(hex_integer(row['crc32'])),
-        'size_bytes': row.get('size'),
+        'size_bits': row.get('size'),
+        'size_bytes': snes_database_size_bytes(row),
     } for row in candidates[:20]]
     info['candidate_count'] = len(candidates)
     return info, candidates
@@ -339,8 +349,8 @@ def run(args):
             # OSCR's alternative configuration corrects 10/12/20/24 Mbit
             # header sizes if its original database identifies the cartridge.
             if args.size_bytes is None and len(candidates) == 1:
-                db_size = candidates[0].get('size')
-                if isinstance(db_size, int) and db_size in SNES_NONSTANDARD_SIZES:
+                db_size = snes_database_size_bytes(candidates[0])
+                if db_size in SNES_NONSTANDARD_SIZES:
                     size = db_size
                     info['database_size_override'] = True
             data = read_snes(bus, mapping, size)
