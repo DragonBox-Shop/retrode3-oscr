@@ -71,7 +71,8 @@ Concrete examples in upstream commit `e5a0832`:
 - [x] Add separate **runnable** hardware acceptance CLI for NES mapper 0 (NROM) and standard MegaDrive ROMs, with original OSCR NES database probing, optional MD CRC verification, safe output and mock tests. This is **not yet** the new C++ core port.
 - [ ] Connect OSCR NES core to the kernel bus adapter, including PRG/CHR, mapper writes and proper M2 timing
 - [ ] Design/implement MegaDrive bus operations, including 16-bit words, SRAM/EEPROM, and Sonic 3 FRAM mode
-- [ ] Design/implement SNES bus operations, including bank/mapping modes, SRAM, and clock
+- [x] Add OSCR-aligned **read-only standard SNES LoROM/HiROM** hardware acceptance to the Linux CLI, including original snes.json header/CRC lookup, mock tests and CI (hardware test pending; no upstream core compiled)
+- [ ] Complete SNES core integration: special chips, SRAM, clock and native C++ OSCR dispatch
 - [ ] Provide a deterministic, noninteractive CLI compatible with the web-UI integration
 - [ ] Add mock kernel-device tests and CI with strict warnings and sanitizers where possible
 - [ ] Test on real Retrode3 with known NES, MegaDrive, and SNES cartridges and validate dump hashes
@@ -87,7 +88,7 @@ Concrete examples in upstream commit `e5a0832`:
 - Flash functions are **in scope**, but are implemented after stable cartridge ROM and save reads. They are present in the preliminary catalog as **disabled** write-risk actions.
 - The `ReadBus` adapter under `include/retrode3/` and `src/retrode3/` is an isolated tested foundation. It does not power slots on or run new OSCR core code yet.
 
-See [`docs/first-hardware-readtest.md`](first-hardware-readtest.md) for the exact test commands and the currently supported cartridge types. No hardware run has been performed on an actual Retrode3 yet.
+See [`docs/first-hardware-readtest.md`](first-hardware-readtest.md) for NES/MD acceptance and [`docs/snes-readonly.md`](snes-readonly.md) for SNES. NES/MD have been tested on physical Retrode3 hardware; **SNES currently has only passing mock/CI tests, not real-cart validation**.
 
 ## Updating upstream
 

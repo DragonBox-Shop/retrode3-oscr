@@ -4,7 +4,7 @@ This is a small **read-only HAL foundation**, not a working port of the OSCR fir
 
 - NES: PRG, CHR, CHR with M2, RAM and WRAM modes.
 - MegaDrive: 24-bit **byte** addresses for block reads, **word** addresses for the upstream \`readWord\` API, explicit access mode and big-endian word decoding.
-- SNES: 8-bit bank and 16-bit address, explicit regular/HiROM mode.
+- SNES: 8-bit bank and 16-bit address. The caller may select a regular/HiROM layout but the present kernel only implements raw mode 0; the adapter translates both to 0 and selects mapping through physical bank addresses. See [SNES acceptance](snes-readonly.md).
 - Rejects address-space/bank crossings and short reads instead of silently generating corrupt ROMs.
 
 Test on any Linux development machine without cartridge hardware:
