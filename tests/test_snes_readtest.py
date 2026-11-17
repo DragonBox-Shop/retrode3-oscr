@@ -196,6 +196,36 @@ class TestSnesReader(unittest.TestCase):
             self.assertTrue(result['database_size_override'])
             self.assertEqual(result['size_bytes'], 1572864)
 
+    def test_recognized_snes_bad_crc_is_saved_as_unverified(self):
+        rom, header = make_rom('lo')
+        bus = SnesMemoryBus(rom, 'lo')
+        record = {'name': 'Known header but wrong ROM CRC',
+                  'checksum': '1234', 'id32': reader.crc(header),
+                  'crc32': 'DEADBEEF', 'size': len(rom), 'banks': 16}
+
+        class DummySlot:
+            def __init__(self, system):
+                pass
+            def __enter__(self):
+                return bus
+            def __exit__(self, *args):
+                pass
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / 'snes.json'
+            db.write_text(json.dumps({'records': [record]}), encoding='utf-8')
+            target = Path(tmp) / 'mismatch.sfc'
+            out = io.StringIO()
+            with patch.object(reader, 'Slot', DummySlot), redirect_stdout(out):
+                rc = reader.main(['--system', 'snes', '--action', 'read-rom',
+                                  '--database', str(db), '--output', str(target)])
+            self.assertEqual(rc, 3)
+            self.assertFalse(target.exists())
+            self.assertEqual(Path(str(target) + '.unverified').read_bytes(), rom)
+            result = json.loads(out.getvalue())
+            self.assertFalse(result['verified'])
+            self.assertEqual(result['expected_crc32'], ['DEADBEEF'])
+
     def test_invalid_modes_and_address_overflow_are_blocked(self):
         with patch.object(reader.os, 'open', return_value=42), \
              patch.object(reader.os, 'close'):
