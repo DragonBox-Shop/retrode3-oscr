@@ -1,5 +1,6 @@
 """Executable integration tests of original OSCR C++ LoROM/HiROM bank loops."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -16,12 +17,41 @@ class TestNativeSnes(unittest.TestCase):
         if not MOCK.is_file() or not BANK_SOURCE.is_file():
             raise RuntimeError("Run make -f Makefile.migration test-native-snes")
 
-    def call(self, *args):
+    def call(self, *args, **kwargs):
         p = subprocess.Popen([str(MOCK)] + list(args),
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             env=kwargs.get('env'))
         out, err = p.communicate()
         stream = out if p.returncode == 0 else err
         return p.returncode, json.loads(stream.decode("utf-8"))
+
+    def test_original_oscr_checkcart_lorom_probe(self):
+        code, result = self.call("--action", "probe")
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["engine"], "OSCR C++ checkcart")
+        self.assertEqual(result["mapping"], "lo")
+        self.assertEqual(result["size_bytes"], 524288)
+        self.assertEqual(result["chips"], 0)
+        self.assertEqual(result["checksum"], "1234")
+        self.assertEqual(result["title"], "MOCK SNES CART")
+
+    def test_original_oscr_checkcart_hirom_probe(self):
+        env = os.environ.copy()
+        env["RETRODE_MOCK_MAP"] = "hi"
+        code, result = self.call("--action", "probe", env=env)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["mapping"], "hi")
+        self.assertEqual(result["size_bytes"], 524288)
+
+    def test_auto_mapping_and_size_from_original_checkcart(self):
+        with tempfile.TemporaryDirectory() as temp:
+            file = Path(temp) / "automatic.sfc"
+            code, result = self.call("--action", "read-rom",
+                                     "--output", str(file))
+            self.assertEqual(code, 0, result)
+            self.assertEqual(result["bytes_written"], 524288)
+            self.assertEqual(result["mapping"], "lo")
+            self.assertEqual(len(file.read_bytes()), 524288)
 
     def test_lorom_4_mib_uses_original_oscr_bank_order(self):
         self._check_image("lo", 4194304, 32768, 0x80)
