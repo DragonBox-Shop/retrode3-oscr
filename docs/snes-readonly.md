@@ -1,8 +1,8 @@
 # SNES read-only acceptance on Retrode3
 
-Status: Mock-based tests pass. **First physical LoROM hardware test passed**
-with Super Turrican (Europe) on Retrode3 2.9.5; HiROM and repeatability
-checks are still outstanding.
+Status: Mock-based tests pass. **Both standard LoROM and HiROM have passed
+physical hardware testing** on Retrode3 2.9.5. LoROM repeatability was
+confirmed with two bit-identical dumps; repeat HiROM read remains outstanding.
 This is a Linux reader port of the new OSCR SNES header and bank algorithms,
 not yet a native compilation of the rewritten upstream C++ cartridge core.
 
@@ -30,7 +30,7 @@ not yet a native compilation of the rewritten upstream C++ cartridge core.
   code 3, and an output filename ending in .unverified.
 - Output: raw headerless .sfc with atomic no-overwrite publication.
 
-## Verified real-cartridge result (2026-11-17)
+## Verified real-cartridge results (2026-11-17)
 
 User-tested on Retrode3 2.9.5, Linux kernel 7.3.0-rc5-letux-mips-retrode3+,
 with the read-only Linux SNES CLI:
@@ -49,10 +49,30 @@ with the read-only Linux SNES CLI:
 | CLI | ok: true, verified: true, manual_override: false |
 | Destination | /tmp/super-turrican-europe.sfc |
 
-This validates ONE complete standard LoROM dump, including bank order,
-against the database CRC32. Repeat dump/independent hash comparison and
-standard HiROM hardware testing are still needed. This is not evidence
-that the full upstream C++ OSCR core has been ported.
+Two successive Super Turrican reads were also confirmed byte-for-byte identical
+by the user with cmp; the SHA256 above refers to the first dump.
+
+### HiROM: Terranigma (Germany) (Rev 1)
+
+| Property | Result |
+| --- | --- |
+| Cartridge | Terranigma (Germany) (Rev 1) |
+| Mapping | HiROM, mapping byte 0x31 |
+| Header check | checksum 0x3856, complement 0xC7A9, valid |
+| Header CRC32 | A32F1525 |
+| OSCR database candidates | 1 |
+| Chips | 2 (ROM + save RAM; save RAM not accessed) |
+| Size | 33554432 bits / 4194304 bytes, 64 x 65536-byte banks |
+| Full dump CRC32 | 6FB8A4DF (matches pinned OSCR SNES database) |
+| SHA256 | 613cd1a31eaded18648168bd7453a57830ca9a6f3c10de5154625436fbd49556 |
+| CLI | ok: true, verified: true, manual_override: false |
+| Destination | /tmp/terranigma-germany-rev1.sfc |
+
+Both standard SNES ROM mapping modes have therefore passed a full-dump CRC32
+check against the original OSCR database. A second Terranigma dump,
+kernel-log inspection and further edge-case testing remain outstanding.
+These results do not establish native Linux compilation of the upstream
+OSCR C++ SNES core, and do not validate save RAM reading or writing.
 
 ## Safety and limitations
 
@@ -93,7 +113,8 @@ python3 tools/retrode3-readtest.py --system snes --action read-rom \
 sha256sum /tmp/snes-first.sfc
 ~~~
 
-Then test a known standard HiROM with a different, unused output path.
+A known standard HiROM has been successfully tested (Terranigma); repeat
+its read to confirm bit-for-bit consistency with a different unused output path.
 For a known plain cartridge with a damaged header, the explicit override
 syntax is:
 
