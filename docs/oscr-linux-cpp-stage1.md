@@ -23,7 +23,11 @@ chunks in mode 0. Unexpected changes in upstream register reads are treated
 as **hard build errors**, never guessed or fuzzy-patched.
 
 No file in the upstream submodule is modified. Generated C++ lives only in
-`build/migration/oscr_snes_banks.cpp`.
+`build/migration/oscr_snes_banks.cpp`. It is compiled separately into
+`build/migration/liboscr-snes-core.a`, which the Retrode3 CLI links against.
+The OSCR source is therefore **not tied to an upstream executable**.
+The archive currently contains only the three upstream-derived SNES functions,
+not the whole upstream firmware or its special-chip and SRAM handlers.
 
 This provides a **real executable implementation of the original upstream
 C++ header-detection and bank algorithms** rather than another independent
@@ -44,7 +48,11 @@ make -f Makefile.migration native-snes
 The native stage uses C++11 to keep the extracted bank functions compilable
 with older Linux C++ compilers, including Debian 8's GCC 4.9. The **full
 upstream firmware still requires a separate C++20-compatible port/build**.
-The native binary is `build/migration/oscr-snes-native`.
+The native test binary is `build/migration/oscr-snes-native`; the separate
+linkable core library is `build/migration/liboscr-snes-core.a`. Future NES,
+MegaDrive and other cartridge cores should follow the same arrangement.
+This is static linking (not a runtime-loadable `.so` plugin) and keeps the
+existing Retrode3 CLI, web UI and kernel interface free to evolve independently.
 
 `test-native-snes` compiles the actual upstream-derived C++ functions and
 exercises their bank selection and output using a synthetic kernel device
