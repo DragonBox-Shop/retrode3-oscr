@@ -14,6 +14,8 @@ START = "  void readLoRomBanks(uint16_t start, uint16_t total, OSCR::Storage::Fi
 HI = "  void readHiRomBanks(uint16_t start, uint16_t total, OSCR::Storage::File * file)\n"
 END = "  /******************************************\n    SNES ROM Functions"
 LOOP_HEAD = "        for (uint16_t c = 0; c < 1024; c++, currByte++)\n"
+HEADER_START = "  bool checkcart()\n"
+HEADER_END = "  uint16_t calc_checksum()\n"
 EXPECTED_GPIO = """for (uint16_t c = 0; c < 1024; c++, currByte++) {
 PORTF = (currByte & 0xFF);
 PORTK = ((currByte >> 8) & 0xFF);
@@ -27,8 +29,21 @@ def canonical(code):
     return re.sub(r"\s+", "", code)
 
 
+# Only AVR-specific header I/O is replaced. All mapping/size/checksum
+# decisions are retained from the original upstream C++ checkcart().
+EXPECTED_HEADER_GPIO = """dataIn();
+PORTL = 0;
+for (uint16_t c = 0, currByte = headerStart; c < 80; c++, currByte++) {
+PORTF = (currByte & 0xFF);
+PORTK = ((currByte >> 8) & 0xFF);
+NOP; NOP; NOP; NOP; NOP; NOP;
+NOP; NOP; NOP; NOP; NOP; NOP;
+snesHeader[c] = PINC;
+}"""
+
+
 def extract(source):
-    for marker in (START, HI, END):
+    for marker in (START, HI, END, HEADER_START, HEADER_END):
         if source.count(marker) != 1:
             raise ValueError("Pinned upstream SNES.cpp changed marker: " + marker[:60])
     first = source.index(START)
@@ -52,11 +67,24 @@ def extract(source):
         raise ValueError("Unexpected direct AVR access remains in SNES bank reader")
     if selected.count("void readLoRomBanks(") != 1 or selected.count("void readHiRomBanks(") != 1:
         raise ValueError("Missing original OSCR function")
+    start = source.index(HEADER_START)
+    finish = source.index(HEADER_END, start)
+    header = source[start:finish]
+    gpio_start = header.index("    // set control to read")
+    gpio_end = header.index("    // Calculate CRC32 of header", gpio_start)
+    original_gpio = header[gpio_start:gpio_end]
+    if canonical(original_gpio) != canonical(EXPECTED_HEADER_GPIO):
+        raise ValueError("Upstream checkcart() AVR header-read logic changed")
+    header = (header[:gpio_start]
+              + "    OSCR::RetroDe3::readBlock(0, headerStart, snesHeader, sizeof(snesHeader));\n\n"
+              + header[gpio_end:])
+    if re.search(r"\b(?:PORT[A-Z]|PIN[A-Z]|DDR[A-Z]|NOP)\b", header):
+        raise ValueError("Unexpected AVR GPIO access in OSCR checkcart()")
     return ('// GENERATED FROM PINNED OSCR C++ SNES.cpp. Do not edit.\n'
             '// Original banking loops retained; AVR byte reads use kernel HAL.\n'
             '#include "retrode3/oscr_snes_compat.h"\n'
             'namespace OSCR { namespace Cores { namespace SNES {\n'
-            + selected + '\n}}}\n')
+            + selected + '\n' + header + '\n}}}\n')
 
 
 def main(argv=None):
