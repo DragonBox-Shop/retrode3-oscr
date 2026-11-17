@@ -59,7 +59,13 @@ void ReadBus::snes_block(std::uint8_t bank, std::uint16_t address, void *out, st
                   "SNES read crosses bank boundary");
     if (count == 0) return;
     require_range(out != nullptr, "SNES output buffer is null");
-    require_exact(snes_read(bank, address, out, static_cast<std::uint16_t>(count), static_cast<int>(mode)), count,
+    // The existing kernel implements mode 0 as a raw 24-bit 8-bit bus read.
+    // Kernel mode 9 (SNES_HIROM) is defined but not implemented in
+    // retrode3_read(). LoROM/HiROM differ in bank/address selection, not in
+    // the read mode required by the current hardware driver.
+    require_range(mode == SnesReadMode::Regular || mode == SnesReadMode::HiRom,
+                  "Unsupported SNES read mode");
+    require_exact(snes_read(bank, address, out, static_cast<std::uint16_t>(count), 0), count,
                   "SNES kernel read failed or returned a short read");
 }
 
