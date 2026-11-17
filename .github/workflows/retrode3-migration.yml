@@ -1,0 +1,25 @@
+name: Retrode3 migration (read-only)
+on:
+  push:
+    branches:
+      - migration/oscr-firmware
+      - feature/snes-oscr-readonly
+  pull_request:
+    branches:
+      - migration/oscr-firmware
+
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Existing readtest tests use imp; keep the CI interpreter explicit.
+          python-version: '3.11'
+      - name: Verify Python syntax
+        run: python -m py_compile tools/retrode3-readtest.py tests/test_readtest.py tests/test_snes_readtest.py
+      - name: Test Python ROM readers (mocked bus)
+        run: python -m unittest discover -s tests -p 'test_*readtest.py' -v
+      - name: Test C++ Retrode3 bus adapter
+        run: make -f Makefile.migration test-read-bus
