@@ -392,7 +392,7 @@ def main(argv=None):
     p.add_argument('--system', choices=['nes', 'md', 'snes'], required=True)
     p.add_argument('--action', choices=['probe', 'read-rom'], required=True)
     p.add_argument('--output', help='Destination for .nes or .bin (must not exist)')
-    p.add_argument('--database', help='Override original OSCR NES JSON database path')
+    p.add_argument('--database', help='Override original OSCR NES/SNES JSON database path')
     p.add_argument('--mapper', type=int, help='Manual NES mapper, currently only 0')
     p.add_argument('--match-crc32', help='Select an OSCR NES database candidate by its full-ROM CRC32')
     p.add_argument('--prg-kib', type=int)
