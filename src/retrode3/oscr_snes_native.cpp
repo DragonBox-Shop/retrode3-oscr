@@ -204,26 +204,63 @@ int main(int argc, char **argv)
     try {
         std::string mapping;
         std::string output;
+        std::string action = "read-rom";
         std::size_t size = 0;
         for (int i = 1; i < argc; ++i) {
             std::string flag = argv[i];
-            if ((flag == "--mapping" || flag == "--size-bytes" || flag == "--output")
-                && i + 1 < argc) {
+            if ((flag == "--mapping" || flag == "--size-bytes" ||
+                 flag == "--output" || flag == "--action") && i + 1 < argc) {
                 char const *value = argv[++i];
                 if (flag == "--mapping") mapping = value;
                 else if (flag == "--size-bytes") size = parse_size(value);
+                else if (flag == "--action") action = value;
                 else output = value;
             } else {
                 throw std::runtime_error(
-                    "usage: oscr-snes-native --mapping lo|hi --size-bytes N --output FILE");
+                    "usage: oscr-snes-native --action probe|read-rom "
+                    "[--mapping lo|hi --size-bytes N] [--output FILE]");
             }
         }
-        if ((mapping != "lo" && mapping != "hi") || size == 0 || output.empty())
+
+        if (action != "probe" && action != "read-rom")
+            throw std::runtime_error("invalid --action");
+        // This is the ORIGINAL upstream checkcart() function, compiled from
+        // pinned SNES.cpp, with only the 80-byte AVR GPIO loop replaced.
+        bool valid = OSCR::Cores::SNES::checkcart();
+        if (!valid)
+            throw std::runtime_error("original OSCR checkcart() rejected cartridge header");
+        unsigned chips = OSCR::Cores::SNES::romChips;
+        unsigned mapcode = OSCR::Cores::romType;
+        unsigned mbit = OSCR::Cores::romSize;
+        if (mapcode > 1)
+            throw std::runtime_error("ExHiROM / enhanced mapping unsupported");
+        if (chips > 2)
+            throw std::runtime_error("special SNES chip unsupported in this Linux stage");
+        if (mbit == 0 || mbit > 32)
+            throw std::runtime_error("unsupported OSCR SNES header ROM size");
+        std::string detected = mapcode == 0 ? "lo" : "hi";
+        std::size_t detected_size = static_cast<std::size_t>(mbit) * 131072u;
+        if (action == "probe") {
+            std::printf("{\"ok\":true,\"engine\":\"OSCR C++ checkcart\","
+                        "\"mapping\":\"%s\",\"size_bytes\":%zu,\"chips\":%u,"
+                        "\"checksum\":\"%04X\",\"title\":\"%s\"}\n",
+                        detected.c_str(), detected_size, chips,
+                        OSCR::Cores::checksum,
+                        json_escape(OSCR::Cores::fileName).c_str());
+            snes_close();
+            return 0;
+        }
+        if (mapping.empty()) mapping = detected;
+        if (size == 0) size = detected_size;
+        if ((mapping != "lo" && mapping != "hi") || output.empty())
             throw std::runtime_error(
-                "required: --mapping lo|hi --size-bytes N --output FILE");
+                "read-rom requires --output FILE and a standard LoROM/HiROM mapping");
+        // Explicit mapping/size overrides are reserved for known-good
+        // experimental comparisons; no cartridge write APIs are present.
         dump(mapping, size, output);
         return 0;
     } catch (std::exception const &exc) {
+        snes_close();
         std::fprintf(stderr, "{\"ok\":false,\"error\":\"%s\"}\n",
                      json_escape(exc.what()).c_str());
         return 2;
