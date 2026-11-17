@@ -71,7 +71,7 @@ Concrete examples in upstream commit `e5a0832`:
 - [x] Add separate **runnable** hardware acceptance CLI for NES mapper 0 (NROM) and standard MegaDrive ROMs, with original OSCR NES database probing, optional MD CRC verification, safe output and mock tests. This is **not yet** the new C++ core port.
 - [ ] Connect OSCR NES core to the kernel bus adapter, including PRG/CHR, mapper writes and proper M2 timing
 - [ ] Design/implement MegaDrive bus operations, including 16-bit words, SRAM/EEPROM, and Sonic 3 FRAM mode
-- [x] Add OSCR-aligned **read-only standard SNES LoROM/HiROM** hardware acceptance to the Linux CLI, including original snes.json header/CRC lookup, mock tests and CI. **LoROM verified on real hardware** with Super Turrican (Europe), 524288 bytes / CRC32 D0A1BF12. HiROM remains hardware-untested; no upstream core compiled.
+- [x] Add OSCR-aligned **read-only standard SNES LoROM/HiROM** hardware acceptance to the Linux CLI, including original snes.json header/CRC lookup, mock tests and CI. **Both mappings CRC-verified on real hardware:** LoROM Super Turrican (Europe), 524288 bytes / D0A1BF12 (two identical dumps); HiROM Terranigma (Germany) (Rev 1), 4194304 bytes / 6FB8A4DF (one dump). Native upstream C++ core compilation is still pending.
 - [ ] Complete SNES core integration: special chips, SRAM, clock and native C++ OSCR dispatch
 - [ ] Provide a deterministic, noninteractive CLI compatible with the web-UI integration
 - [ ] Add mock kernel-device tests and CI with strict warnings and sanitizers where possible
@@ -88,7 +88,7 @@ Concrete examples in upstream commit `e5a0832`:
 - Flash functions are **in scope**, but are implemented after stable cartridge ROM and save reads. They are present in the preliminary catalog as **disabled** write-risk actions.
 - The `ReadBus` adapter under `include/retrode3/` and `src/retrode3/` is an isolated tested foundation. It does not power slots on or run new OSCR core code yet.
 
-See [`docs/first-hardware-readtest.md`](first-hardware-readtest.md) for NES/MD acceptance and [`docs/snes-readonly.md`](snes-readonly.md) for SNES. NES/MD have been tested on physical Retrode3 hardware. **SNES LoROM now has one CRC-verified real cartridge dump** (Super Turrican Europe); HiROM and repeat dumps remain outstanding.
+See [`docs/first-hardware-readtest.md`](first-hardware-readtest.md) for NES/MD acceptance and [`docs/snes-readonly.md`](snes-readonly.md) for SNES. NES/MD have been tested on physical Retrode3 hardware. **SNES LoROM and HiROM now have OSCR CRC32-verified physical cartridge dumps** (Super Turrican Europe and Terranigma Germany Rev 1); LoROM repeatability also confirmed. HiROM repeatability and special-chip handling remain outstanding.
 
 ## Updating upstream
 
