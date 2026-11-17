@@ -82,7 +82,11 @@ The Retrode3 binary must remain controllable by our own web backend.
 Avoid bundling upstream Arduino menus into the executable. Use one generic
 core-capability and job model for Sanni's cores and our own adapters.
 
-**Recommended protocol:** opt-in versioned NDJSON (`--protocol ndjson-v1`)
+**Implemented SNES binary protocol:** see [NDJSON v1 contract](ndjson-protocol-v1.md).
+The web frontend must use only currently implemented features and must not
+interpret the future examples below as current commands.
+
+**Recommended transport:** opt-in versioned NDJSON (`--protocol ndjson-v1`)
 on stdout for machine-readable events, and newline-delimited JSON commands
 on stdin for long-lived interactive jobs. stderr is diagnostic text only.
 Keep traditional one-shot commands for shell users and compatibility.
@@ -137,9 +141,11 @@ independent of the console-specific reader.
 
 1. Complete the native C++ LoROM physical cross-check against the verified
    Super Turrican reference, if desired.
-2. [Done in CI; hardware protocol test pending] The native CLI supports
-   versioned NDJSON with byte-accurate progress, interactive commands,
-   cancellation between chunk writes and cleanup, preserving one-shot JSON.
+2. [Done; CI + real hardware] The native CLI supports versioned NDJSON
+   with byte-accurate progress, interactive commands, cancellation between
+   chunk writes and cleanup, preserving one-shot JSON. Physical hardware
+   confirmed progress, result, probe, capabilities, and cancellation; byte
+   identity confirmed for the streaming dump.
 3. Implement the web backend's job lifecycle, candidate selection and
    progress streaming to the browser, starting with the known SNES path.
 4. Integrate the original OSCR CRDB and NES/MD cores through the same
@@ -148,6 +154,18 @@ independent of the console-specific reader.
    checking actual physical wiring and timing first.
 6. Add special-chip and SRAM paths with carefully reviewed electrical
    behavior; validate each on physical cartridges before deployment.
+
+## Hardware adapter identification investigation
+
+See [SNES adapter ID audit](snes-plugin-id-audit.md). Legacy Retrode2
+adapters connect via MegaDrive, while many Sanni expansion adapters use
+the 62-contact SNES cartridge slot. On Retrode3 3.0 several extension
+contacts are unconnected, but they cannot be treated as globally spare:
+published community adapter designs repurpose SNES contacts, including
+pin 31 for an optional Jaguar-adapter signal. No resistor-ID pin is
+selected. Do not build a PCB revision on an assumption of universal
+pin availability; establish an exact cross-adapter pin matrix and
+voltage/signal safety first.
 
 ## Development and Git hygiene
 
