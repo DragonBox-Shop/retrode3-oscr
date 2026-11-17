@@ -160,6 +160,42 @@ class TestSnesReader(unittest.TestCase):
                 self.assertEqual(bus.read('snes-rom', 0xc00000, 3), b'ABC')
         seek.assert_called_once_with(42, 0xc00000, reader.os.SEEK_SET)
 
+    def test_oscr_allows_ffff_checksum_with_valid_complement(self):
+        _, header = make_rom()
+        altered = bytearray(header)
+        altered[0x2c:0x2e] = b'\x00\x00'
+        altered[0x2e:0x30] = b'\xff\xff'
+        self.assertTrue(reader.snes_header_info(bytes(altered))['checksum_complement_valid'])
+
+    def test_oscr_database_corrects_nonstandard_12_mbit_size(self):
+        rom, header = make_rom('lo', 1572864)
+        bus = SnesMemoryBus(rom, 'lo')
+        record = {'name': 'Synthetic 12 Mbit LoROM', 'checksum': '1234',
+                  'id32': reader.crc(header), 'crc32': reader.crc(rom),
+                  'size': len(rom), 'banks': 48}
+
+        class DummySlot:
+            def __init__(self, system):
+                self.system = system
+            def __enter__(self):
+                return bus
+            def __exit__(self, *args):
+                pass
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / 'snes.json'
+            db.write_text(json.dumps({'records': [record]}), encoding='utf-8')
+            target = Path(tmp) / 'nonstandard.sfc'
+            captured = io.StringIO()
+            with patch.object(reader, 'Slot', DummySlot), redirect_stdout(captured):
+                rc = reader.main(['--system', 'snes', '--action', 'read-rom',
+                                  '--database', str(db), '--output', str(target)])
+            self.assertEqual(rc, 0)
+            self.assertEqual(target.read_bytes(), rom)
+            result = json.loads(captured.getvalue())
+            self.assertTrue(result['database_size_override'])
+            self.assertEqual(result['size_bytes'], 1572864)
+
     def test_invalid_modes_and_address_overflow_are_blocked(self):
         with patch.object(reader.os, 'open', return_value=42), \
              patch.object(reader.os, 'close'):
