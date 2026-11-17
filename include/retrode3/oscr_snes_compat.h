@@ -38,12 +38,20 @@ bool useDefaultName();
 namespace Storage {
 class File {
 public:
-    explicit File(std::FILE *handle) : handle_(handle), count_(0) {}
+    typedef void (*WriteCallback)(std::size_t bytes_written, void *context);
+    explicit File(std::FILE *handle)
+        : handle_(handle), count_(0), callback_(nullptr), context_(nullptr) {}
     void write(void const *data, std::size_t count);
     std::size_t bytes_written() const { return count_; }
+    void on_write(WriteCallback callback, void *context) {
+        callback_ = callback;
+        context_ = context;
+    }
 private:
     std::FILE *handle_;
     std::size_t count_;
+    WriteCallback callback_;
+    void *context_;
 };
 }
 namespace UI {

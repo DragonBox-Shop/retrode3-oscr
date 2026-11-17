@@ -46,9 +46,10 @@ Related repositories:
   Python reference `/tmp/terranigma-germany-rev1.sfc`; full CRC32
   `6FB8A4DF`.
 - Physical native C++ LoROM readback comparison is **not yet reported**.
-- The native C++ ROM reader's performance may feel faster but has **not
-  been measured**. Compare wall-clock time under matching conditions;
-  both readers ultimately use the same kernel bus.
+- Measured 4 MiB Terranigma HiROM on real Retrode3: original OSCR C++
+  **164.49s** real / 0.00s user / 31.32s sys, Python **170.68s** real /
+  2.84s user / 31.75s sys. C++ was ~3.6% faster in these single runs;
+  both share the kernel bus and larger hardware timing optimizations remain.
 
 ## Current implementation and limitations
 
@@ -66,13 +67,16 @@ compile. Upstream C++ files are never modified inside the submodule.
 
 **Not implemented:** native OSCR CRDB lookup and alternate sizes, most
 special-chip and mapper paths, save RAM, NES/MD native OSCR cores, common
-plugin registry, a real web-to-process protocol, progress events, and
-production integration. The earlier Python acceptance reader remains a
-trusted test reference, not the long-term mapper implementation.
-The current native `OSCR::UI::ProgressBar` methods are no-op shims;
-the standalone CLI prints one final JSON object only.
+plugin registry, a browser-facing backend bridge and production integration.
+The earlier Python acceptance reader remains a trusted test reference.
+**New:** opt-in `--protocol ndjson-v1` emits read progress and results,
+`--interactive` receives validated JSON commands on stdin (probe, read_rom,
+cancel, get_capabilities), including cancellation between core file writes.
+Existing one-shot CLI JSON remains the default. Output bytes, not upstream
+ProgressBar display callbacks, drive progress. No candidate selection or
+database lookup is claimed in this native stage.
 
-## Agreed web / CLI interaction model (design; NOT implemented yet)
+## Agreed web / CLI interaction model (native transport prototype implemented; backend pending)
 
 The Retrode3 binary must remain controllable by our own web backend.
 Avoid bundling upstream Arduino menus into the executable. Use one generic
@@ -133,9 +137,9 @@ independent of the console-specific reader.
 
 1. Complete the native C++ LoROM physical cross-check against the verified
    Super Turrican reference, if desired.
-2. Add a **versioned, mock-tested NDJSON event interface** and accurate,
-   byte-based progress to the native CLI. Preserve the existing one-shot JSON
-   behavior for shell scripts. Ensure cancellation and file cleanup.
+2. [Done in CI; hardware protocol test pending] The native CLI supports
+   versioned NDJSON with byte-accurate progress, interactive commands,
+   cancellation between chunk writes and cleanup, preserving one-shot JSON.
 3. Implement the web backend's job lifecycle, candidate selection and
    progress streaming to the browser, starting with the known SNES path.
 4. Integrate the original OSCR CRDB and NES/MD cores through the same

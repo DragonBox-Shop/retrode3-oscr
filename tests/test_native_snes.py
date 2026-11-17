@@ -26,6 +26,91 @@ class TestNativeSnes(unittest.TestCase):
         stream = out if p.returncode == 0 else err
         return p.returncode, json.loads(stream.decode("utf-8"))
 
+    def ndjson(self, args, commands=None):
+        process = subprocess.Popen(
+            [str(MOCK)] + list(args),
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = process.communicate(
+            None if commands is None else commands.encode("utf-8"))
+        self.assertFalse(err, err.decode("utf-8", "replace"))
+        events = [json.loads(line) for line in out.decode("utf-8").splitlines()]
+        return process.returncode, events
+
+    def test_protocol_probe_preserves_one_shot_default(self):
+        code, result = self.call("--action", "probe")
+        self.assertEqual(code, 0)
+        self.assertEqual(result["mapping"], "lo")
+        self.assertNotIn("event", result)
+        rc, events = self.ndjson(["--protocol", "ndjson-v1", "--action", "probe"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["version"], 1)
+        self.assertEqual(events[0]["event"], "probe_result")
+        self.assertEqual(events[0]["size_bytes"], 524288)
+        self.assertEqual(events[0]["candidate_lookup"], "not_integrated")
+
+    def test_protocol_streaming_real_byte_progress(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = str(Path(temp) / "progress.sfc")
+            rc, events = self.ndjson(
+                ["--protocol", "ndjson-v1", "--action", "read-rom",
+                 "--output", output])
+            self.assertEqual(rc, 0)
+            progress = [x for x in events if x["event"] == "progress"]
+            self.assertGreater(len(progress), 2)
+            self.assertEqual(progress[0]["bytes_done"], 0)
+            self.assertEqual(progress[-1]["bytes_done"], 524288)
+            self.assertEqual(progress[-1]["percent"], 100)
+            self.assertTrue(all(a["bytes_done"] <= b["bytes_done"]
+                                for a, b in zip(progress, progress[1:])))
+            self.assertEqual(events[-1]["event"], "result")
+            self.assertIsNone(events[-1]["verified"])
+            self.assertEqual(len(Path(output).read_bytes()), 524288)
+
+    def test_interactive_probe_then_read(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = str(Path(temp) / "interactive.sfc")
+            commands = (json.dumps({"command":"get_capabilities","request_id":"cap"}) + "\n"
+                        + json.dumps({"command":"probe","request_id":"pr"}) + "\n"
+                        + json.dumps({"command":"read_rom","request_id":"rd",
+                                      "output":output}) + "\n")
+            rc, events = self.ndjson(
+                ["--protocol", "ndjson-v1", "--interactive"], commands)
+            self.assertEqual(rc, 0)
+            self.assertEqual(events[0]["event"], "ready")
+            self.assertEqual(events[1]["event"], "capabilities")
+            self.assertFalse(events[1]["candidate_selection"])
+            self.assertEqual(events[2]["event"], "probe_result")
+            self.assertEqual(events[-1]["event"], "result")
+            self.assertEqual(events[-1]["request_id"], "rd")
+            self.assertEqual(Path(output).stat().st_size, 524288)
+
+    def test_interactive_cancel_removes_partial_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = str(Path(temp) / "cancelled.sfc")
+            commands = (json.dumps({"command":"read_rom","request_id":"job-1",
+                                     "output":output}) + "\n"
+                        + json.dumps({"command":"cancel","request_id":"job-1"}) + "\n")
+            rc, events = self.ndjson(
+                ["--protocol", "ndjson-v1", "--interactive"], commands)
+            self.assertEqual(rc, 0)
+            self.assertEqual(events[-1]["event"], "error")
+            self.assertEqual(events[-1]["code"], "cancelled")
+            self.assertFalse(Path(output).exists())
+            self.assertFalse(any(p.name.startswith("cancelled.sfc.partial")
+                                 for p in Path(temp).iterdir()))
+
+    def test_invalid_json_command_does_not_kill_session(self):
+        commands = ('{"command":"probe","request_id":"bad","size_bytes":-1}\n'
+                    '{"command":"probe","request_id":"good"}\n')
+        rc, events = self.ndjson(
+            ["--protocol", "ndjson-v1", "--interactive"], commands)
+        self.assertEqual(rc, 0)
+        self.assertEqual(events[1]["event"], "error")
+        self.assertEqual(events[1]["code"], "invalid_command")
+        self.assertEqual(events[2]["event"], "probe_result")
+        self.assertEqual(events[2]["request_id"], "good")
+
     def test_oscr_core_is_linkable_archive_not_entire_firmware(self):
         archive_members = subprocess.check_output(
             ["ar", "t", str(BANK_LIBRARY)]).decode("ascii")
