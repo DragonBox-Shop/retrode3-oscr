@@ -78,6 +78,11 @@ def extract(source):
     header = (header[:gpio_start]
               + "    OSCR::RetroDe3::readBlock(0, headerStart, snesHeader, sizeof(snesHeader));\n\n"
               + header[gpio_end:])
+    # OSCR's fallback game-code char[5] lacks a terminator on the AVR.
+    # Initialize this local buffer for safe host C++ snprintf().
+    if header.count("      char code[5];") != 1:
+        raise ValueError("Original OSCR fallback game-code buffer changed")
+    header = header.replace("      char code[5];", "      char code[5] = {};")
     if re.search(r"\b(?:PORT[A-Z]|PIN[A-Z]|DDR[A-Z]|NOP)\b", header):
         raise ValueError("Unexpected AVR GPIO access in OSCR checkcart()")
     return ('// GENERATED FROM PINNED OSCR C++ SNES.cpp. Do not edit.\n'
