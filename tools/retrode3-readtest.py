@@ -347,9 +347,15 @@ def run(args):
             full_crc = crc(data)
             matches = [r.get('name', '') for r in records
                        if hex_integer(r.get('crc32', 0)) == int(full_crc, 16)]
+            # If OSCR recognized the header but CRC32 disagrees, retain
+            # the dump only under *.unverified and return status 3.
+            verified = True if matches else (False if candidates else None)
             info.update({'mapping_used': mapping, 'size_bytes': size,
                          'dump_crc32': full_crc, 'database_matches': matches,
-                         'verified': True if matches else None,
+                         'expected_crc32': sorted(set(
+                             '{:08X}'.format(hex_integer(row['crc32']))
+                             for row in candidates)),
+                         'verified': verified,
                          'manual_override': bool(args.snes_mapping or
                                                  args.size_bytes is not None)})
     else:
