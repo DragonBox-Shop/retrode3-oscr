@@ -24,18 +24,18 @@ class TestNativeSnes(unittest.TestCase):
         return p.returncode, json.loads(stream.decode("utf-8"))
 
     def test_lorom_4_mib_uses_original_oscr_bank_order(self):
-        self.test_image("lo", 4194304, 32768, 0x80)
+        self._check_image("lo", 4194304, 32768, 0x80)
 
     def test_hirom_4_mib_uses_original_oscr_bank_order(self):
-        self.test_image("hi", 4194304, 65536, 0xc0)
+        self._check_image("hi", 4194304, 65536, 0xc0)
 
     def test_lorom_small_uses_lower_banks(self):
-        self.test_image("lo", 524288, 32768, 0)
+        self._check_image("lo", 524288, 32768, 0)
 
     def test_hirom_small_uses_upper_banks(self):
-        self.test_image("hi", 524288, 65536, 0xc0)
+        self._check_image("hi", 524288, 65536, 0xc0)
 
-    def test_image(self, mode, size, bank_size, first_bank):
+    def _check_image(self, mode, size, bank_size, first_bank):
         with tempfile.TemporaryDirectory() as temp:
             file = Path(temp) / "rom.sfc"
             code, result = self.call("--mapping", mode, "--size-bytes",
