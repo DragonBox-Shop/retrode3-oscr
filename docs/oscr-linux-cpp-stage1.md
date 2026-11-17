@@ -12,11 +12,12 @@ power, and special-chip paths. Merely setting a Linux architecture macro
 cannot compile or safely execute the entire core.
 
 Instead, `tools/build-linux-snes-core.py` uses the **pinned original source**
-as a build input. It extracts the two real C++ functions
-`OSCR::Cores::SNES::readLoRomBanks` and `readHiRomBanks`, preserving the
-original bank loops, progress calls, and file write layout. The generator
-replaces **only** the two per-byte AVR GPIO loops and bank PORT assignments
-with `OSCR::RetroDe3::readBlock`. This calls the existing typed
+as a build input. It extracts the actual upstream C++ functions
+`OSCR::Cores::SNES::checkcart`, `readLoRomBanks` and `readHiRomBanks`.
+The original header parsing, checksum/mapping/size calculations, banking
+loops and file-write order are retained. The generator substitutes only
+the AVR GPIO loops and bank PORT assignments with `OSCR::RetroDe3::readBlock`
+and initializes the upstream fallback 5-byte title buffer for safe POSIX use. This calls the existing typed
 `retrode3::ReadBus`, which reads the existing kernel device in 512-byte
 chunks in mode 0. Unexpected changes in upstream register reads are treated
 as **hard build errors**, never guessed or fuzzy-patched.
@@ -25,7 +26,9 @@ No file in the upstream submodule is modified. Generated C++ lives only in
 `build/migration/oscr_snes_banks.cpp`.
 
 This provides a **real executable implementation of the original upstream
-C++ bank algorithms** rather than another independent Python rewrite.
+C++ header-detection and bank algorithms** rather than another independent
+Python rewrite. A limited POSIX compatibility layer supplies the required
+OSCR global state, checksum, storage and formatting helpers.
 It is deliberately only the first vertical slice of the intended native port.
 
 ## Build and native mocked-bus tests
@@ -53,6 +56,12 @@ against overwriting files. This test does not prove physical bus timing.
 **Use only known standard cartridges already identified by the Python
 OSCR read-test probe**, not unknown special-chip carts.
 
+The original upstream C++ header check is now runnable directly:
+
+```sh
+build/migration/oscr-snes-native --action probe
+```
+
 For the previously verified Super Turrican (Europe):
 
 ```sh
@@ -75,16 +84,21 @@ cmp /tmp/terranigma-germany-rev1.sfc /tmp/terranigma-oscr-cpp.sfc \
   && echo 'Original OSCR C++ HiROM bank reader is bit-identical!'
 ```
 
-The native CLI does **not** yet perform cartridge recognition. These
-mapping/size parameters must come from the already verified probe output,
-not guesses. The native reader performs **no write operations to cartridges**.
+The native CLI now runs the **original upstream OSCR checkcart()** for
+header/mapping/size recognition; use `--action probe` without a mapping or
+size override to inspect it first. `--action read-rom --output FILE` can then
+use those detected values automatically. The **original OSCR CRDB matching
+and alternate-size correction are not yet linked**, so only ordinary
+power-of-two LoROM/HiROM cartridges of known supported chip types are safe.
+The native reader performs **no write operations to cartridges**.
 Output files are staged in the destination directory and published without
 clobbering existing files. For a failure, no finished ROM is published.
 
 ## What remains before replacing the old engine
 
-1. Wire the original upstream C++ SNES header discovery/checkcart and CRDB,
-   not a separate Python interpretation.
+1. Wire the original upstream C++ SNES CRDB and alternative size/mapper
+   configuration to the now-compiled original checkcart(); only the standard
+   header path is currently available.
 2. Replace remaining AVR bus operations with typed Linux HAL hooks, including
    required special-chip and save-RAM operations and clock/power lifecycle.
 3. Implement reusable POSIX Storage, UI, Time, Power, and architecture
