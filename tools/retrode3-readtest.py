@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retrode3 read-only acceptance-test CLI (NROM NES and standard MegaDrive)."""
+"""Retrode3 read-only acceptance CLI (NES NROM, MegaDrive and standard SNES)."""
 
 import argparse
 import hashlib
@@ -10,9 +10,11 @@ import sys
 import tempfile
 import zlib
 
-MODES = {'nes-prg': 10, 'nes-chr': 11, 'md-rom': 0, 'md-p10': 1, 'md-p1': 2}
+MODES = {'nes-prg': 10, 'nes-chr': 11, 'md-rom': 0, 'md-p10': 1, 'md-p1': 2,
+         'snes-rom': 0}
 NES_DB = Path(__file__).resolve().parents[1] / 'third_party/oscr-firmware/databases/data/nes.json'
 MD_DB = Path(__file__).resolve().parents[1] / 'third_party/oscr-firmware/databases/data/md.json'
+SNES_DB = Path(__file__).resolve().parents[1] / 'third_party/oscr-firmware/databases/data/snes.json'
 
 
 class ReadError(Exception):
@@ -25,7 +27,8 @@ class Slot:
     def __init__(self, system, path=None):
         if path is not None:
             raise ReadError('Device override is intentionally unsupported')
-        self.path = '/dev/slot-nes' if system == 'nes' else '/dev/slot-md'
+        self.path = {'nes': '/dev/slot-nes', 'md': '/dev/slot-md',
+                     'snes': '/dev/slot-snes'}[system]
         self.fd = None
 
     def __enter__(self):
@@ -38,6 +41,8 @@ class Slot:
         self.fd = None
 
     def read(self, mode, address, size):
+        if mode not in MODES:
+            raise ReadError('Unknown read-only kernel bus mode')
         limit = 0x10000 if mode.startswith('nes-') else 0x1000000
         if size < 0 or address < 0 or address + size > limit:
             raise ReadError('Read exceeds the cartridge address/bank space')
@@ -47,7 +52,8 @@ class Slot:
         while len(result) < size:
             start = address + len(result)
             os.lseek(self.fd, (MODES[mode] << 24) | start, os.SEEK_SET)
-            data = os.read(self.fd, min(size - len(result), 512 if mode.startswith('nes-') else self.md_chunk_size))
+            data = os.read(self.fd, min(size - len(result), 512 if mode.startswith(('nes-', 'snes-'))
+                                else self.md_chunk_size))
             if not data:
                 raise ReadError('Short read from {} at {:#x}'.format(self.path, start))
             result.extend(data)
@@ -173,6 +179,84 @@ def detect_md(bus, mode):
             'region': md_header_text(header, 0x1f0, 0x200)}
 
 
+# These offsets follow OSCR::Cores::SNES::checkcart() (SNES.cpp):
+# its 80-byte header is read from SNES address 00:FFB0.
+SNES_MAP_MODES = {0x20: 'lo', 0x30: 'lo', 0x21: 'hi', 0x31: 'hi'}
+SNES_STANDARD_CHIPS = (0, 1, 2)  # plain ROM, ROM+RAM, ROM+save RAM
+SNES_NONSTANDARD_SIZES = (1310720, 1572864, 2621440, 3145728)
+
+
+def snes_header_info(header):
+    if len(header) != 80:
+        raise ReadError('Expected exactly 80 bytes of SNES header')
+    mapping_byte = header[0x25]
+    chips = header[0x26]
+    exponent = header[0x27]
+    complement = int.from_bytes(header[0x2c:0x2e], 'little')
+    checksum = int.from_bytes(header[0x2e:0x30], 'little')
+    mapping = SNES_MAP_MODES.get(mapping_byte)
+    size = 1 << (exponent + 10) if 7 <= exponent <= 12 else None
+    checksum_valid = (checksum ^ complement) == 0xffff and checksum not in (0, 0xffff)
+    return {
+        'title': header[0x10:0x25].decode('ascii', 'replace').replace('\x00', ' ').strip(),
+        'mapping_byte': '{:02X}'.format(mapping_byte),
+        'mapping': mapping,
+        'chips': chips,
+        'checksum': '{:04X}'.format(checksum),
+        'complement': '{:04X}'.format(complement),
+        'checksum_complement_valid': checksum_valid,
+        'header_crc32': crc(header),
+        'header_size_bytes': size,
+        'valid_header': bool(mapping and checksum_valid and size and
+                             chips in SNES_STANDARD_CHIPS),
+    }
+
+
+def detect_snes(bus, database):
+    # Bank 00:FFB0 is the OSCR probe address for both standard LoROM and HiROM.
+    header = bus.read('snes-rom', 0x00ffb0, 80)
+    info = snes_header_info(header)
+    wanted_crc = int(info['header_crc32'], 16)
+    wanted_checksum = int(info['checksum'], 16)
+    candidates = [
+        row for row in database
+        if 'id32' in row and 'checksum' in row
+        and hex_integer(row['id32']) == wanted_crc
+        and hex_integer(row['checksum']) == wanted_checksum
+    ]
+    info['candidates'] = [{
+        'name': row.get('name', ''),
+        'rom_crc32': '{:08X}'.format(hex_integer(row['crc32'])),
+        'size_bytes': row.get('size'),
+    } for row in candidates[:20]]
+    info['candidate_count'] = len(candidates)
+    return info, candidates
+
+
+def snes_bank_plan(mapping, size):
+    """Mirror OSCR SNES.cpp readLoRomBanks/readHiRomBanks for plain cartridges."""
+    if mapping not in ('lo', 'hi'):
+        raise ReadError('SNES mapping must be lo or hi')
+    bank_bytes = 32768 if mapping == 'lo' else 65536
+    if size < 131072 or size > 4194304 or size % bank_bytes:
+        raise ReadError('SNES standard ROM size must be 128 KiB to 4 MiB, '
+                        'aligned to the selected bank size')
+    count = size // bank_bytes
+    # OSCR starts >24 Mbit LoROMs at 0x80 to avoid special-chip windows.
+    start = (0x80 if size > 3145728 else 0) if mapping == 'lo' else 0xc0
+    if start + count > 256:
+        raise ReadError('SNES bank range would wrap past bank FF')
+    offset = 0x8000 if mapping == 'lo' else 0
+    return [(bank << 16) | offset for bank in range(start, start + count)], bank_bytes
+
+
+def read_snes(bus, mapping, size):
+    addresses, bank_bytes = snes_bank_plan(mapping, size)
+    # The kernel exposes the actual 24-bit bus. SNES_HIROM mode 9 is not
+    # implemented by retrode3_read(); mode 0 works with BOTH mappings.
+    return b''.join(bus.read('snes-rom', address, bank_bytes) for address in addresses)
+
+
 def save_atomic(path, content):
     path = Path(os.path.expanduser(str(path)))
     if path.exists():
@@ -195,6 +279,8 @@ def save_atomic(path, content):
 
 def run(args):
     if args.system == 'nes':
+        if args.snes_mapping is not None:
+            raise ReadError('--snes-mapping requires --system snes')
         if args.mapper is not None and args.match_crc32 is not None:
             raise ReadError('Select either an OSCR candidate CRC32 or a manual mapper override, not both')
         if args.mapper is None and any(v is not None for v in (args.prg_kib, args.chr_kib, args.mirroring)):
@@ -226,7 +312,49 @@ def run(args):
                     return {'first512_crc32': crc(data), 'manual_mapper': args.mapper}, 0
                 data, full_crc = read_nes(bus, header)
                 info = {'manual_mapper': 0, 'dump_crc32': full_crc, 'verified': None}
+    elif args.system == 'snes':
+        if args.mapper is not None or args.match_crc32 is not None or any(
+                v is not None for v in (args.prg_kib, args.chr_kib, args.mirroring)):
+            raise ReadError('NES mapper options require --system nes')
+        if args.md_mode != 'rom' or args.md_chunk_size != 2048:
+            raise ReadError('MegaDrive read options require --system md')
+        db_path = Path(args.database) if args.database else SNES_DB
+        records = load_database(db_path, 'SNES')
+        with Slot('snes') as bus:
+            info, candidates = detect_snes(bus, records)
+            if args.action == 'probe':
+                return info, 0
+            # Header values must be structurally sound unless both manual
+            # mapping and size are supplied. Read-only special-chip access is
+            # deliberately not offered in this first acceptance stage.
+            if info['chips'] not in SNES_STANDARD_CHIPS:
+                raise ReadError('SNES special/unknown chip {:02X} is not supported '
+                                'in the read-only standard cartridge test'.format(info['chips']))
+            if not info['valid_header'] and (args.snes_mapping is None or
+                                             args.size_bytes is None):
+                raise ReadError('SNES header invalid; explicitly provide both '
+                                '--snes-mapping and --size-bytes for a known standard cart')
+            mapping = args.snes_mapping or info['mapping']
+            size = args.size_bytes if args.size_bytes is not None else info['header_size_bytes']
+            # OSCR's alternative configuration corrects 10/12/20/24 Mbit
+            # header sizes if its original database identifies the cartridge.
+            if args.size_bytes is None and len(candidates) == 1:
+                db_size = candidates[0].get('size')
+                if isinstance(db_size, int) and db_size in SNES_NONSTANDARD_SIZES:
+                    size = db_size
+                    info['database_size_override'] = True
+            data = read_snes(bus, mapping, size)
+            full_crc = crc(data)
+            matches = [r.get('name', '') for r in records
+                       if hex_integer(r.get('crc32', 0)) == int(full_crc, 16)]
+            info.update({'mapping_used': mapping, 'size_bytes': size,
+                         'dump_crc32': full_crc, 'database_matches': matches,
+                         'verified': True if matches else None,
+                         'manual_override': bool(args.snes_mapping or
+                                                 args.size_bytes is not None)})
     else:
+        if args.snes_mapping is not None:
+            raise ReadError('--snes-mapping requires --system snes')
         if args.mapper is not None or args.match_crc32 is not None:
             raise ReadError('NES mapper/database overrides require --system nes')
         mode = 'md-' + args.md_mode
@@ -261,7 +389,7 @@ def run(args):
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--system', choices=['nes', 'md'], required=True)
+    p.add_argument('--system', choices=['nes', 'md', 'snes'], required=True)
     p.add_argument('--action', choices=['probe', 'read-rom'], required=True)
     p.add_argument('--output', help='Destination for .nes or .bin (must not exist)')
     p.add_argument('--database', help='Override original OSCR NES JSON database path')
@@ -270,6 +398,8 @@ def main(argv=None):
     p.add_argument('--prg-kib', type=int)
     p.add_argument('--chr-kib', type=int)
     p.add_argument('--mirroring', choices=['horizontal', 'vertical'])
+    p.add_argument('--snes-mapping', choices=['lo', 'hi'],
+                   help='Known standard SNES mapping override; use with --size-bytes for bad headers')
     p.add_argument('--md-mode', choices=['rom', 'p10', 'p1'], default='rom')
     p.add_argument('--md-chunk-size', type=int, choices=[2, 512, 1024, 2048], default=2048,
                    help='Read size in bytes (1024 matches the legacy OSCR MegaDrive bulk reader)')
