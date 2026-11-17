@@ -16,7 +16,7 @@ test-readtest:
 # Build a first native Linux executable from ORIGINAL pinned OSCR SNES C++
 # bank-reading functions. This is NOT yet the complete upstream C++ core.
 # The generator refuses unknown upstream changes and never edits the submodule.
-NATIVE_CXXFLAGS = -std=c++17 -Wall -Wextra -Werror -pedantic -O2
+NATIVE_CXXFLAGS = -std=c++11 -Wall -Wextra -Werror -pedantic -O2
 NATIVE_SOURCES = src/retrode3/read_bus.cpp src/retrode3/oscr_snes_native.cpp build/migration/oscr_snes_banks.cpp
 NATIVE_INCLUDES = -I. -Iinclude
 
