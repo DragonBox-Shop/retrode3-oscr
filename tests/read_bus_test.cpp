@@ -42,7 +42,8 @@ int main()
     assert(last_address==0x100 && last_mode==MD_MODE_P10 && calls==1);
     reset();
     assert(bus.snes_byte(0xc0,0x8000,retrode3::SnesReadMode::HiRom)==0x99);
-    assert(last_address==0xc08000 && last_mode==SNES_MODE_HIROM && calls==1);
+    // Mode 9 is not handled by the kernel; both layouts use raw mode 0.
+    assert(last_address==0xc08000 && last_mode==SNES_MODE_REGULAR && calls==1);
     reset();
     bool threw=false;
     try {bus.nes_block(0xfffe, &last_mode, 3, retrode3::NesSpace::Prg);} catch (std::out_of_range const &) {threw=true;}
