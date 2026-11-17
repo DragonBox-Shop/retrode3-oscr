@@ -1,6 +1,8 @@
 # SNES read-only acceptance on Retrode3
 
-Status: Mock-based tests pass; **not yet tested with a real SNES cartridge**.
+Status: Mock-based tests pass. **First physical LoROM hardware test passed**
+with Super Turrican (Europe) on Retrode3 2.9.5; HiROM and repeatability
+checks are still outstanding.
 This is a Linux reader port of the new OSCR SNES header and bank algorithms,
 not yet a native compilation of the rewritten upstream C++ cartridge core.
 
@@ -28,6 +30,30 @@ not yet a native compilation of the rewritten upstream C++ cartridge core.
   code 3, and an output filename ending in .unverified.
 - Output: raw headerless .sfc with atomic no-overwrite publication.
 
+## Verified real-cartridge result (2026-11-17)
+
+User-tested on Retrode3 2.9.5, Linux kernel 7.3.0-rc5-letux-mips-retrode3+,
+with the read-only Linux SNES CLI:
+
+| Property | Result |
+| --- | --- |
+| Cartridge | Super Turrican (Europe) |
+| Mapping | LoROM, mapping byte 0x20 |
+| Header check | checksum 0xEFBA, complement 0x1045, valid |
+| Header CRC32 | 3B095057 |
+| OSCR database candidates | 1 |
+| Chips | 0 (ROM only) |
+| Size | 4194304 bits / 524288 bytes, 16 x 32768-byte banks |
+| Full dump CRC32 | D0A1BF12 (matches pinned OSCR SNES database) |
+| SHA256 | 1bc2b230d6bb6091412fcc9b957192d9a729496f9f2123449d968afb088fc525 |
+| CLI | ok: true, verified: true, manual_override: false |
+| Destination | /tmp/super-turrican-europe.sfc |
+
+This validates ONE complete standard LoROM dump, including bank order,
+against the database CRC32. Repeat dump/independent hash comparison and
+standard HiROM hardware testing are still needed. This is not evidence
+that the full upstream C++ OSCR core has been ported.
+
 ## Safety and limitations
 
 Only chip types 0 (ROM only), 1 (ROM + RAM), 2 (ROM + save RAM) are
@@ -51,7 +77,7 @@ these do not validate electrical timing on physical hardware.
 
 ## Physical Retrode3 acceptance
 
-Run from the feature/snes-oscr-readonly checkout. On the embedded Debian 8
+Run from the migration/oscr-firmware checkout. On the embedded Debian 8
 system, Python 3.4 is supported. Ensure the pinned nested OSCR databases
 submodule is populated. Start with a known, plain LoROM.
 
@@ -78,7 +104,7 @@ python3 tools/retrode3-readtest.py --system snes --action read-rom \
 
 This is an example only, not a recommended mapping/size for unknown carts.
 
-Before merging: verify at least two identical dumps per cart, CRC32 against
+Before finishing SNES acceptance: verify at least two identical dumps per cart, CRC32 against
 OSCR or an independently trusted reference, a LoROM and HiROM test,
 kernel log, plus NES NROM and MegaDrive regressions.
 
