@@ -104,7 +104,7 @@ int md_set_mapper(unsigned int version, unsigned int reg, int val)
 		case 7474:	// special Sonic3 mode
 			md_enablefram(val);
 			return 0;
-		case 74161:	// stores data bits D0 (RAM), D5 (A22), D6 (LED1), D7 (LED2)
+		case 74161: {	// stores data bits D0 (RAM), D5 (A22), D6 (LED1), D7 (LED2)
 			int mask = 0x01;	// default register 0
 			// buf[0] = somehow remember last state!
 			if (reg > 0)
@@ -115,6 +115,7 @@ int md_set_mapper(unsigned int version, unsigned int reg, int val)
 				buf[0] &= ~mask;	// clear bit
 			// save as last state
 			break;
+		}
 		case 74259:	// addressable latch where address chooses register
 			addr = 0xa13001 + 2*reg;
 			buf[0] = val;
