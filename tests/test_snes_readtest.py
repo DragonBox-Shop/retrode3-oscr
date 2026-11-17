@@ -66,7 +66,7 @@ class TestSnesReader(unittest.TestCase):
         bus = SnesMemoryBus(rom, 'lo')
         record = {'name': 'Synthetic LoROM', 'checksum': '1234',
                   'id32': reader.crc(header), 'crc32': reader.crc(rom),
-                  'size': len(rom), 'banks': 16}
+                  'size': len(rom) * 8, 'banks': 16}
         info, candidates = reader.detect_snes(bus, [record])
         self.assertTrue(info['valid_header'])
         self.assertTrue(info['checksum_complement_valid'])
@@ -75,7 +75,17 @@ class TestSnesReader(unittest.TestCase):
         self.assertEqual(info['title'], 'TEST GAME')
         self.assertEqual(info['candidate_count'], 1)
         self.assertEqual(candidates[0]['name'], record['name'])
+        # Original OSCR SNES database sizes are BITS, despite the CLI using bytes.
+        self.assertEqual(info['candidates'][0]['size_bits'], 4194304)
+        self.assertEqual(info['candidates'][0]['size_bytes'], 524288)
         self.assertEqual(bus.calls[0], ('snes-rom', 0xffb0, 80))
+
+    def test_oscr_rejects_malformed_bit_sizes(self):
+        for invalid in (None, 0, -8, 524289, True, '4194304'):
+            with self.assertRaises(reader.ReadError):
+                reader.snes_database_size_bytes({'size': invalid})
+        self.assertEqual(reader.snes_database_size_bytes({'size': 4194304}),
+                         524288)
 
     def test_lorom_dump_matches_oscr_32k_banks(self):
         rom, _ = make_rom()
@@ -123,7 +133,7 @@ class TestSnesReader(unittest.TestCase):
         bus = SnesMemoryBus(rom, 'hi')
         record = {'name': 'Synthetic HiROM', 'checksum': '1234',
                   'id32': reader.crc(header), 'crc32': reader.crc(rom),
-                  'size': len(rom), 'banks': 8}
+                  'size': len(rom) * 8, 'banks': 8}
 
         class DummySlot:
             def __init__(self, system):
@@ -172,7 +182,7 @@ class TestSnesReader(unittest.TestCase):
         bus = SnesMemoryBus(rom, 'lo')
         record = {'name': 'Synthetic 12 Mbit LoROM', 'checksum': '1234',
                   'id32': reader.crc(header), 'crc32': reader.crc(rom),
-                  'size': len(rom), 'banks': 48}
+                  'size': len(rom) * 8, 'banks': 48}
 
         class DummySlot:
             def __init__(self, system):
@@ -201,7 +211,7 @@ class TestSnesReader(unittest.TestCase):
         bus = SnesMemoryBus(rom, 'lo')
         record = {'name': 'Known header but wrong ROM CRC',
                   'checksum': '1234', 'id32': reader.crc(header),
-                  'crc32': 'DEADBEEF', 'size': len(rom), 'banks': 16}
+                  'crc32': 'DEADBEEF', 'size': len(rom) * 8, 'banks': 16}
 
         class DummySlot:
             def __init__(self, system):
