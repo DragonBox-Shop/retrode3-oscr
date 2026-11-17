@@ -6,7 +6,8 @@ AVR GPIO read loops are replaced. The original submodule remains pristine.
 Unrecognized upstream source changes fail the build instead of being guessed.
 """
 import argparse
-from pathlib import Path
+import io
+import os
 import re
 import sys
 
@@ -97,12 +98,21 @@ def main(argv=None):
     p.add_argument("--upstream", default="third_party/oscr-firmware/src/cores/SNES.cpp")
     p.add_argument("--output", default="build/migration/oscr_snes_banks.cpp")
     args = p.parse_args(argv)
-    src = Path(args.upstream).read_text(encoding="utf-8")
-    target = Path(args.output)
+    # pathlib.Path.read_text/write_text and mkdir(exist_ok=...) are not
+    # available on the Retrode3's Python 3.4 (Debian 8).
+    with io.open(args.upstream, "r", encoding="utf-8") as source_file:
+        src = source_file.read()
     native = extract(src)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(native, encoding="utf-8")
-    print("Generated upstream OSCR C++ bank readers:", str(target))
+    parent = os.path.dirname(os.path.abspath(args.output))
+    if not os.path.isdir(parent):
+        try:
+            os.makedirs(parent)
+        except OSError:
+            if not os.path.isdir(parent):
+                raise
+    with io.open(args.output, "w", encoding="utf-8") as generated_file:
+        generated_file.write(native)
+    print("Generated upstream OSCR C++ bank readers:", args.output)
 
 
 if __name__ == "__main__":
