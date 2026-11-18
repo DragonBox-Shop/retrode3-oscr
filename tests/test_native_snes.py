@@ -1,4 +1,5 @@
 """Executable integration tests of original OSCR C++ LoROM/HiROM bank loops."""
+import io
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,22 @@ ROOT = Path(__file__).resolve().parents[1]
 MOCK = ROOT / "build/migration/oscr-snes-native-mock"
 BANK_SOURCE = ROOT / "build/migration/oscr_snes_banks.cpp"
 BANK_LIBRARY = ROOT / "build/migration/liboscr-snes-core.a"
+
+# Python 3.4 on the real Retrode3 has no pathlib Path.read_bytes,
+# Path.write_bytes or Path.read_text (added in Python 3.5).
+def read_bytes(path):
+    with io.open(str(path), "rb") as handle:
+        return handle.read()
+
+
+def write_bytes(path, payload):
+    with io.open(str(path), "wb") as handle:
+        handle.write(payload)
+
+
+def read_text(path):
+    with io.open(str(path), "r", encoding="utf-8") as handle:
+        return handle.read()
 
 
 class TestNativeSnes(unittest.TestCase):
@@ -65,7 +82,7 @@ class TestNativeSnes(unittest.TestCase):
                                 for a, b in zip(progress, progress[1:])))
             self.assertEqual(events[-1]["event"], "result")
             self.assertIsNone(events[-1]["verified"])
-            self.assertEqual(len(Path(output).read_bytes()), 524288)
+            self.assertEqual(len(read_bytes(Path(output))), 524288)
 
     def test_interactive_probe_then_read(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -143,7 +160,7 @@ class TestNativeSnes(unittest.TestCase):
             self.assertEqual(code, 0, result)
             self.assertEqual(result["bytes_written"], 524288)
             self.assertEqual(result["mapping"], "lo")
-            self.assertEqual(len(file.read_bytes()), 524288)
+            self.assertEqual(len(read_bytes(file)), 524288)
 
     def test_lorom_4_mib_uses_original_oscr_bank_order(self):
         self._check_image("lo", 4194304, 32768, 0x80)
@@ -165,7 +182,7 @@ class TestNativeSnes(unittest.TestCase):
             self.assertEqual(code, 0, result)
             self.assertEqual(result["engine"], "OSCR C++ bank readers")
             self.assertEqual(result["bytes_written"], size)
-            payload = file.read_bytes()
+            payload = read_bytes(file)
             self.assertEqual(len(payload), size)
             for n in range(size // bank_size):
                 bank = first_bank + n
@@ -178,12 +195,12 @@ class TestNativeSnes(unittest.TestCase):
     def test_existing_output_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as temp:
             file = Path(temp) / "existing.sfc"
-            file.write_bytes(b"keep me")
+            write_bytes(file, b"keep me")
             code, result = self.call("--mapping", "lo", "--size-bytes",
                                      "524288", "--output", str(file))
             self.assertEqual(code, 2)
             self.assertFalse(result["ok"])
-            self.assertEqual(file.read_bytes(), b"keep me")
+            self.assertEqual(read_bytes(file), b"keep me")
 
     def test_invalid_layout_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -198,7 +215,7 @@ class TestNativeSnes(unittest.TestCase):
                 self.assertFalse(Path(path).exists())
 
     def test_generated_cpp_preserves_upstream_bank_loops(self):
-        source = BANK_SOURCE.read_text(encoding="utf-8")
+        source = read_text(BANK_SOURCE)
         self.assertIn("void readLoRomBanks(", source)
         self.assertIn("void readHiRomBanks(", source)
         self.assertEqual(source.count("while (currByte != 0);"), 2)
