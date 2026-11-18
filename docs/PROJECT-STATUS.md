@@ -126,7 +126,7 @@ algorithms behind that adapter. NES follows MD. Keep CI tests and real-cart
 read-only checks at each step. No claim that this runtime is implemented
 until code and tests demonstrate it.
 
-## Offline-preinstalled core registry (feature branch; CI and MIPS acceptance pending)
+## Offline-preinstalled core registry (feature branch; CI passed, MIPS acceptance pending)
 
 The SD-card image is intended to include **all released, hardware-safe
 cores** and dependencies offline. Runtime enablement is separate from
@@ -141,11 +141,14 @@ links. The UI's privileged backend bridge is not implemented in this repo.
 
 The development branch `feature/core-registry` now has a C++11 discovery
 CLI, a versioned descriptor ABI, manifest parsing, strict symlink target
-checks, and synthetic mock-install/enable/disable tests. All discovered
+checks, a privileged fixed-path activation helper, and synthetic
+mock-install/enable/disable tests. All discovered
 modules remain `usable:false` with no actions until a safe operation ABI
 and genuine OSCR `.so` adapters exist. The actual production Cores and
-image packaging **do not yet exist**. CI and MIPS hardware verification
-must be recorded separately. This implementation does not touch the pinned
+image packaging **do not yet exist**. The
+[core-registry CI run 44221703495](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44221703495)
+**passed** (build, simulated enable/disable, manifest checks and invalid
+symlink rejection); target Retrode3 MIPS execution is still pending. This implementation does not touch the pinned
 upstream OSCR source or the physically verified SNES/MD acceptance binaries.
 See [core registry contract](core-registry.md).
 
