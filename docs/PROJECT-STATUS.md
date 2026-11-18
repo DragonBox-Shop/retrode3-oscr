@@ -126,27 +126,28 @@ algorithms behind that adapter. NES follows MD. Keep CI tests and real-cart
 read-only checks at each step. No claim that this runtime is implemented
 until code and tests demonstrate it.
 
-## Independently installable core registry (feature branch; CI passed, MIPS hardware pending)
+## Offline-preinstalled core registry (feature branch; CI and MIPS acceptance pending)
 
-`feature/core-registry` builds the first central `retrode3-cli`
-**discovery-only** executable, independent of the SNES/MD acceptance runners.
-It discovers dynamically installed root-owned `<id>.so` adapters under
-`/usr/lib/retrode3/cores` via C-compatible versioned descriptor ABI v1,
-rejects unsafe paths/symlinks, incompatible ABI and mismatched identities,
-and emits one NDJSON `cores` event. The core listing is sorted and reflects
-install/removal without rebuilding the CLI; it does **not** access hardware.
-Dedicated install/remove mock modules and CI are added. Dedicated
-[core-registry workflow run 44220994929](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44220994929)
-**passed** with the production C++11 build and module discovery security tests;
-this is not yet hardware-verified on MIPS.
+The SD-card image is intended to include **all released, hardware-safe
+cores** and dependencies offline. Runtime enablement is separate from
+installation: package-installed `<id>.so` and static `<id>.core` manifests
+live in `/usr/lib/retrode3/cores-available`; root-managed, exact-target
+symlinks under `/etc/retrode3/cores-enabled` determine which modules
+may be loaded. This follows Apache's sites-available/sites-enabled model.
+An installed but disabled module remains discoverable in the CLI output,
+with `enabled:false` and `status:"disabled"`, and is **never dlopened**.
+The root-only `retrode3-corectl enable|disable <id>` manipulates only these
+links. The UI's privileged backend bridge is not implemented in this repo.
 
-**Critical:** The existing .a archives are *not* installable `.so` packages.
-The initial descriptor ABI is metadata-only. All discovered modules have
-`usable:false` and `actions:[]` until the shared operation ABI and
-working per-core adapters are implemented, tested, and registered. Do not
-present these as working SNES/MD cores in the frontend. Install/uninstall
-via Debian package manager is an OS repo task, not a web/core CLI command.
-See [core registry contract](core-registry.md). Keep web/UI work isolated.
+The development branch `feature/core-registry` now has a C++11 discovery
+CLI, a versioned descriptor ABI, manifest parsing, strict symlink target
+checks, and synthetic mock-install/enable/disable tests. All discovered
+modules remain `usable:false` with no actions until a safe operation ABI
+and genuine OSCR `.so` adapters exist. The actual production Cores and
+image packaging **do not yet exist**. CI and MIPS hardware verification
+must be recorded separately. This implementation does not touch the pinned
+upstream OSCR source or the physically verified SNES/MD acceptance binaries.
+See [core registry contract](core-registry.md).
 
 ## MegaDrive next-stage scope: all feasible special carts and saves (2026-11-18)
 
