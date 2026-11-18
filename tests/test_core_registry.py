@@ -149,7 +149,8 @@ class TestCoreRegistry(unittest.TestCase):
             for core in json.loads(stdout)["cores"]:
                 self.assertTrue(core["enabled"])
                 self.assertEqual(core["status"], "ready" if core["id"] == "snes" else "discovered")
-                self.assertFalse(core["usable"])
+                self.assertEqual(core["usable"], core["id"] == "snes")
+                self.assertEqual(core["actions"], ["probe", "read_rom"] if core["id"] == "snes" else [])
 
             os.unlink(os.path.join(enabled, "md.so"))
             code, stdout, _ = self.cli(available, enabled)
