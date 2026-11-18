@@ -11,13 +11,15 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 MOCK = ROOT / "build/migration/retrode3-cli-mock"
 NORMAL = ROOT / "build/migration/retrode3-cli"
+CORECTL = ROOT / "build/migration/retrode3-corectl-mock"
+NORMALCTL = ROOT / "build/migration/retrode3-corectl"
 FIXTURES = ROOT / "build/migration/registry-fixtures"
 
 
 class TestCoreRegistry(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        for path in (MOCK, NORMAL, FIXTURES / "snes.so",
+        for path in (MOCK, NORMAL, CORECTL, NORMALCTL, FIXTURES / "snes.so",
                      FIXTURES / "md.so", FIXTURES / "bad.so"):
             if not path.is_file():
                 raise RuntimeError("Run make -f Makefile.migration test-core-registry")
@@ -50,6 +52,64 @@ class TestCoreRegistry(unittest.TestCase):
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = proc.communicate()
         return proc.returncode, out.decode("utf-8"), err.decode("utf-8")
+
+    def corectl(self, action, id, available, enabled):
+        proc = subprocess.Popen(
+            [str(CORECTL), action, id, "--available-dir", str(available),
+             "--enabled-dir", str(enabled)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = proc.communicate()
+        return proc.returncode, out.decode("utf-8"), err.decode("utf-8")
+
+    def test_control_tool_offline_toggle_is_idempotent_and_safe(self):
+        with tempfile.TemporaryDirectory() as temp:
+            available, enabled = self.make_dirs(temp)
+            self.install(available, "md", "Mega Drive", "md")
+            for action in ("enable", "enable"):
+                rc, output, err = self.corectl(action, "md", available, enabled)
+                self.assertEqual(rc, 0, err)
+                self.assertIn("enabled", output)
+            self.assertEqual(os.readlink(os.path.join(enabled, "md.so")),
+                             os.path.join(available, "md.so"))
+            code, stdout, _ = self.cli(available, enabled)
+            self.assertEqual(code, 0)
+            self.assertTrue(json.loads(stdout)["cores"][0]["enabled"])
+            for action in ("disable", "disable"):
+                rc, output, err = self.corectl(action, "md", available, enabled)
+                self.assertEqual(rc, 0, err)
+                self.assertIn("disabled", output)
+            self.assertFalse(os.path.lexists(os.path.join(enabled, "md.so")))
+            self.assertTrue(os.path.isfile(os.path.join(available, "md.so")))
+            self.assertTrue(os.path.isfile(os.path.join(available, "md.core")))
+
+    def test_control_tool_rejects_untrusted_paths_and_ids(self):
+        with tempfile.TemporaryDirectory() as temp:
+            available, enabled = self.make_dirs(temp)
+            self.install(available, "snes", "Super Nintendo", "snes")
+            for bad_id in ("../../etc/passwd", "", "UPPER", "a" * 49):
+                rc, _, err = self.corectl("enable", bad_id, available, enabled)
+                self.assertEqual(rc, 2)
+                self.assertIn("invalid core identifier", err)
+            rc, _, err = self.corectl("enable", "md", available, enabled)
+            self.assertEqual(rc, 2)
+            self.assertIn("not installed", err)
+            self.enable(available, enabled, "snes",
+                        target=os.path.join(temp, "outside.so"))
+            for action in ("disable", "enable"):
+                rc, _, err = self.corectl(action, "snes", available, enabled)
+                self.assertEqual(rc, 2)
+                self.assertIn("existing enablement path is invalid", err)
+            self.assertTrue(os.path.islink(os.path.join(enabled, "snes.so")))
+
+    def test_production_control_tool_refuses_custom_paths(self):
+        proc = subprocess.Popen(
+            [str(NORMALCTL), "enable", "md", "--available-dir", "/tmp",
+             "--enabled-dir", "/tmp"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = proc.communicate()
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(out, b"")
+        self.assertIn(b"invalid arguments", err)
 
     def test_missing_available_dir_has_no_phantom_cores(self):
         with tempfile.TemporaryDirectory() as temp:
