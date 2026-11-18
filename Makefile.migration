@@ -40,3 +40,24 @@ native-snes: $(SNES_CORE_ARCHIVE)
 test-native-snes: $(SNES_CORE_ARCHIVE)
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) $(NATIVE_HOST_SOURCES) tests/mock_snes_kernel.cpp $(SNES_CORE_ARCHIVE) -o build/migration/oscr-snes-native-mock
 	python3 -m unittest discover -s tests -p 'test_native_snes.py' -v
+
+# Partial native C++ MegaDrive stage. Only standard read-only linear ROMs.
+MD_CORE_ARCHIVE = build/migration/liboscr-md-core.a
+
+build/migration/oscr_md_core.cpp: tools/build-linux-md-core.py third_party/oscr-firmware/src/cores/MegaDrive.cpp
+	python3 tools/build-linux-md-core.py --output $@
+
+build/migration/oscr_md_core.o: build/migration/oscr_md_core.cpp include/retrode3/oscr_md_compat.h
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -c $< -o $@
+
+$(MD_CORE_ARCHIVE): build/migration/oscr_md_core.o
+	$(AR) rcs $@ $<
+
+.PHONY: native-md test-native-md
+native-md: $(MD_CORE_ARCHIVE)
+	$(CC) -std=gnu11 -O2 -I. -c retrode3-lib.c -o build/migration/retrode3-lib.o
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/read_bus.cpp src/retrode3/oscr_md_native.cpp build/migration/retrode3-lib.o $(MD_CORE_ARCHIVE) -o build/migration/oscr-md-native
+
+test-native-md: $(MD_CORE_ARCHIVE)
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/read_bus.cpp src/retrode3/oscr_md_native.cpp tests/mock_md_kernel.cpp $(MD_CORE_ARCHIVE) -o build/migration/oscr-md-native-mock
+	python3 -m unittest discover -s tests -p 'test_native_md.py' -v
