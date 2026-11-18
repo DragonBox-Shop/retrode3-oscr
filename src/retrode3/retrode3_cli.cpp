@@ -391,7 +391,10 @@ std::string safe_cstr(char const *value, std::size_t max)
 
 retrode3_probe_v1 probe(OpenCore &core)
 {
-    retrode3_probe_v1 result = {};
+    // GCC 4.9 on Retrode3 warns for aggregate `= {}` under -Werror.
+    // Zero the entire C ABI struct explicitly before passing it to a core.
+    retrode3_probe_v1 result;
+    std::memset(&result, 0, sizeof(result));
     result.struct_size = sizeof(result);
     char error[256] = {};
     if (core.api->probe(&result, error, sizeof(error)) != 0)
