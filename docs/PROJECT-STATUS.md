@@ -152,6 +152,29 @@ symlink rejection); target Retrode3 MIPS execution is still pending. This implem
 upstream OSCR source or the physically verified SNES/MD acceptance binaries.
 See [core registry contract](core-registry.md).
 
+## Actual Retrode3 2.9.5 native MIPS build and Python 3.4 test fix (2026-11-18)
+
+Real target-device output confirms `make -f Makefile.migration
+stage-snes-module` **succeeded** using the device's C++11 compiler: compiled
+`retrode3-lib.c` and the pinned upstream-derived generated SNES C++ as
+PIC, linked `build/migration/snes.so`, and staged both `snes.so` and
+`snes.core` into the non-live image directory. The production common
+`retrode3-cli --list-cores` returned the correct empty `cores:[]` because
+no core was installed/enabled on the actual filesystem.
+
+The first `test-native-snes-module` run on the MIPS device stopped in its
+legacy `test_native_snes.py` prerequisite: 8/16 test methods raised
+`AttributeError` because `pathlib.Path.read_bytes()`,
+`Path.write_bytes()` and `Path.read_text()` are Python >=3.5 APIs but
+the device runs Python 3.4. The other 8 methods passed. This was a **test
+harness compatibility error**, not a core C++ compile/read failure. On
+`feature/shared-core-host`, all SNES test file reads/writes now use
+`io.open(str(path), ...)` and a separate static compatibility regression
+test `test_python34_compat.py` runs before native SNES acceptance tests.
+A complete MIPS `test-native-snes-module` retest and **physical** SNES
+ROM/CRC validation are still pending. Do not claim hardware verification
+of the new shared-host `.so` based on the successful build alone.
+
 ## Shared operation runtime and first real dynamic core (2026-11-18)
 
 Branch `feature/shared-core-host` (draft PR #5, parent
