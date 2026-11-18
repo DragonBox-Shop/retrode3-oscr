@@ -132,10 +132,19 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     std::map<std::string, Value> obj = Parser(line).object();
     for (std::map<std::string, Value>::const_iterator i = obj.begin(); i != obj.end(); ++i)
         if (i->first != "command" && i->first != "request_id" &&
-            i->first != "output" && i->first != "mapping" && i->first != "size_bytes")
+            i->first != "output" && i->first != "mapping" && i->first != "size_bytes" &&
+            i->first != "core")
             throw std::runtime_error("unknown command field: " + i->first);
     WebCommand cmd;
     cmd.action = value(obj, "command", true);
+    cmd.core = value(obj, "core");
+    if (cmd.core.size() > 48) throw std::runtime_error("invalid core identifier");
+    for (std::size_t k = 0; k < cmd.core.size(); ++k) {
+        unsigned char c = static_cast<unsigned char>(cmd.core[k]);
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+              c == '_' || c == '-'))
+            throw std::runtime_error("invalid core identifier");
+    }
     cmd.request_id = value(obj, "request_id", true);
     if (cmd.request_id.empty() || cmd.request_id.size() > 64)
         throw std::runtime_error("invalid request_id length");
@@ -155,8 +164,10 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     std::map<std::string, Value>::const_iterator sz = obj.find("size_bytes");
     if (sz != obj.end()) { cmd.size_bytes = positive_size(sz->second); cmd.has_size = true; }
     if (cmd.action != "probe" && cmd.action != "read_rom" && cmd.action != "cancel"
-        && cmd.action != "get_capabilities")
+        && cmd.action != "get_capabilities" && cmd.action != "list_cores")
         throw std::runtime_error("unsupported command");
+    if (cmd.action == "list_cores" && !cmd.core.empty())
+        throw std::runtime_error("list_cores takes no core identifier");
     if (cmd.action == "read_rom" && cmd.output.empty())
         throw std::runtime_error("read_rom requires output");
     if (cmd.action != "read_rom" &&
