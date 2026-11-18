@@ -81,6 +81,24 @@ operations just because they exist in upstream C++. The web backend remains
 its own service in the OS repo and communicates with this common CLI; do
 not modify its implementation in this repository as part of core porting.
 
+## Installable core discovery (decision 2026-11-18)
+
+**Software cores must be independently installable/removable** (RetroArch-like),
+not baked into the main CLI permanently. The current `.a` libraries are
+experimental acceptance builds; they cannot be uninstalled at runtime.
+Plan root-managed, versioned adapter `.so` packages in
+`/usr/lib/retrode3/cores`, installed/removed by Debian `.deb` packages
+in the OS repository, not by web uploads. `retrode3-cli` owns one central
+registry and outputs a machine-readable `cores` NDJSON event. The initial
+metadata-only discovery prototype is documented in
+[docs/core-registry.md](docs/core-registry.md). **Discovered != usable**:
+never show installed but unimplemented cores as callable operations.
+Distinguish software cores from physically inserted hardware adapters,
+slot compatibility and detected cartridge presence; all are separate states.
+Only verified root-owned plugins in a trusted fixed directory are eligible
+for loading; never load a user-provided path from an HTTP/NDJSON command.
+The operation dispatch ABI and physical verification follow separately.
+
 ## Safe engineering workflow
 
 1. Read `docs/PROJECT-STATUS.md` and relevant per-feature docs.
