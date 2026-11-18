@@ -126,7 +126,7 @@ algorithms behind that adapter. NES follows MD. Keep CI tests and real-cart
 read-only checks at each step. No claim that this runtime is implemented
 until code and tests demonstrate it.
 
-## Independently installable core registry (feature branch; CI pending)
+## Independently installable core registry (feature branch; CI passed, MIPS hardware pending)
 
 `feature/core-registry` builds the first central `retrode3-cli`
 **discovery-only** executable, independent of the SNES/MD acceptance runners.
@@ -135,7 +135,10 @@ It discovers dynamically installed root-owned `<id>.so` adapters under
 rejects unsafe paths/symlinks, incompatible ABI and mismatched identities,
 and emits one NDJSON `cores` event. The core listing is sorted and reflects
 install/removal without rebuilding the CLI; it does **not** access hardware.
-Dedicated install/remove mock modules and CI are added.
+Dedicated install/remove mock modules and CI are added. Dedicated
+[core-registry workflow run 44220994929](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44220994929)
+**passed** with the production C++11 build and module discovery security tests;
+this is not yet hardware-verified on MIPS.
 
 **Critical:** The existing .a archives are *not* installable `.so` packages.
 The initial descriptor ABI is metadata-only. All discovered modules have
