@@ -1,6 +1,8 @@
 # Offline-preinstalled Retrode3 cores and enable/disable registry
 
 Status: 2026-11-18, branch `feature/core-registry`.
+[Offline core registry CI run 44221703495](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44221703495)
+**passed**; real MIPS execution is pending.
 **Registry and helper are development prototypes** until target MIPS tests
 and the real operation ABI/packaged OSCR modules are completed.
 All earlier approved SNES/MD ROM dumps remain in the separate acceptance
@@ -80,7 +82,8 @@ If the same module is disabled, it remains present with `installed:true`,
 Other statuses include `invalid_link` and `incompatible`. A valid
 **discovery** descriptor is not an implementation of any cartridge operation.
 
-The privileged, fixed-path helper only changes symlinks:
+The privileged, fixed-path helper only changes symlinks (and can be
+installed as `/usr/sbin/retrode3-corectl` by the future OS package):
 
 ```sh
 # Run as root, after the image/package installer has created both directories
