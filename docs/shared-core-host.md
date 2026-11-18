@@ -137,12 +137,17 @@ The real Retrode3 2.9.5 successfully compiled and staged `snes.so`
 with GCC C++11. `retrode3-cli --list-cores` returned an empty list as
 expected before installation. The first target-side legacy SNES test suite
 failed on 8 uses of Python 3.5+ `pathlib` file I/O methods, unrelated to
-the core implementation. Those calls have now been replaced with Python
-3.4-compatible `io.open()`, and a static guard checks the native test
-suites before build acceptance. Run the commands below on the updated
-branch to confirm the full target-side suite, then follow the existing
-read-only physical acceptance steps. The new dynamic adapter is **not
-yet** hardware-verified.
+the core implementation. Those calls were replaced with Python
+3.4-compatible `io.open()`, and the next target-device run **passed
+all 16 legacy SNES tests**.
+
+That run next failed when the MIPS GCC 4.9 compiler rejected the shared
+CLI's `retrode3_probe_v1 result = {};` under
+`-Werror=missing-field-initializers`. That initialization is now replaced
+by explicit `std::memset` of the C ABI POD structure. A further target
+`test-native-snes-module` run is pending to validate the fix and all
+remaining tests. The new dynamic adapter is **not yet** physically
+ROM/CRC-verified.
 
 
 The build and CI run only virtual/mock cartridge hardware. The actual
