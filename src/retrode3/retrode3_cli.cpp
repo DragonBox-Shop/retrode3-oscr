@@ -47,10 +47,12 @@ void note(std::string const &name, std::string const &why)
                  name.c_str(), why.c_str());
 }
 
+#ifndef RETRODE3_TESTING
 bool secure(const struct stat &st)
 {
     return st.st_uid == 0 && (st.st_mode & 022) == 0;
 }
+#endif
 
 std::vector<Core> discover(std::string const &directory)
 {
