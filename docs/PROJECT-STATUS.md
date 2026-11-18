@@ -26,11 +26,19 @@ Related repositories:
 
 ## Hardware verification: observed, not inferred
 
-- **Native C++ MegaDrive stage-1 physical probe passed on Retrode3 2.9.5**
-  with Snake Rattle N Roll: 524288 bytes by header, checksum `2152`,
-  serial `GM MK-1541 -50`, region `E`, mapping `linear`. This proves
-  upstream-derived `readWord()` header access; a ROM dump, repeatability,
-  and independent CRC comparison are **not yet reported**.
+- **Native C++ MegaDrive stage-1 linear read-only path verified on Retrode3
+  2.9.5** with Snake Rattle n Roll (Europe). The upstream-derived
+  `readWord()` probe returned 524288 bytes by header, checksum `2152`,
+  serial `GM MK-1541 -50`, region `E`, mapping `linear`.
+  Two physical native partial-CLI dumps each wrote exactly 524288 bytes and
+  `cmp` confirmed they were byte-identical. Full-ROM CRC32 `543BED30`
+  matches the separate pinned original
+  [OSCR MD database](https://github.com/oscartreader/oscr-databases/blob/87a48948c6a04260205f148d313614cc44e05cd5/data/md.json)
+  entry `Snake Rattle n Roll (Europe)`. SHA256 of the first dump:
+  `26643484b639a10e0f889940a1556acbd8f9bcddb6de5b5a0ff2167104605200`.
+  The CLI still reports `verified:null` because native database matching
+  is **not yet implemented**. The full upstream `getCartInfo()` and
+  `readROM()` have **not** been ported.
 - The MegaDrive hardware testing previously exposed a genuine GPIO/OE
   settle-time problem in the kernel driver. The kernel was patched to delay
   sampling after asserting OE. Avoid ignoring hardware timing while porting
@@ -56,7 +64,7 @@ Related repositories:
   2.84s user / 31.75s sys. C++ was ~3.6% faster in these single runs;
   both share the kernel bus and larger hardware timing optimizations remain.
 
-## Native MegaDrive stage 1 (feature branch; CI and first hardware probe passed)
+## Native MegaDrive stage 1 (feature branch; CI and standard linear ROM hardware verification passed)
 
 The isolated `feature/native-md-stage1` branch adds a generated static
 `liboscr-md-core.a` from the pinned original `MegaDrive.cpp` methods
@@ -79,9 +87,11 @@ Build and mock tests: `make -f Makefile.migration test-native-md` and
 `make -f Makefile.migration native-md` after submodule init. The dedicated
 CI workflow is `.github/workflows/native-md-migration.yml`. Dedicated workflow [run 44216393549](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44216393549)
 **passed** including native C++ mock tests and Linux link against the C slot
-library. Native `readWord()` physical header probe now succeeds on Snake Rattle N Roll;
-full ROM readback, repeatability and independent reference ROM comparison
-are still pending. Reproduce with [MD stage-1 hardware instructions](oscr-linux-md-stage1.md). Never
+library. Native `readWord()` physical header probe and two bit-identical
+512-KiB dumps of Snake Rattle n Roll (Europe) have passed on real hardware;
+full CRC32 `543BED30` matches the pinned original OSCR MD database entry.
+Native CLI database lookup and the complete upstream MegaDrive reader
+remain pending. Reproduce with [MD stage-1 hardware instructions](oscr-linux-md-stage1.md). Never
 start by testing a write-dependent special cart.
 
 ## Current implementation and limitations
