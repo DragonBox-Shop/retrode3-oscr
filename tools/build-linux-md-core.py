@@ -68,7 +68,7 @@ def extract(source):
     if canonical(word) != canonical(EXPECTED_WORD):
         raise ValueError("Original MegaDrive readWord GPIO/timing code changed; review required")
     helper = source[source.index(COPY_START):source.index(COPY_END)]
-    if helper.count("uint8_t copyToRomName(") != 1 or re.search(
+    if canonical(helper) != canonical(EXPECTED_HELPER) or re.search(
             r"\b(?:PORT[A-L]|PIN[A-L]|DDR[A-L]|NOP)\b", helper):
         raise ValueError("Original MegaDrive ROM-name helper changed")
     return ('// GENERATED FROM PINNED OSCR C++ MegaDrive.cpp. Do not edit.\n'
