@@ -39,6 +39,7 @@ native-snes: $(SNES_CORE_ARCHIVE)
 
 test-native-snes: $(SNES_CORE_ARCHIVE)
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) $(NATIVE_HOST_SOURCES) tests/mock_snes_kernel.cpp $(SNES_CORE_ARCHIVE) -o build/migration/oscr-snes-native-mock
+	python3 -m unittest discover -s tests -p 'test_python34_compat.py' -v
 	python3 -m unittest discover -s tests -p 'test_native_snes.py' -v
 
 # Partial native C++ MegaDrive stage. Only standard read-only linear ROMs.
