@@ -15,6 +15,7 @@ void init()
     for (unsigned i = 0; i < sizeof(rom); ++i)
         rom[i] = static_cast<unsigned char>((i * 7u + (i >> 8)) & 255u);
     std::memcpy(rom + 0x100, "SEGA", 4);
+    std::memset(rom + 0x150, ' ', 48);
     std::memcpy(rom + 0x150, "MOCK MEGADRIVE CART", 19);
     std::memcpy(rom + 0x180, "GM MOCK0001-00", 14);
     std::memcpy(rom + 0x1f0, "JUE", 3);
