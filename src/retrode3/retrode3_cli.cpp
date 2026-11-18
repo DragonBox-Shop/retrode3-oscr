@@ -277,18 +277,320 @@ std::string to_json(std::vector<Core> const &cores,
     }
     return json + "]}";
 }
+
+std::string prefix(std::string const &event, std::string const &request_id)
+{
+    return "{\"protocol\":\"retrode3-ndjson\",\"version\":1,\"event\":"
+         + retrode3::NdjsonProtocol::quote(event) + ","
+         + retrode3::NdjsonProtocol::id(request_id);
+}
+
+void emit_error(retrode3::NdjsonProtocol &stream, std::string const &id,
+                std::string const &code, std::string const &why)
+{
+    stream.emit(prefix("error", id)
+       + ",\"code\":" + retrode3::NdjsonProtocol::quote(code)
+       + ",\"message\":" + retrode3::NdjsonProtocol::quote(why) + "}");
+}
+
+Core const &find_usable(std::vector<Core> const &cores, std::string const &id)
+{
+    for (std::size_t i = 0; i < cores.size(); ++i) {
+        if (cores[i].id != id) continue;
+        if (!cores[i].enabled)
+            throw std::runtime_error("core is disabled");
+        if (!cores[i].usable)
+            throw std::runtime_error("core has no compatible operation ABI");
+        return cores[i];
+    }
+    throw std::runtime_error("core is not installed");
+}
+
+struct OpenCore {
+    void *handle;
+    const retrode3_core_operations_v1 *api;
+    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL) {
+        handle = ::dlopen(module.c_str(), RTLD_NOW | RTLD_LOCAL);
+        if (!handle) throw std::runtime_error("could not load enabled core");
+        try {
+            void *symbol = ::dlsym(handle, "retrode3_core_get_operations_v1");
+            if (!symbol) throw std::runtime_error("core operation ABI missing");
+            retrode3_core_operations_v1_fn getter =
+                reinterpret_cast<retrode3_core_operations_v1_fn>(symbol);
+            api = getter();
+            if (!valid_operations(api))
+                throw std::runtime_error("core operation ABI invalid");
+        } catch (...) {
+            ::dlclose(handle);
+            handle = NULL;
+            throw;
+        }
+    }
+    ~OpenCore() {
+        if (api && api->release) api->release();
+        if (handle) ::dlclose(handle);
+    }
+private:
+    OpenCore(OpenCore const &);
+    OpenCore &operator=(OpenCore const &);
+};
+
+std::string safe_cstr(char const *value, std::size_t max)
+{
+    void const *end = std::memchr(value, '\0', max);
+    if (!end) throw std::runtime_error("unterminated core response");
+    return std::string(value, static_cast<const char *>(end));
+}
+
+retrode3_probe_v1 probe(OpenCore &core)
+{
+    retrode3_probe_v1 result = {};
+    result.struct_size = sizeof(result);
+    char error[256] = {};
+    if (core.api->probe(&result, error, sizeof(error)) != 0)
+        throw std::runtime_error(error[0] ? safe_cstr(error, sizeof(error))
+                                          : "core probe failed");
+    if (result.struct_size != sizeof(result))
+        throw std::runtime_error("invalid probe response ABI");
+    std::string title = safe_cstr(result.title, sizeof(result.title));
+    std::string mapping = safe_cstr(result.mapping, sizeof(result.mapping));
+    safe_cstr(result.checksum, sizeof(result.checksum));
+    if (title.empty() || mapping.empty() || result.rom_size_bytes < 512 ||
+        result.rom_size_bytes > 128ull * 1024 * 1024)
+        throw std::runtime_error("invalid cartridge metadata");
+    return result;
+}
+
+void emit_probe(retrode3::NdjsonProtocol &stream, std::string const &id,
+                std::string const &system, retrode3_probe_v1 const &probe_info)
+{
+    stream.emit(prefix("probe_result", id)
+        + ",\"system\":" + retrode3::NdjsonProtocol::quote(system)
+        + ",\"mapping\":" + retrode3::NdjsonProtocol::quote(probe_info.mapping)
+        + ",\"size_bytes\":" + std::to_string(probe_info.rom_size_bytes)
+        + ",\"title\":" + retrode3::NdjsonProtocol::quote(probe_info.title)
+        + ",\"checksum\":" + retrode3::NdjsonProtocol::quote(probe_info.checksum)
+        + ",\"candidates\":[],\"candidate_lookup\":\"not_integrated\"}");
+}
+
+void emit_capabilities(retrode3::NdjsonProtocol &stream, std::string const &id,
+                       Core const &core)
+{
+    stream.emit(prefix("capabilities", id)
+        + ",\"system\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
+        + ",\"enabled\":true,\"usable\":true,\"commands\":"
+        + (core.can_read_rom ? "[\"probe\",\"read_rom\",\"cancel\",\"get_capabilities\"]"
+                             : "[\"probe\",\"get_capabilities\"]")
+        + ",\"write_operations\":false,\"database_lookup\":false}");
+}
+
+struct OutputSink {
+    std::FILE *file;
+    retrode3::NdjsonProtocol *stream;
+    std::string request_id;
+    std::size_t total;
+    std::size_t done;
+    std::size_t next_event;
+    std::size_t increment;
+    std::uint32_t crc;
+    std::string failure;
+};
+
+void emit_progress(OutputSink &ctx, unsigned percent)
+{
+    ctx.stream->emit(prefix("progress", ctx.request_id)
+        + ",\"phase\":\"read_rom\",\"bytes_done\":"
+        + std::to_string(ctx.done)
+        + ",\"bytes_total\":" + std::to_string(ctx.total)
+        + ",\"percent\":" + std::to_string(percent) + "}");
+}
+
+int is_cancelled(void *opaque)
+{
+    OutputSink &ctx = *static_cast<OutputSink *>(opaque);
+    try {
+        ctx.stream->poll_cancel(ctx.request_id);
+        return ctx.stream->cancelled() ? 1 : 0;
+    } catch (std::exception const &e) {
+        ctx.failure = e.what();
+        return 1;
+    }
+}
+
+int output_bytes(void *opaque, const void *bytes, size_t count)
+{
+    OutputSink &ctx = *static_cast<OutputSink *>(opaque);
+    try {
+        if (is_cancelled(opaque)) {
+            if (ctx.failure.empty()) ctx.failure = "cancelled";
+            return -1;
+        }
+        if ((!bytes && count) || count > ctx.total - ctx.done) {
+            ctx.failure = "core emitted more bytes than detected ROM size";
+            return -1;
+        }
+        if (count && std::fwrite(bytes, 1, count, ctx.file) != count) {
+            ctx.failure = "ROM output write failed";
+            return -1;
+        }
+        unsigned char const *p = static_cast<unsigned char const *>(bytes);
+        for (std::size_t i = 0; i < count; ++i) {
+            ctx.crc ^= p[i];
+            for (unsigned j = 0; j < 8; ++j)
+                ctx.crc = (ctx.crc >> 1) ^
+                    ((ctx.crc & 1u) ? 0xedb88320u : 0u);
+        }
+        ctx.done += count;
+        if (ctx.done >= ctx.next_event && ctx.done < ctx.total) {
+            unsigned percent = static_cast<unsigned>((ctx.done * 100u) / ctx.total);
+            if (percent > 99) percent = 99;
+            emit_progress(ctx, percent);
+            ctx.next_event = ctx.done + ctx.increment;
+        }
+        return 0;
+    } catch (std::exception const &e) {
+        ctx.failure = e.what();
+        return -1;
+    }
+}
+
+void read_rom(retrode3::NdjsonProtocol &stream,
+              retrode3::WebCommand const &command,
+              OpenCore &core, retrode3_probe_v1 const &info)
+{
+    if (!core.api->read_rom)
+        throw std::runtime_error("read_rom unavailable for this core");
+    if (command.has_size && command.size_bytes != info.rom_size_bytes)
+        throw std::runtime_error("size override unsupported by this core stage");
+    if (!command.mapping.empty() && command.mapping != info.mapping)
+        throw std::runtime_error("mapping override unsupported by this core stage");
+    std::string const &output = command.output;
+    // The separate web backend MUST additionally constrain output roots.
+    // Do not accept relative paths, traversal or control characters.
+    if (output.empty() || output[0] != '/' || output.size() > 1024 ||
+        output.find("/../") != std::string::npos ||
+        output.find("/./") != std::string::npos ||
+        (output.size() >= 3 && output.compare(output.size()-3, 3, "/..") == 0))
+        throw std::runtime_error("invalid absolute output path");
+    if (::access(output.c_str(), F_OK) == 0)
+        throw std::runtime_error("output already exists");
+    std::string pattern = output + ".partial-XXXXXX";
+    std::vector<char> tmp(pattern.begin(), pattern.end());
+    tmp.push_back('\0');
+    int fd = ::mkstemp(tmp.data());
+    if (fd < 0) throw std::runtime_error("cannot create output file");
+    std::FILE *file = ::fdopen(fd, "wb");
+    if (!file) {
+        ::close(fd);
+        ::unlink(tmp.data());
+        throw std::runtime_error("cannot open output stream");
+    }
+    try {
+        std::size_t bytes = static_cast<std::size_t>(info.rom_size_bytes);
+        std::size_t step = bytes / 100;
+        if (step < 4096) step = 4096;
+        OutputSink ctx = {file, &stream, command.request_id,
+                          bytes, 0, step, step, 0xffffffffu, ""};
+        stream.reset_cancel();
+        emit_progress(ctx, 0);
+        retrode3_host_io_v1 io = {RETRODE3_CORE_OPERATION_ABI_V1, sizeof(io),
+                                   &ctx, output_bytes, is_cancelled};
+        char error[256] = {};
+        int rc = core.api->read_rom(&info, &io, error, sizeof(error));
+        if (rc != 0) {
+            if (ctx.failure.empty()) {
+                if (stream.cancelled()) ctx.failure = "cancelled";
+                else ctx.failure = error[0] ? safe_cstr(error, sizeof(error))
+                                            : "core read failed";
+            }
+            throw std::runtime_error(ctx.failure);
+        }
+        if (ctx.done != bytes)
+            throw std::runtime_error("short core ROM output");
+        if (std::fflush(file) || ::fsync(::fileno(file)))
+            throw std::runtime_error("failed to sync ROM output");
+        if (std::fclose(file)) {
+            file = NULL;
+            throw std::runtime_error("cannot close ROM output");
+        }
+        file = NULL;
+        if (::link(tmp.data(), output.c_str()) != 0)
+            throw std::runtime_error("cannot publish ROM without overwrite");
+        ::unlink(tmp.data());
+        emit_progress(ctx, 100);
+        char hex[9];
+        std::snprintf(hex, sizeof(hex), "%08X", ~ctx.crc);
+        stream.emit(prefix("result", command.request_id)
+            + ",\"ok\":true,\"system\":"
+            + retrode3::NdjsonProtocol::quote(command.core)
+            + ",\"bytes_written\":" + std::to_string(ctx.done)
+            + ",\"crc32\":" + retrode3::NdjsonProtocol::quote(hex)
+            + ",\"output\":" + retrode3::NdjsonProtocol::quote(output)
+            + ",\"verified\":null}");
+    } catch (...) {
+        if (file) std::fclose(file);
+        ::unlink(tmp.data());
+        throw;
+    }
+}
+
+void interactive(std::string const &available, std::string const &enabled)
+{
+    retrode3::NdjsonProtocol stream(true);
+    stream.emit("{\"protocol\":\"retrode3-ndjson\",\"version\":1,"
+                "\"event\":\"ready\",\"system\":\"multi\"}");
+    retrode3::WebCommand command;
+    while (stream.next(command)) {
+        try {
+            if (command.action == "list_cores") {
+                stream.emit(to_json(discover(available, enabled), command.request_id));
+                continue;
+            }
+            if (command.action == "cancel") {
+                emit_error(stream, command.request_id, "no_active_job",
+                           "nothing to cancel");
+                continue;
+            }
+            if (command.core.empty())
+                throw std::runtime_error("missing core identifier");
+            std::vector<Core> cores = discover(available, enabled);
+            Core core_info = find_usable(cores, command.core);
+            if (command.action == "get_capabilities") {
+                emit_capabilities(stream, command.request_id, core_info);
+                continue;
+            }
+            OpenCore module(available + "/" + core_info.id + ".so");
+            retrode3_probe_v1 info = probe(module);
+            if (command.action == "probe") emit_probe(stream, command.request_id,
+                                                       core_info.id, info);
+            else if (command.action == "read_rom")
+                read_rom(stream, command, module, info);
+        } catch (std::exception const &e) {
+            std::string why(e.what());
+            emit_error(stream, command.request_id,
+                       why == "cancelled" ? "cancelled" : "operation_failed", why);
+        }
+    }
+}
+
 }
 
 int main(int argc, char **argv)
 {
     std::string available = "/usr/lib/retrode3/cores-available";
     std::string enabled = "/etc/retrode3/cores-enabled";
-    bool list = false;
+    bool list = false, streamed = false, run_interactive = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--list-cores" && !list) list = true;
+        else if (arg == "--interactive" && !run_interactive) run_interactive = true;
         else if (arg == "--protocol" && i + 1 < argc &&
-                 std::string(argv[i + 1]) == "ndjson-v1") ++i;
+                 std::string(argv[i + 1]) == "ndjson-v1") {
+            ++i;
+            streamed = true;
+        }
 #ifdef RETRODE3_TESTING
         else if (arg == "--available-dir" && i + 1 < argc)
             available = argv[++i];
@@ -297,19 +599,22 @@ int main(int argc, char **argv)
 #endif
         else {
             std::fprintf(stderr,
-                "usage: retrode3-cli --list-cores [--protocol ndjson-v1]\n");
+                "usage: retrode3-cli --list-cores [--protocol ndjson-v1] "
+                "| --protocol ndjson-v1 --interactive\n");
             return 2;
         }
     }
-    if (!list) {
-        std::fprintf(stderr, "usage: retrode3-cli --list-cores\n");
+    if (list == run_interactive || (run_interactive && !streamed)) {
+        std::fprintf(stderr, "choose --list-cores or --interactive with NDJSON\n");
         return 2;
     }
     try {
-        retrode3::NdjsonProtocol(false).emit(to_json(discover(available, enabled)));
+        if (list)
+            retrode3::NdjsonProtocol(false).emit(to_json(discover(available, enabled)));
+        else interactive(available, enabled);
         return 0;
     } catch (std::exception const &e) {
-        std::fprintf(stderr, "Retrode3 core discovery failed: %s\n", e.what());
+        std::fprintf(stderr, "Retrode3 host failed: %s\n", e.what());
         return 2;
     }
 }
