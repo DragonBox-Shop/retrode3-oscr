@@ -17,7 +17,7 @@ test-readtest:
 # bank-reading functions. This is NOT yet the complete upstream C++ core.
 # The generator refuses unknown upstream changes and never edits the submodule.
 NATIVE_CXXFLAGS = -std=c++11 -Wall -Wextra -Werror -pedantic -O2
-NATIVE_HOST_SOURCES = src/retrode3/read_bus.cpp src/retrode3/oscr_snes_native.cpp src/retrode3/ndjson_protocol.cpp
+NATIVE_HOST_SOURCES = src/retrode3/read_bus.cpp src/retrode3/oscr_snes_native.cpp src/retrode3/oscr_snes_posix.cpp src/retrode3/ndjson_protocol.cpp
 NATIVE_INCLUDES = -I. -Iinclude
 SNES_CORE_ARCHIVE = build/migration/liboscr-snes-core.a
 
@@ -81,3 +81,26 @@ test-core-registry: native-core-registry
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"bad"' -DRETRODE3_MOCK_ABI=99 tests/mock_core_module.cpp -o build/migration/registry-fixtures/bad.so
 	python3 -m unittest discover -s tests -p 'test_core_registry.py' -v
 	python3 -m unittest discover -s tests -p 'test_shared_core_host.py' -v
+
+
+# Stage-1 real, dynamically loadable SNES adapter from the original pinned
+# OSCR C++ functions. This remains limited to standard LoROM / HiROM.
+# Build PIC separately; never link the test/mock kernel into a release .so.
+build/migration/oscr_snes_banks.pic.o: build/migration/oscr_snes_banks.cpp include/retrode3/oscr_snes_compat.h
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC $(NATIVE_INCLUDES) -c $< -o $@
+
+.PHONY: native-snes-module test-native-snes-module
+native-snes-module: build/migration/oscr_snes_banks.pic.o
+	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/retrode3-lib.pic.o
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_snes_posix.cpp \
+		src/retrode3/oscr_snes_adapter.cpp build/migration/retrode3-lib.pic.o \
+		build/migration/oscr_snes_banks.pic.o -o build/migration/snes.so
+
+test-native-snes-module: build/migration/oscr_snes_banks.pic.o test-native-snes test-core-registry
+	mkdir -p build/migration/real-snes-fixture
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_snes_posix.cpp \
+		src/retrode3/oscr_snes_adapter.cpp tests/mock_snes_kernel.cpp \
+		build/migration/oscr_snes_banks.pic.o -o build/migration/real-snes-fixture/snes.so
+	python3 -m unittest discover -s tests -p 'test_real_snes_adapter.py' -v
