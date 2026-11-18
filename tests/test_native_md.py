@@ -1,4 +1,5 @@
 """Read-only native OSCR MegaDrive stage-1 integration tests."""
+import io
 import json
 import os
 from pathlib import Path
@@ -45,7 +46,8 @@ class TestNativeMd(unittest.TestCase):
             out = Path(directory) / "cart.md"
             code, result = self.call("--action", "read-rom", "--output", str(out))
             self.assertEqual(code, 0, result)
-            rom = out.read_bytes()
+            with io.open(str(out), "rb") as handle:
+                rom = handle.read()
             self.assertEqual(len(rom), 524288)
             self.assertEqual(result["bytes_written"], len(rom))
             self.assertEqual(result["crc32"], "{:08X}".format(zlib.crc32(rom) & 0xffffffff))
@@ -56,11 +58,13 @@ class TestNativeMd(unittest.TestCase):
     def test_no_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "keep.md"
-            out.write_bytes(b"important")
+            with io.open(str(out), "wb") as handle:
+                handle.write(b"important")
             code, result = self.call("--action", "read-rom", "--output", str(out))
             self.assertEqual(code, 2)
             self.assertIn("exists", result["error"])
-            self.assertEqual(out.read_bytes(), b"important")
+            with io.open(str(out), "rb") as handle:
+                self.assertEqual(handle.read(), b"important")
 
     def test_reject_unknown_and_write_dependent_carts(self):
         for mode in ("header", "32x", "svp", "lockon", "size"):
@@ -82,16 +86,18 @@ class TestNativeMd(unittest.TestCase):
     def test_upstream_guard(self):
         with tempfile.TemporaryDirectory() as directory:
             original = ROOT / "third_party/oscr-firmware/src/cores/MegaDrive.cpp"
-            source = original.read_text(encoding="utf-8")
-            modified = source.replace("pulse_clock(10);", "pulse_clock(11);", 1)
-            # The first occurrence may precede readWord; change the exact region.
+            with io.open(str(original), "r", encoding="utf-8") as handle:
+                source = handle.read()
+            # Modify only the original readWord() body, not earlier functions.
+            modified = source
             begin = modified.index("  uint16_t readWord(uint32_t myAddress)")
             end = modified.index("  void writeFlash(", begin)
             region = modified[begin:end].replace("pulse_clock(10);", "pulse_clock(11);", 1)
             modified = modified[:begin] + region + modified[end:]
             upstream = Path(directory) / "MegaDrive.cpp"
             generated = Path(directory) / "core.cpp"
-            upstream.write_text(modified, encoding="utf-8")
+            with io.open(str(upstream), "w", encoding="utf-8") as handle:
+                handle.write(modified)
             p = subprocess.Popen(
                 ["python3", str(ROOT / "tools/build-linux-md-core.py"),
                  "--upstream", str(upstream), "--output", str(generated)],
