@@ -13,12 +13,14 @@
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
+#include <fcntl.h>
 #include <dlfcn.h>
 #include <fstream>
 #include <map>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <unistd.h>
 #include <vector>
 
@@ -306,6 +308,51 @@ Core const &find_usable(std::vector<Core> const &cores, std::string const &id)
     throw std::runtime_error("core is not installed");
 }
 
+// Single lock covering the shared cartridge bus for all NEW common-CLI
+// operations. The shipping OS must create /run/lock/retrode3 securely.
+// Existing legacy acceptance binaries do not yet participate in this lock.
+struct BusLock {
+    int fd;
+    explicit BusLock(std::string const &enabled_dir) : fd(-1) {
+#ifdef RETRODE3_TESTING
+        std::string path = enabled_dir + "/.bus.lock";
+#else
+        (void)enabled_dir;
+        std::string path = "/run/lock/retrode3/bus.lock";
+#endif
+        int flags = O_RDWR | O_CREAT;
+#ifdef O_NOFOLLOW
+        flags |= O_NOFOLLOW;
+#endif
+#ifdef O_CLOEXEC
+        flags |= O_CLOEXEC;
+#endif
+        fd = ::open(path.c_str(), flags, 0660);
+        if (fd < 0) throw std::runtime_error("cartridge bus lock unavailable");
+        struct stat st;
+        if (::fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
+            (st.st_mode & S_IWOTH)) {
+            ::close(fd);
+            fd = -1;
+            throw std::runtime_error("unsafe cartridge bus lock file");
+        }
+        if (::flock(fd, LOCK_EX | LOCK_NB) != 0) {
+            ::close(fd);
+            fd = -1;
+            throw std::runtime_error("cartridge bus busy");
+        }
+    }
+    ~BusLock() {
+        if (fd >= 0) {
+            ::flock(fd, LOCK_UN);
+            ::close(fd);
+        }
+    }
+private:
+    BusLock(BusLock const &);
+    BusLock &operator=(BusLock const &);
+};
+
 struct OpenCore {
     void *handle;
     const retrode3_core_operations_v1 *api;
@@ -444,7 +491,7 @@ int output_bytes(void *opaque, const void *bytes, size_t count)
         }
         ctx.done += count;
         if (ctx.done >= ctx.next_event && ctx.done < ctx.total) {
-            unsigned percent = static_cast<unsigned>((ctx.done * 100u) / ctx.total);
+            unsigned percent = static_cast<unsigned>((static_cast<std::uint64_t>(ctx.done) * 100u) / ctx.total);
             if (percent > 99) percent = 99;
             emit_progress(ctx, percent);
             ctx.next_event = ctx.done + ctx.increment;
@@ -561,6 +608,7 @@ void interactive(std::string const &available, std::string const &enabled)
                 emit_capabilities(stream, command.request_id, core_info);
                 continue;
             }
+            BusLock lock(enabled);
             OpenCore module(available + "/" + core_info.id + ".so");
             retrode3_probe_v1 info = probe(module);
             if (command.action == "probe") emit_probe(stream, command.request_id,
