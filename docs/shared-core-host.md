@@ -57,7 +57,15 @@ List installed and disabled modules without loading cartridge hardware:
 build/migration/retrode3-cli --list-cores --protocol ndjson-v1
 ```
 
-For installed and enabled cores only:
+For installed and enabled cores only, the same host offers both interactive
+and one-shot NDJSON commands:
+
+```sh
+build/migration/retrode3-cli --protocol ndjson-v1 --core snes --action probe
+build/migration/retrode3-cli --protocol ndjson-v1 --core snes --action read-rom --output /tmp/known-good.sfc
+```
+
+Interactive mode:
 
 ```sh
 build/migration/retrode3-cli --protocol ndjson-v1 --interactive
@@ -93,8 +101,9 @@ permissions allowing the CLI service account to create/access its lock.
 The **old standalone acceptance binaries do not use this lock**. Until they
 are retired or updated, do not run them concurrently with the shared CLI;
 additional web-backend orchestration is still needed.
-An explicit one-shot per-core `--action` is not implemented in this
-shared CLI yet; the older dedicated acceptance binaries still have it.
+Generic `--core ID --action probe|read-rom` is also supported in NDJSON
+one-shot mode, and invokes the same operation host. Unlike interactive
+mode, one-shot jobs cannot be cancelled via stdin while running.
 
 ## First actual dynamically loadable original OSCR core
 
@@ -148,15 +157,19 @@ overwrite any preinstalled production package or registered module.
 install -d -m 755 /usr/lib/retrode3/cores-available
 install -d -m 755 /etc/retrode3/cores-enabled
 install -d -m 755 /run/lock/retrode3
-# Only if these paths do not already exist:
-install -m 644 build/migration/snes.so /usr/lib/retrode3/cores-available/snes.so
-install -m 644 packaging/cores/snes.core /usr/lib/retrode3/cores-available/snes.core
-build/migration/retrode3-corectl enable snes
+# Only if the destination module and manifest do not already exist.
+# Stop and inspect first if they are already installed by a package.
+if [ ! -e /usr/lib/retrode3/cores-available/snes.so ] && \
+   [ ! -e /usr/lib/retrode3/cores-available/snes.core ]; then
+    install -m 644 build/migration/snes.so /usr/lib/retrode3/cores-available/snes.so
+    install -m 644 packaging/cores/snes.core /usr/lib/retrode3/cores-available/snes.core
+    build/migration/retrode3-corectl enable snes
+else
+    echo 'Existing SNES installation detected: inspect before any changes'
+fi
 
 build/migration/retrode3-cli --list-cores
-printf '%s\n' \
-  '{"command":"probe","core":"snes","request_id":"hw1"}' \
-  | build/migration/retrode3-cli --protocol ndjson-v1 --interactive
+build/migration/retrode3-cli --protocol ndjson-v1 --core snes --action probe
 ```
 
 Only after a plausible probe, perform a read-only dump to a fresh output
