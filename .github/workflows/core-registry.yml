@@ -18,6 +18,7 @@ on:
       - 'include/retrode3/oscr_snes_compat.h'
       - 'src/retrode3/oscr_snes_native.cpp'
       - 'tests/test_real_snes_adapter.py'
+      - 'packaging/cores/snes.core'
       - 'tests/mock_core_module.cpp'
       - 'tests/test_core_registry.py'
       - 'tests/test_shared_core_host.py'
@@ -42,6 +43,11 @@ jobs:
         run: make -f Makefile.migration test-core-registry
       - name: Compare genuine SNES module against original acceptance runner
         run: make -f Makefile.migration test-native-snes-module
+      - name: Prepare offline core image staging without installing or enabling
+        run: |
+          make -f Makefile.migration stage-snes-module
+          test -f build/migration/stage/usr/lib/retrode3/cores-available/snes.so
+          cmp packaging/cores/snes.core build/migration/stage/usr/lib/retrode3/cores-available/snes.core
       - name: Verify pinned upstream checkout untouched
         run: |
           git -C third_party/oscr-firmware diff --exit-code
