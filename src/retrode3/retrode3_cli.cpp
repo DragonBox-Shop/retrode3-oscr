@@ -3,10 +3,13 @@
 // enabled, trusted modules are loaded for descriptor/ABI verification.
 // This is NOT yet the common cartridge operation runner.
 #include "retrode3/core_descriptor_v1.h"
+#include "retrode3/core_operations_v1.h"
 #include "retrode3/ndjson_protocol.h"
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
@@ -27,6 +30,8 @@ struct Core {
     std::string slot;
     std::string status;
     bool enabled;
+    bool usable;
+    bool can_read_rom;
 };
 
 bool is_slug(std::string const &s)
@@ -120,7 +125,7 @@ Core load_manifest(std::string const &path, std::string const &expected_id)
     }
     if (input.bad()) throw std::runtime_error("core manifest read failed");
     Core c = {fields["id"], fields["name"], fields["version"],
-              fields["slot"], "disabled", false};
+              fields["slot"], "disabled", false, false, false};
     if (fields.size() != 4 || c.id != expected_id || !is_slug(c.id) ||
         !is_slug(c.slot) || !valid_text(c.name, 128) ||
         !valid_text(c.version, 64))
@@ -150,32 +155,53 @@ bool enabled_link(std::string const &path, std::string const &target,
     return std::string(buffer, static_cast<std::size_t>(n)) == target;
 }
 
-bool compatible(std::string const &file, Core const &core)
+bool valid_operations(const retrode3_core_operations_v1 *api)
 {
-    // An enabled module is trusted package code and may execute constructors.
-    // It must never be loaded from a user-provided directory in production.
+    return api &&
+           api->abi_version == RETRODE3_CORE_OPERATION_ABI_V1 &&
+           api->struct_size >= sizeof(retrode3_core_operations_v1) &&
+           api->probe && api->release;
+}
+
+// -1 = invalid, 0 = valid metadata only, 1 = runnable operation ABI.
+int compatible(std::string const &file, Core const &core,
+               bool &can_read_rom)
+{
     void *handle = ::dlopen(file.c_str(), RTLD_NOW | RTLD_LOCAL);
-    if (!handle) { note(core.id, "module load failed"); return false; }
-    bool ok = false;
+    if (!handle) { note(core.id, "module load failed"); return -1; }
+    int status = -1;
     try {
         void *symbol = ::dlsym(handle, "retrode3_core_describe_v1");
         if (symbol) {
             retrode3_core_describe_v1_fn describe =
                 reinterpret_cast<retrode3_core_describe_v1_fn>(symbol);
             const retrode3_core_descriptor_v1 *d = describe();
-            ok = d && d->abi_version == RETRODE3_CORE_DISCOVERY_ABI_V1 &&
+            bool match = d && d->abi_version == RETRODE3_CORE_DISCOVERY_ABI_V1 &&
                 d->struct_size >= sizeof(retrode3_core_descriptor_v1) &&
                 d->id && d->name && d->version && d->slot &&
                 core.id == d->id && core.name == d->name &&
                 core.version == d->version && core.slot == d->slot;
+            if (match) {
+                status = 0;
+                void *op_sym = ::dlsym(handle, "retrode3_core_get_operations_v1");
+                if (op_sym) {
+                    retrode3_core_operations_v1_fn getter =
+                        reinterpret_cast<retrode3_core_operations_v1_fn>(op_sym);
+                    const retrode3_core_operations_v1 *api = getter();
+                    if (valid_operations(api)) {
+                        can_read_rom = api->read_rom != NULL;
+                        status = 1;
+                    } else status = -1;
+                }
+            }
         }
     } catch (...) {
         ::dlclose(handle);
         throw;
     }
     ::dlclose(handle);
-    if (!ok) note(core.id, "incompatible discovery ABI or metadata");
-    return ok;
+    if (status < 0) note(core.id, "incompatible discovery/operation ABI or metadata");
+    return status;
 }
 
 std::vector<Core> discover(std::string const &available,
@@ -210,8 +236,10 @@ std::vector<Core> discover(std::string const &available,
                 core.status = "invalid_link";
                 note(id, "enablement must be a trusted link to the packaged module");
             } else if (valid) {
-                core.status = compatible(base + ".so", core) ?
-                    "discovered" : "incompatible";
+                int result = compatible(base + ".so", core, core.can_read_rom);
+                core.usable = (result == 1);
+                core.status = result == 1 ? "ready" :
+                    (result == 0 ? "discovered" : "incompatible");
             }
             cores.push_back(core);
         }
@@ -225,10 +253,12 @@ std::vector<Core> discover(std::string const &available,
     return cores;
 }
 
-std::string to_json(std::vector<Core> const &cores)
+std::string to_json(std::vector<Core> const &cores,
+                    std::string const &request_id = "cli")
 {
     std::string json = "{\"protocol\":\"retrode3-ndjson\",\"version\":1,"
-        "\"event\":\"cores\",\"request_id\":\"cli\","
+        "\"event\":\"cores\",\"request_id\":" +
+        retrode3::NdjsonProtocol::quote(request_id) + ","
         "\"discovery_abi\":1,\"cores\":[";
     for (std::size_t i = 0; i < cores.size(); ++i) {
         Core const &c = cores[i];
@@ -240,7 +270,10 @@ std::string to_json(std::vector<Core> const &cores)
               + ",\"installed\":true,\"enabled\":"
               + (c.enabled ? "true" : "false")
               + ",\"status\":" + retrode3::NdjsonProtocol::quote(c.status)
-              + ",\"usable\":false,\"actions\":[]}";
+              + ",\"usable\":" + (c.usable ? "true" : "false")
+              + ",\"actions\":" + (c.usable
+                    ? (c.can_read_rom ? "[\"probe\",\"read_rom\"]" : "[\"probe\"]")
+                    : "[]") + "}";
     }
     return json + "]}";
 }
