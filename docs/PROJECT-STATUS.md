@@ -126,6 +126,25 @@ algorithms behind that adapter. NES follows MD. Keep CI tests and real-cart
 read-only checks at each step. No claim that this runtime is implemented
 until code and tests demonstrate it.
 
+## Independently installable core registry (feature branch; CI pending)
+
+`feature/core-registry` builds the first central `retrode3-cli`
+**discovery-only** executable, independent of the SNES/MD acceptance runners.
+It discovers dynamically installed root-owned `<id>.so` adapters under
+`/usr/lib/retrode3/cores` via C-compatible versioned descriptor ABI v1,
+rejects unsafe paths/symlinks, incompatible ABI and mismatched identities,
+and emits one NDJSON `cores` event. The core listing is sorted and reflects
+install/removal without rebuilding the CLI; it does **not** access hardware.
+Dedicated install/remove mock modules and CI are added.
+
+**Critical:** The existing .a archives are *not* installable `.so` packages.
+The initial descriptor ABI is metadata-only. All discovered modules have
+`usable:false` and `actions:[]` until the shared operation ABI and
+working per-core adapters are implemented, tested, and registered. Do not
+present these as working SNES/MD cores in the frontend. Install/uninstall
+via Debian package manager is an OS repo task, not a web/core CLI command.
+See [core registry contract](core-registry.md). Keep web/UI work isolated.
+
 ## MegaDrive next-stage scope: all feasible special carts and saves (2026-11-18)
 
 The goal is broader than standard linear ROMs: integrate the **original**
