@@ -83,21 +83,25 @@ not modify its implementation in this repository as part of core porting.
 
 ## Installable core discovery (decision 2026-11-18)
 
-**Software cores must be independently installable/removable** (RetroArch-like),
-not baked into the main CLI permanently. The current `.a` libraries are
-experimental acceptance builds; they cannot be uninstalled at runtime.
-Plan root-managed, versioned adapter `.so` packages in
-`/usr/lib/retrode3/cores`, installed/removed by Debian `.deb` packages
-in the OS repository, not by web uploads. `retrode3-cli` owns one central
-registry and outputs a machine-readable `cores` NDJSON event. The initial
-metadata-only discovery prototype is documented in
+**Ship all released and hardware-safe software cores preinstalled on
+the Retrode3 SD-card OS image**, so normal use is fully offline. Keep
+independently installable/updateable `.so` packages, not compiled into the
+main CLI: package-managed modules and static `.core` metadata under
+`/usr/lib/retrode3/cores-available`, with Apache-style **root-owned symlinks**
+in `/etc/retrode3/cores-enabled` pointing only to the exact corresponding
+module. Disabled modules remain listed but are never loaded; enabling or
+disabling must work offline without apt or downloading anything. The
+`retrode3-corectl` root-only fixed-path helper performs the symlink toggle,
+not the unprivileged discovery CLI or a browser with general root access.
+The initial static `.a` acceptance libraries are not installable modules.
+`retrode3-cli` emits the `cores` NDJSON event with separate `installed`,
+`enabled`, `status`, `usable` and `actions` fields. See
 [docs/core-registry.md](docs/core-registry.md). **Discovered != usable**:
 never show installed but unimplemented cores as callable operations.
-Distinguish software cores from physically inserted hardware adapters,
-slot compatibility and detected cartridge presence; all are separate states.
-Only verified root-owned plugins in a trusted fixed directory are eligible
-for loading; never load a user-provided path from an HTTP/NDJSON command.
-The operation dispatch ABI and physical verification follow separately.
+Distinguish software cores, physically inserted cartridge adapters, slot
+compatibility and cartridge presence; all are separate states. Reject
+user-supplied plugin paths and untrusted/misdirected symlinks. The operation
+dispatch ABI, SD-image packaging and physical verification follow separately.
 
 ## Safe engineering workflow
 
