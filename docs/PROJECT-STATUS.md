@@ -94,6 +94,38 @@ Native CLI database lookup and the complete upstream MegaDrive reader
 remain pending. Reproduce with [MD stage-1 hardware instructions](oscr-linux-md-stage1.md). Never
 start by testing a write-dependent special cart.
 
+## Shared native host architecture (decision 2026-11-18)
+
+**All console cores share one Retrode3-owned CLI and NDJSON v1 runtime.**
+Progress updates, cancellation, checksums, safe/atomic files, request IDs,
+protocol error reporting, per-slot job exclusivity, command validation and
+capability discovery belong exclusively to this common host, **not** to
+individual Sanni cartridge cores. Never reimplement these separately in
+NES, MegaDrive, SNES or add them to the upstream checkout. The original
+Sanni ROM/save/mapper algorithms should remain pristine except for small,
+deterministic GPIO-to-typed-HAL substitutions. POSIX/OSCR Storage,
+ProgressBar, UI, Power and Time shims call shared host services.
+
+The two native per-console binaries currently in this repository are
+**acceptance prototypes**. `oscr-snes-native` already implements NDJSON
+v1 and is physically verified; `oscr-md-native` is a one-shot JSON
+acceptance runner only. Neither is the target production architecture.
+Extract/reuse the existing `ndjson_protocol` parser in a single common
+Retrode3 executable, then register each static core library using a typed
+`probe / read_rom / read_save / capabilities` interface and host callbacks
+for progress/cancel/output. Core capabilities must distinguish implemented
+features from upstream-declared and physically-verified features; never
+advertise unsupported mapper/save writes. The web frontend/backend is being
+developed separately in the Retrode3 OS project and should not require
+per-core process/protocol special cases.
+
+**Next implementation sequence:** first establish the common host/core API
+and move the proven SNES/MD runtime wrappers to it without changing the
+working hardware paths; then add the original MD metadata/mapper/save
+algorithms behind that adapter. NES follows MD. Keep CI tests and real-cart
+read-only checks at each step. No claim that this runtime is implemented
+until code and tests demonstrate it.
+
 ## MegaDrive next-stage scope: all feasible special carts and saves (2026-11-18)
 
 The goal is broader than standard linear ROMs: integrate the **original**
