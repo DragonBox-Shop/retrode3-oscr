@@ -131,7 +131,19 @@ An exact-version `packaging/cores/snes.core` is included, and
 *not* automatically installed in the device's live filesystem by the build. Debian image packaging is a separate OS-repository task.
 Do not install a module as if hardware-verified solely on successful CI.
 
-## MIPS hardware acceptance (pending; never automatic)
+## MIPS hardware acceptance (build passed, test retest pending)
+
+The real Retrode3 2.9.5 successfully compiled and staged `snes.so`
+with GCC C++11. `retrode3-cli --list-cores` returned an empty list as
+expected before installation. The first target-side legacy SNES test suite
+failed on 8 uses of Python 3.5+ `pathlib` file I/O methods, unrelated to
+the core implementation. Those calls have now been replaced with Python
+3.4-compatible `io.open()`, and a static guard checks the native test
+suites before build acceptance. Run the commands below on the updated
+branch to confirm the full target-side suite, then follow the existing
+read-only physical acceptance steps. The new dynamic adapter is **not
+yet** hardware-verified.
+
 
 The build and CI run only virtual/mock cartridge hardware. The actual
 Retrode3 2.9.5 MIPS native shared module has **not** been physically
