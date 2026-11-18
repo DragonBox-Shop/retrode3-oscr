@@ -51,7 +51,7 @@ Related repositories:
   2.84s user / 31.75s sys. C++ was ~3.6% faster in these single runs;
   both share the kernel bus and larger hardware timing optimizations remain.
 
-## Native MegaDrive stage 1 (feature branch, CI and hardware pending)
+## Native MegaDrive stage 1 (feature branch, CI passed; hardware pending)
 
 The isolated `feature/native-md-stage1` branch adds a generated static
 `liboscr-md-core.a` from the pinned original `MegaDrive.cpp` methods
@@ -72,9 +72,10 @@ corrections, mapping or database logic.
 
 Build and mock tests: `make -f Makefile.migration test-native-md` and
 `make -f Makefile.migration native-md` after submodule init. The dedicated
-CI workflow is `.github/workflows/native-md-migration.yml`. Until its run
-finishes successfully this is **implemented, not CI verified**. Hardware
-readback and independent reference ROM comparison are still pending. Never
+CI workflow is `.github/workflows/native-md-migration.yml`. Dedicated workflow [run 44216393549](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44216393549)
+**passed** including native C++ mock tests and Linux link against the C slot
+library. Hardware readback and independent reference ROM comparison are still
+pending. Reproduce with [MD stage-1 hardware instructions](oscr-linux-md-stage1.md). Never
 start by testing a write-dependent special cart.
 
 ## Current implementation and limitations
