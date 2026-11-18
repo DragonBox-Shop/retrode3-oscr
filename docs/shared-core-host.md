@@ -41,7 +41,11 @@ make -f Makefile.migration stage-snes-module
 module/manifest directory overrides. Installed modules live under
 `/usr/lib/retrode3/cores-available` and are enabled with trusted symlinks
 under `/etc/retrode3/cores-enabled`. A disabled core is listed without
-`dlopen`; a descriptor-only module is not runnable.
+`dlopen`; a descriptor-only module is not runnable. Enabled modules are
+loaded to inspect their metadata and operation ABI: **shared-library
+constructors, descriptor functions and operation-getter functions must never
+access a cartridge or toggle its power**. Actual cartridge operations run
+only after acquiring the common-host bus lock.
 
 The core-registry CI uses mock modules and the real **generated upstream
 SNES C++ code with a fake kernel** to compare byte-for-byte against the
