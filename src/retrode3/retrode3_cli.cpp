@@ -629,6 +629,7 @@ int main(int argc, char **argv)
 {
     std::string available = "/usr/lib/retrode3/cores-available";
     std::string enabled = "/etc/retrode3/cores-enabled";
+    std::string core_id, action, output;
     bool list = false, streamed = false, run_interactive = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -638,6 +639,13 @@ int main(int argc, char **argv)
                  std::string(argv[i + 1]) == "ndjson-v1") {
             ++i;
             streamed = true;
+        } else if (arg == "--core" && i + 1 < argc && core_id.empty()) {
+            core_id = argv[++i];
+        } else if (arg == "--action" && i + 1 < argc && action.empty()) {
+            action = argv[++i];
+            if (action == "read-rom") action = "read_rom";
+        } else if (arg == "--output" && i + 1 < argc && output.empty()) {
+            output = argv[++i];
         }
 #ifdef RETRODE3_TESTING
         else if (arg == "--available-dir" && i + 1 < argc)
@@ -647,19 +655,52 @@ int main(int argc, char **argv)
 #endif
         else {
             std::fprintf(stderr,
-                "usage: retrode3-cli --list-cores [--protocol ndjson-v1] "
-                "| --protocol ndjson-v1 --interactive\n");
+                "usage: retrode3-cli --list-cores | --protocol ndjson-v1 "
+                "--interactive | --protocol ndjson-v1 --core ID "
+                "--action probe|read-rom [--output FILE]\n");
             return 2;
         }
     }
-    if (list == run_interactive || (run_interactive && !streamed)) {
-        std::fprintf(stderr, "choose --list-cores or --interactive with NDJSON\n");
+    unsigned mode_count = (list ? 1u : 0u) + (run_interactive ? 1u : 0u)
+                        + (!action.empty() ? 1u : 0u);
+    if (mode_count != 1 || ((run_interactive || !action.empty()) && !streamed) ||
+        ((list || run_interactive) && (!core_id.empty() || !output.empty())) ||
+        (!action.empty() && (!is_slug(core_id) ||
+                             (action != "probe" && action != "read_rom") ||
+                             (action == "read_rom" && output.empty()) ||
+                             (action == "probe" && !output.empty())))) {
+        std::fprintf(stderr, "invalid Retrode3 command mode/options\n");
         return 2;
     }
     try {
-        if (list)
+        if (list) {
             retrode3::NdjsonProtocol(false).emit(to_json(discover(available, enabled)));
-        else interactive(available, enabled);
+        } else if (run_interactive) {
+            interactive(available, enabled);
+        } else {
+            retrode3::NdjsonProtocol stream(false);
+            try {
+                Core const &c = find_usable(discover(available, enabled), core_id);
+                BusLock lock(enabled);
+                OpenCore module(available + "/" + c.id + ".so");
+                retrode3_probe_v1 info = probe(module);
+                if (action == "probe") {
+                    emit_probe(stream, "cli", c.id, info);
+                } else {
+                    retrode3::WebCommand command;
+                    command.action = "read_rom";
+                    command.core = c.id;
+                    command.request_id = "cli";
+                    command.output = output;
+                    read_rom(stream, command, module, info);
+                }
+            } catch (std::exception const &e) {
+                std::string why(e.what());
+                emit_error(stream, "cli", why == "cancelled" ? "cancelled"
+                                                            : "operation_failed", why);
+                return 2;
+            }
+        }
         return 0;
     } catch (std::exception const &e) {
         std::fprintf(stderr, "Retrode3 host failed: %s\n", e.what());
