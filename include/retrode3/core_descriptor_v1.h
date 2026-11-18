@@ -7,6 +7,10 @@
  * Stable discovery ABI for optional, independently packaged Retrode3
  * cartridge cores. This is metadata ONLY, not an operation dispatch ABI.
  * Publishing a descriptor never implies that a cartridge operation is safe.
+ * Discovery may dlopen enabled modules WITHOUT first locking the bus:
+ * constructors and descriptor/ABI getter callbacks MUST perform no cartridge
+ * I/O, hardware power changes or write operations. Only explicit host-locked
+ * operation callbacks may access the bus.
  *
  * The core library must export the symbol:
  *   const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void);
