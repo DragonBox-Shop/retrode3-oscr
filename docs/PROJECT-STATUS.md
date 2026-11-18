@@ -175,6 +175,19 @@ A complete MIPS `test-native-snes-module` retest and **physical** SNES
 ROM/CRC validation are still pending. Do not claim hardware verification
 of the new shared-host `.so` based on the successful build alone.
 
+## Target GCC 4.9 ABI initializer fix (2026-11-18)
+
+A second native Retrode3 2.9.5 acceptance run confirmed **all 16**
+legacy native SNES tests pass on Python 3.4 after the `io.open()` fix.
+The next `native-core-registry` build then failed in
+`src/retrode3/retrode3_cli.cpp`: GCC 4.9 with
+`-Werror=missing-field-initializers` rejects
+`retrode3_probe_v1 result = {};`. The host now explicitly zeroes this
+POD C-ABI structure with `std::memset(&result, 0, sizeof(result))` before
+setting `struct_size`. The compiler warning is **not disabled**.
+The user's full `test-native-snes-module` command still needs a new
+MIPS run to verify this specific compatibility fix and its remaining tests.
+
 ## Shared operation runtime and first real dynamic core (2026-11-18)
 
 Branch `feature/shared-core-host` (draft PR #5, parent
