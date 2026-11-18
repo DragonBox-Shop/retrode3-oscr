@@ -1,0 +1,32 @@
+name: Native Retrode3 core registry
+
+on:
+  push:
+    branches:
+      - feature/core-registry
+      - migration/oscr-firmware
+  pull_request:
+    paths:
+      - 'include/retrode3/core_descriptor_v1.h'
+      - 'src/retrode3/retrode3_cli.cpp'
+      - 'tests/mock_core_module.cpp'
+      - 'tests/test_core_registry.py'
+      - 'Makefile.migration'
+      - '.github/workflows/core-registry.yml'
+  workflow_dispatch:
+
+jobs:
+  core-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Build real native registry CLI
+        run: make -f Makefile.migration native-core-registry
+      - name: Test module discovery without hardware
+        run: make -f Makefile.migration test-core-registry
+      - name: Empty production registry must never advertise missing cores
+        run: |
+          output="$(build/migration/retrode3-cli --list-cores)"
+          printf '%s\n' "$output" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["event"] == "cores" and d["cores"] == []'
