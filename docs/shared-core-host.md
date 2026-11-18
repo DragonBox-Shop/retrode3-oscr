@@ -1,0 +1,131 @@
+# Shared Retrode3 core host: dynamic operation API and SNES adapter
+
+**State:** experimental, branch `feature/shared-core-host`, draft PR #5.
+This is the foundation of the common runtime, not a production replacement
+for the existing hardware-tested SNES/MD acceptance readers.
+
+## Architecture
+
+```text
+Web backend (separate OS repository; not yet connected)
+  -> ONE retrode3-cli [NDJSON v1, job lifecycle, progress/cancel/CRC/output]
+    -> fixed-path, root-installed core discovery and enablement registry
+      -> versioned C core-operation ABI in a .so Retrode3 adapter
+        -> generated original Sanni OSCR C++ functions
+          -> POSIX OSCR shim -> ReadBus HAL -> Retrode3 kernel
+```
+
+The pinned original OSCR submodule remains untouched. The build generator
+checks the original source and fails on unreviewed direct AVR changes.
+Only Retrode3 code has a JSON protocol, input parser, file output, CRC and
+progress counter. The new `include/retrode3/core_operations_v1.h`
+provides a C-compatible ABI with `probe`, `read_rom`, `release`, and
+host `write` / `cancelled` callbacks. Core modules must never allow
+C++ exceptions across this boundary. The host accepts a byte stream and
+owns no-overwrite output publication and CRC32 computation. Progress reflects
+**successful file-write bytes**, not guessed bus reads.
+
+## Build and mocked tests
+
+```sh
+git submodule update --init third_party/oscr-firmware
+make -f Makefile.migration native-core-registry
+make -f Makefile.migration test-core-registry
+make -f Makefile.migration native-snes-module
+make -f Makefile.migration test-native-snes-module
+```
+
+`build/migration/retrode3-cli` is the real central host. The test-only
+`retrode3-cli-mock` permits custom fixture paths. The real CLI accepts no
+module/manifest directory overrides. Installed modules live under
+`/usr/lib/retrode3/cores-available` and are enabled with trusted symlinks
+under `/etc/retrode3/cores-enabled`. A disabled core is listed without
+`dlopen`; a descriptor-only module is not runnable.
+
+The core-registry CI uses mock modules and the real **generated upstream
+SNES C++ code with a fake kernel** to compare byte-for-byte against the
+existing native SNES acceptance runner. Cancelling a read must remove
+temporary output and produce no successful result. Re-running the
+older SNES/MD acceptance suites protects the already-proven physical paths.
+
+## Protocol
+
+List installed and disabled modules without loading cartridge hardware:
+
+```sh
+build/migration/retrode3-cli --list-cores --protocol ndjson-v1
+```
+
+For installed and enabled cores only:
+
+```sh
+build/migration/retrode3-cli --protocol ndjson-v1 --interactive
+```
+
+One JSON command per line:
+
+```json
+{"command":"list_cores","request_id":"list1"}
+{"command":"get_capabilities","core":"snes","request_id":"caps1"}
+{"command":"probe","core":"snes","request_id":"probe1"}
+{"command":"read_rom","core":"snes","request_id":"rom1","output":"/tmp/known-good.sfc"}
+{"command":"cancel","request_id":"rom1"}
+```
+
+Each command is a **separate** NDJSON line, not an array. The `cancel`
+command may arrive while `read_rom` runs; its request ID must match the
+running job. The host sends `ready`, `cores`, `capabilities`,
+`probe_result`, `progress`, `result`, and `error` events with the
+common protocol/version prefix where supported. Progress ends at 100%
+only after successful no-clobber file publication; `verified:null` remains
+until original OSCR CRDB verification is implemented.
+
+The host currently refuses mapping/size overrides that differ from the
+probe result. Validated backend-controlled absolute output paths are
+required: the CLI rejects relative/traversal paths but **does not enforce
+a configured write-root**. The web backend must enforce its own private
+output directory and never pass arbitrary browser-supplied paths to CLI.
+Cartridge operations are serialized per CLI instance; **global device locking
+across processes is not yet implemented** and is required before production.
+An explicit one-shot per-core `--action` is not implemented in this
+shared CLI yet; the older dedicated acceptance binaries still have it.
+
+## First actual dynamically loadable original OSCR core
+
+`make -f Makefile.migration native-snes-module` produces
+`build/migration/snes.so` linked with the **real original pinned**
+`OSCR::Cores::SNES::checkcart()`, `readLoRomBanks()` and
+`readHiRomBanks()` from our strict build generator. Its Retrode3 adapter
+and shared POSIX shim live separately in
+`src/retrode3/oscr_snes_adapter.cpp` and
+`src/retrode3/oscr_snes_posix.cpp`.
+The legacy `oscr-snes-native` runner now reuses that same POSIX shim.
+
+Scope is **standard SNES LoROM/HiROM up to 4 MiB without special chips or
+SRAM**. This does NOT expose enhanced-chips, SRAM, save restoration, or a
+complete original OSCR SNES ROM dispatcher. The same ABI can later wrap
+the original MegaDrive, NES and their mapper/save operations.
+
+The production `.so` and a matching `snes.core` manifest are *not*
+automatically installed in `/usr/lib/retrode3/cores-available` by
+the build. Debian image packaging is a separate OS-repository task.
+Do not install a module as if hardware-verified solely on successful CI.
+
+## Unfinished foundation work (in priority order)
+
+1. Verify MIPS build, core listing, and safe physical read/CRC of the real
+   SNES module against the already verified Terranigma reference before
+   enabling a module in the shipping image.
+2. Move per-console protocol-specific code out of legacy acceptances
+   after the common host has parity; keep them as rollback/test references.
+3. Implement one global bus lock across all processes/jobs, backend-owned
+   output roots and privilege separation, bounded resource policies, robust
+   per-core error taxonomy and recovery on abnormal exit.
+4. Build signed/offline packages and ship all **released/verified** cores
+   on the SD image; secure privilege bridge for web toggles.
+5. Extend the generic adapter ABI for `read_save`, mapper/capability
+   policies and database matching. Then implement additional Sanni core
+   functions with source-guarded GPIO substitutions and physical tests.
+
+Do not change the pinned upstream firmware or merge draft work to master
+without physical acceptance.
