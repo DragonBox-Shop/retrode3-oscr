@@ -1,6 +1,9 @@
 # Installable Retrode3 cartridge cores: discovery registry v1
 
-Status: 2026-11-18, branch `feature/core-registry`. This is a discovery
+Status: 2026-11-18, branch `feature/core-registry`. Dedicated
+[core-registry CI](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44220994929)
+**passed**. Actual Retrode3 MIPS hardware execution remains pending.
+This is a discovery
 milestone, **not** the full common job runner or an installable SNES/MD release.
 
 ## Goal
