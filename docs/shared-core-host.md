@@ -33,6 +33,7 @@ make -f Makefile.migration native-core-registry
 make -f Makefile.migration test-core-registry
 make -f Makefile.migration native-snes-module
 make -f Makefile.migration test-native-snes-module
+make -f Makefile.migration stage-snes-module
 ```
 
 `build/migration/retrode3-cli` is the real central host. The test-only
@@ -85,8 +86,13 @@ probe result. Validated backend-controlled absolute output paths are
 required: the CLI rejects relative/traversal paths but **does not enforce
 a configured write-root**. The web backend must enforce its own private
 output directory and never pass arbitrary browser-supplied paths to CLI.
-Cartridge operations are serialized per CLI instance; **global device locking
-across processes is not yet implemented** and is required before production.
+Cartridge operations in the **new shared CLI** use an exclusive,
+nonblocking Linux `flock` at `/run/lock/retrode3/bus.lock`, held through
+core release. The OS must securely create `/run/lock/retrode3` with
+permissions allowing the CLI service account to create/access its lock.
+The **old standalone acceptance binaries do not use this lock**. Until they
+are retired or updated, do not run them concurrently with the shared CLI;
+additional web-backend orchestration is still needed.
 An explicit one-shot per-core `--action` is not implemented in this
 shared CLI yet; the older dedicated acceptance binaries still have it.
 
@@ -106,9 +112,10 @@ SRAM**. This does NOT expose enhanced-chips, SRAM, save restoration, or a
 complete original OSCR SNES ROM dispatcher. The same ABI can later wrap
 the original MegaDrive, NES and their mapper/save operations.
 
-The production `.so` and a matching `snes.core` manifest are *not*
-automatically installed in `/usr/lib/retrode3/cores-available` by
-the build. Debian image packaging is a separate OS-repository task.
+An exact-version `packaging/cores/snes.core` is included, and
+`stage-snes-module` copies both files into a **non-live**
+`build/migration/stage/usr/lib/retrode3/cores-available` tree. The files are
+*not* automatically installed in the device's live filesystem by the build. Debian image packaging is a separate OS-repository task.
 Do not install a module as if hardware-verified solely on successful CI.
 
 ## Unfinished foundation work (in priority order)
@@ -118,9 +125,10 @@ Do not install a module as if hardware-verified solely on successful CI.
    enabling a module in the shipping image.
 2. Move per-console protocol-specific code out of legacy acceptances
    after the common host has parity; keep them as rollback/test references.
-3. Implement one global bus lock across all processes/jobs, backend-owned
-   output roots and privilege separation, bounded resource policies, robust
-   per-core error taxonomy and recovery on abnormal exit.
+3. Extend the already implemented common-host `flock` protection to the
+   remaining legacy access paths, then add backend-owned output roots and
+   privilege separation, bounded resource policies, robust per-core error
+   taxonomy and recovery on abnormal exit.
 4. Build signed/offline packages and ship all **released/verified** cores
    on the SD image; secure privilege bridge for web toggles.
 5. Extend the generic adapter ABI for `read_save`, mapper/capability
