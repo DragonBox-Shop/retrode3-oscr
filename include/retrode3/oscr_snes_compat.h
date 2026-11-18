@@ -39,8 +39,13 @@ namespace Storage {
 class File {
 public:
     typedef void (*WriteCallback)(std::size_t bytes_written, void *context);
+    typedef int (*OutputSink)(void *context, void const *data, std::size_t count);
     explicit File(std::FILE *handle)
-        : handle_(handle), count_(0), callback_(nullptr), context_(nullptr) {}
+        : handle_(handle), sink_(nullptr), sink_context_(nullptr),
+          count_(0), callback_(nullptr), context_(nullptr) {}
+    File(OutputSink sink, void *context)
+        : handle_(nullptr), sink_(sink), sink_context_(context),
+          count_(0), callback_(nullptr), context_(nullptr) {}
     void write(void const *data, std::size_t count);
     std::size_t bytes_written() const { return count_; }
     void on_write(WriteCallback callback, void *context) {
@@ -49,6 +54,8 @@ public:
     }
 private:
     std::FILE *handle_;
+    OutputSink sink_;
+    void *sink_context_;
     std::size_t count_;
     WriteCallback callback_;
     void *context_;
