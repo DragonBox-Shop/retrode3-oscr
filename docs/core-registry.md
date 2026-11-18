@@ -1,34 +1,67 @@
-# Installable Retrode3 cartridge cores: discovery registry v1
+# Offline-preinstalled Retrode3 cores and enable/disable registry
 
-Status: 2026-11-18, branch `feature/core-registry`. Dedicated
-[core-registry CI](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44220994929)
-**passed**. Actual Retrode3 MIPS hardware execution remains pending.
-This is a discovery
-milestone, **not** the full common job runner or an installable SNES/MD release.
+Status: 2026-11-18, branch `feature/core-registry`.
+**Registry and helper are development prototypes** until target MIPS tests
+and the real operation ABI/packaged OSCR modules are completed.
+All earlier approved SNES/MD ROM dumps remain in the separate acceptance
+programs. The pristine pinned Sanni upstream submodule is unchanged.
 
-## Goal
+## Shipping policy: all supported cores offline
 
-Behave like RetroArch's independent installed cores, while keeping the
-Retrode3 Linux kernel/HAL and the original pinned Sanni OSCR firmware clean:
+Each Retrode3 SD-card OS image should ship with **all released, hardware-safe
+cores preinstalled**, including the corresponding module, manifest and all
+dependencies. No Internet is required to enable a core or read a game.
+Unused modules stay on the card and can be switched on and off without
+installation, downloads or rebuilding the CLI. Unfinished mapper/save cores
+must not be advertised as usable in a release image.
 
-- The single Retrode3-owned `retrode3-cli` discovers software core packages
-  at runtime, with no hard-coded system menu.
-- An administrator may install or remove optional `.deb` packages
-  (`retrode3-core-snes`, `retrode3-core-md`, later NES and more).
-  Installation/removal is managed by Debian/apt/dpkg in the OS repository,
-  **not** by the web-facing CLI or by raw internet downloads.
-- Each package will install a Retrode3-owned adapter `<id>.so` under
-  `/usr/lib/retrode3/cores`. The adapter wraps the pinned original OSCR
-  cartridge library and exposes a versioned host ABI; upstream source stays
-  unmodified. Updating or removing an adapter does not require relinking the
-  common executable.
-- The backend queries the CLI and displays only *usable* installed cores.
-  A detected physical cartridge adapter/slot is a separate concept; do not
-  confuse software `core` packages with hardware plugin adapters.
+An installed software core and a physical cartridge adapter are different:
+slot/adapter presence must be discovered separately. Enablement is likewise
+distinct from ABI compatibility and currently implemented operations.
 
-## Implemented now: metadata discovery (no cartridge access)
+### Apache-style directories
 
-Build:
+```text
+/usr/lib/retrode3/cores-available/
+    snes.so
+    snes.core
+    md.so
+    md.core
+    nes.so
+    nes.core
+
+/etc/retrode3/cores-enabled/
+    snes.so -> /usr/lib/retrode3/cores-available/snes.so
+    md.so   -> /usr/lib/retrode3/cores-available/md.so
+```
+
+Package-managed `cores-available` is read-only to unprivileged users.
+The root-owned `cores-enabled` directory contains **only symlinks**, pointing
+to the **exact absolute corresponding path** under `cores-available`.
+Relative, redirected, mismatched and arbitrary user-created links are invalid
+and do not cause a module to load. We do not `dlopen` the enabled symlink.
+Other `.so` and `.core` contents are not accepted from user-supplied paths.
+
+A package's `<id>.core` is a tiny static, root-installed metadata manifest:
+
+```ini
+id=md
+name=Mega Drive
+version=0.1.0-test
+slot=md
+```
+
+The real package should use its actual released version. This is deliberately
+separate from the `.so`: **disabled modules are never loaded**, including
+possible shared-object initializers, but the UI can still show their names,
+versions and slot requirements. The manifest and the loaded descriptor must
+match for an enabled core to pass discovery ABI validation.
+
+## What is implemented in this branch
+
+The C++11 host binary `retrode3-cli` enumerates installed core manifests,
+validates the adjacent module, checks trusted owners/modes and the enabled
+link (if present), and emits one machine-readable NDJSON `cores` event:
 
 ```sh
 make -f Makefile.migration native-core-registry
@@ -36,56 +69,67 @@ make -f Makefile.migration test-core-registry
 build/migration/retrode3-cli --list-cores --protocol ndjson-v1
 ```
 
-The CLI scans a fixed `/usr/lib/retrode3/cores` directory for `<id>.so`
-objects. It requires a root-owned, non-group/world-writable directory and
-files, refuses directory/file symlinks, loads modules with local symbol scope,
-and checks the `retrode3_core_describe_v1` symbol, ABI version, struct size,
-and metadata identity. It does **not** read the cartridge, install packages,
-run mapper callbacks, or enable any read/write operation.
-
-The normal binary **does not accept** a caller-provided core directory. Only
-the separate `retrode3-cli-mock` test build permits `--core-dir` for its
-temporary test fixtures. Unreadable or incompatible modules are excluded
-from active listings; diagnostics go to stderr, never stdout.
-
-Example output with a package installed and a valid metadata-only module:
+Example for one installed and enabled **metadata-only test module**:
 
 ```json
-{"protocol":"retrode3-ndjson","version":1,"event":"cores","request_id":"cli","discovery_abi":1,"cores":[{"id":"md","name":"Mega Drive","version":"0.1.0-test","slot":"md","installed":true,"status":"discovered","usable":false,"actions":[]}]}
+{"protocol":"retrode3-ndjson","version":1,"event":"cores","request_id":"cli","discovery_abi":1,"cores":[{"id":"md","name":"Mega Drive","version":"0.1.0-test","slot":"md","installed":true,"enabled":true,"status":"discovered","usable":false,"actions":[]}]}
 ```
 
-If none are installed (as on a clean system), the `cores` array is empty.
-The existing experimental `liboscr-snes-core.a` and
-`liboscr-md-core.a` are still statically linked acceptance components;
-they are **not** dynamically installable packages and must not be reported
-as installed by this new interface. The mock `.so` files compiled in CI are
-test fixtures only, not installable or runnable OSCR cores.
+If the same module is disabled, it remains present with `installed:true`,
+`enabled:false`, `status:"disabled"`, `usable:false`, and `actions:[]`.
+Other statuses include `invalid_link` and `incompatible`. A valid
+**discovery** descriptor is not an implementation of any cartridge operation.
 
-The `installed` flag reports a discoverable module, **not usable hardware
-support**. The `usable:false` and `actions:[]` markers are intentional;
-they must remain until a compatible *operation ABI*, common job dispatcher,
-callback/bus safety validation, and actual core adapter are implemented and
-tested. A UI should only enable actions explicitly reported as usable.
+The privileged, fixed-path helper only changes symlinks:
 
-## Next milestones
+```sh
+# Run as root, after the image/package installer has created both directories
+retrode3-corectl enable md
+retrode3-corectl disable md
+```
 
-1. Add a versioned **operation ABI** for `probe`, `read_rom`,
-   `read_save`, etc., shared host callbacks for byte-accurate progress,
-   cancellation, atomic file publication, error codes and optional CRDB
-   verification. Preserve the existing SNES NDJSON v1 behavior.
-2. Package the already physical-verified native SNES and MD partial runners
-   as dynamically loadable Retrode3 adapter modules, with no new upstream
-   source changes. Physical regression tests must still pass.
-3. Add `get_capabilities` / `list_cores` to the common interactive NDJSON
-   runtime with the same versioned response contract, then expose them
-   through the separate web backend.
-4. Add .deb installation/removal and upgrade transactions in the
-   `DragonBox-Shop/retrode3` OS repository; never let an unauthenticated
-   webpage load arbitrary libraries or manipulate package management.
-5. Implement independent cartridge-adapter identity/slot availability,
-   keeping user-facing status separate from software core availability.
+For the development tree, the helper currently builds as
+`build/migration/retrode3-corectl`. It refuses path arguments, invalid
+core IDs, missing or untrusted packages, and links whose target is not the
+expected installed module. Calls are idempotent. It does not touch module
+files or download anything. The normal CLI also refuses caller-supplied
+directories. Only the test-specific builds expose directory overrides.
 
-The long-term UI model should explicitly distinguish **installed**, **ABI
-compatible**, **usable**, **hardware compatible**, and **cartridge present**.
-Do not advertise a core's upstream capabilities before they are actually
-implemented and safe on Retrode3.
+**Important:** No `retrode3-core-snes`, `retrode3-core-md`, or
+`retrode3-core-nes` production `.so` module has been installed by this
+commit. The tests use synthetic modules, not original Sanni OSCR adapters.
+The static `liboscr-*-core.a` acceptance libraries are not dynamically
+installable and must not appear in the new registry.
+
+## OS image and web integration (not yet implemented)
+
+The `DragonBox-Shop/retrode3` image build should package all released
+core adapters and manifests, install their dependencies, create the two
+directories securely and create default enabled symlinks for production-ready
+cores. Unfinished cores may be present but must remain disabled and never
+expose unverified operations.
+
+The web backend runs the **common** `retrode3-cli --list-cores` to show
+installed/disabled/compatible states, and enables toggles only through a
+tightly scoped privileged service or authorised helper. **Never** give the
+web process arbitrary root shell access, writable library directories,
+unrestricted package-management rights, or raw symlink path arguments.
+Installation and updates may still use signed Debian packages later;
+ordinary enable/disable never requires apt or internet access.
+
+## Next steps
+
+1. Test registry and helper under C++11 on real Retrode3 MIPS; verify that
+   missing directories show an empty list without cartridge access.
+2. Implement the shared operation ABI and common CLI job runtime with
+   the existing SNES NDJSON behavior (progress, cancel, CRC, atomic output).
+3. Wrap physically tested SNES and MD libraries in independently loadable
+   modules; real adapters must expose only genuinely safe operations.
+4. Package the completed modules in the SD-card image and connect the
+   available/enabled toggles to the independently developed web backend.
+5. Add NES and other Sanni cores and adapter capability detection, each
+   requiring its own hardware verification before being marked usable.
+
+Software status and hardware detection must remain separate. **Installed
+does not mean enabled; enabled does not mean compatible; compatible does
+not mean the specific ROM/save operation is implemented or safe.**
