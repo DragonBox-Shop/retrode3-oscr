@@ -3,8 +3,11 @@
 **Status (2026-11-18):** The generated static OSCR MegaDrive C++ archive,
 native Linux CLI and mocked ROM tests passed dedicated GitHub Actions
 ([native-md workflow run 44216393549](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44216393549)).
-A **physical read-only header probe is verified** on Retrode3 2.9.5;
-full ROM readback and byte-for-byte comparison remain **pending**.
+A **physical read-only header probe and two bit-identical 512-KiB
+ROM dumps are verified** on Retrode3 2.9.5. Full-ROM CRC32 `543BED30`
+matches the pinned original OSCR `md.json` entry for
+`Snake Rattle n Roll (Europe)`. The native CLI still reports
+`verified:null` because the database lookup is not yet integrated.
 Work remains isolated in draft PR #3 / `feature/native-md-stage1` against
 `migration/oscr-firmware`. Do not merge into `master`.
 
@@ -46,14 +49,19 @@ make -f Makefile.migration test-native-md
 make -f Makefile.migration native-md
 ```
 
-## First physical test (Snake Rattle N Roll, standard linear MegaDrive ROM)
+## Completed first physical test (Snake Rattle n Roll, standard linear MegaDrive ROM)
 
-The physical `--action probe` already returned for **Snake Rattle N Roll**:
+The physical `--action probe` returned for **Snake Rattle n Roll (Europe)**:
 `header_size_bytes: 524288`, `checksum: 2152`, `serial: GM MK-1541 -50`,
-`region: E`, `mapping: linear`. This is evidence for the original C++
-`readWord()` through the Linux kernel, **not** a dump validation. Keep
-the existing hardware-proven kernel and power behavior, and use no
-additional cartridge adapter.
+`region: E`, `mapping: linear`. Two full linear 524288-byte ROM reads
+both produced CRC32 `543BED30` and `cmp` succeeded. SHA256 for the
+first dump was
+`26643484b639a10e0f889940a1556acbd8f9bcddb6de5b5a0ff2167104605200`.
+The pinned original
+[OSCR MD database](https://github.com/oscartreader/oscr-databases/blob/87a48948c6a04260205f148d313614cc44e05cd5/data/md.json)
+has `Snake Rattle n Roll (Europe)`, CRC32 `543BED30`: **match**.
+This validates the ordinary linear read-only path, not the full upstream
+MegaDrive `getCartInfo()` / `readROM()` core or special mappers.
 
 ```sh
 build/migration/oscr-md-native --action probe
@@ -72,11 +80,12 @@ sha256sum /tmp/snake-rattle-oscr-cpp.bin /tmp/snake-rattle-oscr-cpp-2.bin
 # cmp /path/to/verified-snake-rattle-reference.bin /tmp/snake-rattle-oscr-cpp.bin
 ```
 
-The `cmp` result (exit 0), size and SHA256 are more important than the
-individual internal MD checksum. The binary also emits full-ROM CRC32, but
-`verified:null` until compared to an independent reference. Run a second
-dump to a **different** filename to test repeatability. Existing output files
-are never overwritten, and partially written files are not published.
+The repeated full-ROM read, `cmp` result (exit 0), and matching pinned
+OSCR database CRC32 are now **hardware-confirmed**. `verified:null` in
+the output JSON remains accurate for the *binary's own capabilities*,
+because database verification is not wired into this native stage.
+Existing output files are never overwritten, and incomplete files are
+not published.
 
 Do not probe or read any Sonic 3 FRAM, unusual mapper, lock-on, or special
 cartridge yet. Subsequent phases will integrate upstream `getCartInfo()`,
