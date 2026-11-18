@@ -52,7 +52,7 @@ typedef struct retrode3_core_operations_v1 {
 } retrode3_core_operations_v1;
 
 /* Optional exported symbol; absence means descriptor-only, not runnable:
- * const retrode3_core_operations_v1 *retrode3_core_operations_v1(void);
+ * const retrode3_core_operations_v1 *retrode3_core_get_operations_v1(void);
  */
 typedef const struct retrode3_core_operations_v1
     *(*retrode3_core_operations_v1_fn)(void);
