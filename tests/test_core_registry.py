@@ -1,4 +1,5 @@
-"""Installable core discovery tests; compatible with Python 3.4."""
+"""Offline installed-core and symlink enablement tests (Python 3.4)."""
+import io
 import json
 import os
 from pathlib import Path
@@ -16,93 +17,173 @@ FIXTURES = ROOT / "build/migration/registry-fixtures"
 class TestCoreRegistry(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        for path in (MOCK, FIXTURES / "snes.so", FIXTURES / "md.so",
-                     FIXTURES / "bad.so"):
+        for path in (MOCK, NORMAL, FIXTURES / "snes.so",
+                     FIXTURES / "md.so", FIXTURES / "bad.so"):
             if not path.is_file():
                 raise RuntimeError("Run make -f Makefile.migration test-core-registry")
 
-    def cli(self, directory, extra=None):
-        args = [str(MOCK), "--list-cores", "--protocol", "ndjson-v1",
-                "--core-dir", str(directory)]
-        if extra:
-            args.extend(extra)
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    def make_dirs(self, root):
+        available = os.path.join(root, "cores-available")
+        enabled = os.path.join(root, "cores-enabled")
+        os.mkdir(available)
+        os.mkdir(enabled)
+        return available, enabled
+
+    def install(self, available, id, name, slot, from_id=None):
+        shutil.copyfile(str(FIXTURES / ((from_id or id) + ".so")),
+                        os.path.join(available, id + ".so"))
+        manifest = "id={0}\nname={1}\nversion=0.1.0-test\nslot={2}\n".format(
+            id, name, slot)
+        with io.open(os.path.join(available, id + ".core"), "w",
+                     encoding="utf-8") as handle:
+            handle.write(manifest)
+
+    def enable(self, available, enabled, id, target=None):
+        if target is None:
+            target = os.path.join(available, id + ".so")
+        os.symlink(target, os.path.join(enabled, id + ".so"))
+
+    def cli(self, available, enabled):
+        proc = subprocess.Popen(
+            [str(MOCK), "--list-cores", "--protocol", "ndjson-v1",
+             "--available-dir", str(available), "--enabled-dir", str(enabled)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = proc.communicate()
         return proc.returncode, out.decode("utf-8"), err.decode("utf-8")
 
-    def test_missing_dir_has_no_phantom_cores(self):
+    def test_missing_available_dir_has_no_phantom_cores(self):
         with tempfile.TemporaryDirectory() as temp:
-            rc, stdout, _ = self.cli(os.path.join(temp, "not-installed"))
-            self.assertEqual(rc, 0)
+            code, stdout, _ = self.cli(
+                os.path.join(temp, "not-installed"),
+                os.path.join(temp, "not-enabled"))
+            self.assertEqual(code, 0)
             event = json.loads(stdout)
             self.assertEqual(event["event"], "cores")
             self.assertEqual(event["cores"], [])
 
-    def test_install_and_uninstall_detected_without_rebuilding_cli(self):
+    def test_offline_installed_disabled_then_enabled_then_disabled(self):
         with tempfile.TemporaryDirectory() as temp:
-            shutil.copyfile(str(FIXTURES / "snes.so"), os.path.join(temp, "snes.so"))
-            shutil.copyfile(str(FIXTURES / "md.so"), os.path.join(temp, "md.so"))
-            rc, out, _ = self.cli(temp)
-            self.assertEqual(rc, 0)
-            result = json.loads(out)
+            available, enabled = self.make_dirs(temp)
+            self.install(available, "snes", "Super Nintendo", "snes")
+            self.install(available, "md", "Mega Drive", "md")
+            code, stdout, errors = self.cli(available, enabled)
+            self.assertEqual(code, 0, errors)
+            result = json.loads(stdout)
             self.assertEqual(result["protocol"], "retrode3-ndjson")
             self.assertEqual(result["version"], 1)
             self.assertEqual(result["request_id"], "cli")
             self.assertEqual([c["id"] for c in result["cores"]], ["md", "snes"])
-            self.assertEqual([c["slot"] for c in result["cores"]], ["md", "snes"])
+            self.assertEqual([c["name"] for c in result["cores"]],
+                             ["Mega Drive", "Super Nintendo"])
             for core in result["cores"]:
                 self.assertTrue(core["installed"])
+                self.assertFalse(core["enabled"])
                 self.assertFalse(core["usable"])
                 self.assertEqual(core["actions"], [])
+                self.assertEqual(core["status"], "disabled")
+
+            self.enable(available, enabled, "md")
+            self.enable(available, enabled, "snes")
+            code, stdout, errors = self.cli(available, enabled)
+            self.assertEqual(code, 0, errors)
+            for core in json.loads(stdout)["cores"]:
+                self.assertTrue(core["enabled"])
                 self.assertEqual(core["status"], "discovered")
-            os.remove(os.path.join(temp, "md.so"))
-            rc, out, _ = self.cli(temp)
-            self.assertEqual(rc, 0)
-            self.assertEqual([c["id"] for c in json.loads(out)["cores"]], ["snes"])
-            os.remove(os.path.join(temp, "snes.so"))
-            rc, out, _ = self.cli(temp)
-            self.assertEqual(rc, 0)
-            self.assertEqual(json.loads(out)["cores"], [])
+                self.assertFalse(core["usable"])
 
-    def test_incompatible_and_bad_name_not_available(self):
-        with tempfile.TemporaryDirectory() as temp:
-            shutil.copyfile(str(FIXTURES / "bad.so"), os.path.join(temp, "bad.so"))
-            shutil.copyfile(str(FIXTURES / "md.so"), os.path.join(temp, "wrong.so"))
-            rc, out, errors = self.cli(temp)
-            self.assertEqual(rc, 0)
-            self.assertEqual(json.loads(out)["cores"], [])
-            self.assertIn("incompatible discovery ABI", errors)
-            self.assertIn("invalid identity", errors)
+            os.unlink(os.path.join(enabled, "md.so"))
+            code, stdout, _ = self.cli(available, enabled)
+            self.assertEqual(code, 0)
+            cores = json.loads(stdout)["cores"]
+            self.assertEqual(cores[0]["id"], "md")
+            self.assertFalse(cores[0]["enabled"])
+            self.assertEqual(cores[0]["status"], "disabled")
+            self.assertTrue(cores[1]["enabled"])
+            self.assertTrue(os.path.isfile(os.path.join(available, "md.so")))
+            self.assertTrue(os.path.isfile(os.path.join(available, "md.core")))
 
-    def test_symlinks_are_never_loaded(self):
+            self.enable(available, enabled, "md")
+            code, stdout, _ = self.cli(available, enabled)
+            self.assertEqual(code, 0)
+            self.assertTrue(json.loads(stdout)["cores"][0]["enabled"])
+
+    def test_incompatible_core_is_not_loaded_when_disabled(self):
         with tempfile.TemporaryDirectory() as temp:
-            os.symlink(str(FIXTURES / "snes.so"), os.path.join(temp, "snes.so"))
-            rc, out, errors = self.cli(temp)
-            self.assertEqual(rc, 0)
-            self.assertEqual(json.loads(out)["cores"], [])
-            self.assertIn("symlinks are forbidden", errors)
+            available, enabled = self.make_dirs(temp)
+            self.install(available, "bad", "Super Nintendo", "snes")
+            code, stdout, errors = self.cli(available, enabled)
+            self.assertEqual(code, 0, errors)
+            self.assertEqual(json.loads(stdout)["cores"][0]["status"], "disabled")
+            self.assertNotIn("incompatible", errors)
+            self.enable(available, enabled, "bad")
+            code, stdout, errors = self.cli(available, enabled)
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(stdout)["cores"][0]["status"], "incompatible")
+            self.assertTrue(json.loads(stdout)["cores"][0]["enabled"])
+            self.assertIn("incompatible", errors)
+
+    def test_metadata_mismatch_in_enabled_module_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            available, enabled = self.make_dirs(temp)
+            self.install(available, "wrong", "Mega Drive", "md", from_id="md")
+            self.enable(available, enabled, "wrong")
+            code, stdout, errors = self.cli(available, enabled)
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(stdout)["cores"][0]["status"], "incompatible")
+            self.assertIn("incompatible", errors)
+
+    def test_broken_or_untrusted_enablement_never_loads(self):
+        with tempfile.TemporaryDirectory() as temp:
+            available, enabled = self.make_dirs(temp)
+            self.install(available, "snes", "Super Nintendo", "snes")
+            self.enable(available, enabled, "snes",
+                        target=os.path.join(temp, "outside.so"))
+            code, stdout, errors = self.cli(available, enabled)
+            self.assertEqual(code, 0)
+            core = json.loads(stdout)["cores"][0]
+            self.assertTrue(core["enabled"])
+            self.assertEqual(core["status"], "invalid_link")
+            self.assertFalse(core["usable"])
+            self.assertIn("trusted link", errors)
+
+    def test_missing_module_and_manifest_symlink_are_excluded(self):
+        with tempfile.TemporaryDirectory() as temp:
+            available, enabled = self.make_dirs(temp)
+            self.install(available, "md", "Mega Drive", "md")
+            os.remove(os.path.join(available, "md.so"))
+            code, stdout, errors = self.cli(available, enabled)
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(stdout)["cores"], [])
+            self.assertIn("missing or untrusted", errors)
+            shutil.copyfile(str(FIXTURES / "md.so"),
+                            os.path.join(available, "md.so"))
+            original = os.path.join(available, "md.core")
+            os.rename(original, original + ".backup")
+            os.symlink(original + ".backup", original)
+            code, stdout, errors = self.cli(available, enabled)
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(stdout)["cores"], [])
+            self.assertIn("missing or untrusted", errors)
 
     def test_directory_symlink_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
-            inner = os.path.join(temp, "inner")
-            os.mkdir(inner)
+            available, enabled = self.make_dirs(temp)
             link = os.path.join(temp, "alias")
-            os.symlink(inner, link)
-            rc, out, err = self.cli(link)
+            os.symlink(available, link)
+            rc, out, err = self.cli(link, enabled)
             self.assertEqual(rc, 2)
             self.assertEqual(out, "")
             self.assertIn("real directory", err)
 
-    def test_production_binary_never_accepts_custom_core_dir(self):
-        if not NORMAL.is_file():
-            self.skipTest("Build make -f Makefile.migration native-core-registry first")
+    def test_production_binary_never_accepts_custom_directories(self):
         with tempfile.TemporaryDirectory() as temp:
-            proc = subprocess.Popen([str(NORMAL), "--list-cores", "--core-dir", temp],
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            out, err = proc.communicate()
-            self.assertEqual(proc.returncode, 2)
-            self.assertEqual(out, b"")
-            self.assertIn(b"usage", err)
+            for args in (["--available-dir", temp], ["--enabled-dir", temp]):
+                proc = subprocess.Popen([str(NORMAL), "--list-cores"] + args,
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                out, err = proc.communicate()
+                self.assertEqual(proc.returncode, 2)
+                self.assertEqual(out, b"")
+                self.assertIn(b"usage", err)
 
 
 if __name__ == "__main__":
