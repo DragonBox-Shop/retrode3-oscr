@@ -1,6 +1,6 @@
 # Retrode3 project status and next-step contract
 
-Updated: 2026-11-17
+Updated: 2026-11-18
 Working branch: `migration/oscr-firmware` (do not merge to master by default).
 Purpose: durable, source-controlled project memory for contributors and assistants.
 Read [AGENTS.md](../AGENTS.md) and the
@@ -26,6 +26,11 @@ Related repositories:
 
 ## Hardware verification: observed, not inferred
 
+- **Native C++ MegaDrive stage-1 physical probe passed on Retrode3 2.9.5**
+  with Snake Rattle N Roll: 524288 bytes by header, checksum `2152`,
+  serial `GM MK-1541 -50`, region `E`, mapping `linear`. This proves
+  upstream-derived `readWord()` header access; a ROM dump, repeatability,
+  and independent CRC comparison are **not yet reported**.
 - The MegaDrive hardware testing previously exposed a genuine GPIO/OE
   settle-time problem in the kernel driver. The kernel was patched to delay
   sampling after asserting OE. Avoid ignoring hardware timing while porting
@@ -51,7 +56,7 @@ Related repositories:
   2.84s user / 31.75s sys. C++ was ~3.6% faster in these single runs;
   both share the kernel bus and larger hardware timing optimizations remain.
 
-## Native MegaDrive stage 1 (feature branch, CI passed; hardware pending)
+## Native MegaDrive stage 1 (feature branch; CI and first hardware probe passed)
 
 The isolated `feature/native-md-stage1` branch adds a generated static
 `liboscr-md-core.a` from the pinned original `MegaDrive.cpp` methods
@@ -74,8 +79,9 @@ Build and mock tests: `make -f Makefile.migration test-native-md` and
 `make -f Makefile.migration native-md` after submodule init. The dedicated
 CI workflow is `.github/workflows/native-md-migration.yml`. Dedicated workflow [run 44216393549](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44216393549)
 **passed** including native C++ mock tests and Linux link against the C slot
-library. Hardware readback and independent reference ROM comparison are still
-pending. Reproduce with [MD stage-1 hardware instructions](oscr-linux-md-stage1.md). Never
+library. Native `readWord()` physical header probe now succeeds on Snake Rattle N Roll;
+full ROM readback, repeatability and independent reference ROM comparison
+are still pending. Reproduce with [MD stage-1 hardware instructions](oscr-linux-md-stage1.md). Never
 start by testing a write-dependent special cart.
 
 ## Current implementation and limitations
