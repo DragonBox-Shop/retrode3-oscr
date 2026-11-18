@@ -73,6 +73,21 @@ class TestRealSnesAdapter(unittest.TestCase):
         self.assertEqual(events[-1]["crc32"],
                          "%08X" % (zlib.crc32(data) & 0xffffffff))
 
+    def test_original_snes_core_one_shot_probe(self):
+        self.enable()
+        args = [HOST, "--protocol", "ndjson-v1", "--core", "snes",
+                "--action", "probe",
+                "--available-dir", self.available, "--enabled-dir", self.enabled]
+        p = subprocess.Popen(args, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        self.assertEqual(p.returncode, 0, err)
+        event = json.loads(out.decode("utf-8"))
+        self.assertEqual(event["event"], "probe_result")
+        self.assertEqual(event["size_bytes"], 524288)
+        self.assertEqual(event["mapping"], "lo")
+        self.assertEqual(event["checksum"], "1234")
+
     def test_disabled_real_module_is_visible_but_not_usable(self):
         rc, events, errors = self.host([
             {"command": "list_cores", "request_id": "catalog"},
