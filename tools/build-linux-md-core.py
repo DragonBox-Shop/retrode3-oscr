@@ -41,6 +41,20 @@ return tempWord;
 }"""
 
 
+EXPECTED_HELPER = """uint8_t copyToRomName(char* output, uint8_t const * input, uint8_t length)
+{
+uint8_t myLength = 0;
+for (uint8_t i = 0; i < 48; i++)
+{
+if (((input[i] >= '0' && input[i] <= '9') || (input[i] >= 'A' && input[i] <= 'z')) && myLength < length)
+{
+output[myLength++] = input[i];
+}
+}
+return myLength;
+}"""
+
+
 def canonical(text):
     text = re.sub(r"//[^\n]*", "", text)
     return re.sub(r"\s+", "", text)
