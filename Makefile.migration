@@ -71,7 +71,7 @@ native-core-registry:
 	mkdir -p build/migration
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli
 
-test-core-registry:
+test-core-registry: native-core-registry
 	mkdir -p build/migration/registry-fixtures
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli-mock
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared tests/mock_core_module.cpp -o build/migration/registry-fixtures/snes.so
