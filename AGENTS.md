@@ -49,6 +49,38 @@ library is not automatically a supported production feature.
 - Retain the existing `/dev/slot-{nes,md,snes}` ABI unless a separately
   reviewed kernel change is essential.
 
+## Shared host runtime versus cartridge cores (decision 2026-11-18)
+
+**One Retrode3-owned native CLI/runtime owns the protocol for all systems.**
+Do NOT copy the SNES NDJSON command parser, progress/event formatter,
+cancellation loop, output publication, CRC verification, job IDs or
+web-facing behavior into the MegaDrive, NES or other cartridge cores.
+The existing `oscr-snes-native` and `oscr-md-native` executables are
+**temporary hardware-acceptance runners**, not a precedent for duplicated
+per-core production CLIs. `ndjson_protocol.cpp` is a reusable host building
+block; move SNES-specific command dispatch into an adapter when extracting
+and registering cores in one CLI.
+
+Core boundary: register per-core identification, safe capability descriptor,
+probe, ROM/save read and permitted control operations. Core implementations
+should contain cartridge algorithms, not JSON or HTTP dependencies. The
+common host owns: NDJSON v1 stdin/stdout protocol, job lifecycle, polling
+and cancellation, actual-bytes-written progress, atomic no-clobber output,
+checksums/database result reporting, error codes, exclusive cartridge-bus
+access, and validated paths/options. Host POSIX implementations of upstream
+OSCR Storage/UI/Power/Time abstractions bridge the original Sanni callbacks
+to these services. Keep the pristine upstream submodule unchanged; small
+reviewable generated HAL substitutions may still be necessary for direct AVR
+GPIO access, but **never add per-console NDJSON or UI code upstream**.
+
+Capability reporting distinguishes physical hardware support, recognized
+cartridge type, and currently implemented/tested operations. A read-only
+user action may require controlled mapper-register writes; gate these via
+explicit reviewed HAL functions and do not expose unsupported save/mapper
+operations just because they exist in upstream C++. The web backend remains
+its own service in the OS repo and communicates with this common CLI; do
+not modify its implementation in this repository as part of core porting.
+
 ## Safe engineering workflow
 
 1. Read `docs/PROJECT-STATUS.md` and relevant per-feature docs.
