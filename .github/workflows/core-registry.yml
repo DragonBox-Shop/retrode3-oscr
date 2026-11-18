@@ -8,10 +8,14 @@ on:
   pull_request:
     paths:
       - 'include/retrode3/core_descriptor_v1.h'
+      - 'include/retrode3/core_operations_v1.h'
+      - 'include/retrode3/ndjson_protocol.h'
       - 'src/retrode3/retrode3_cli.cpp'
+      - 'src/retrode3/ndjson_protocol.cpp'
       - 'src/retrode3/retrode3_corectl.cpp'
       - 'tests/mock_core_module.cpp'
       - 'tests/test_core_registry.py'
+      - 'tests/test_shared_core_host.py'
       - 'Makefile.migration'
       - '.github/workflows/core-registry.yml'
   workflow_dispatch:
