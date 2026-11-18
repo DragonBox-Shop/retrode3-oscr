@@ -152,6 +152,39 @@ symlink rejection); target Retrode3 MIPS execution is still pending. This implem
 upstream OSCR source or the physically verified SNES/MD acceptance binaries.
 See [core registry contract](core-registry.md).
 
+## Shared operation runtime and first real dynamic core (2026-11-18)
+
+Branch `feature/shared-core-host` (draft PR #5, parent
+`feature/core-registry`) now implements a **single** operational NDJSON
+host accepting per-core `list_cores`, `get_capabilities`, `probe`,
+`read_rom` and `cancel` commands. The separate versioned C operation ABI
+passes safe probe metadata and byte streams to the host; the host owns file
+output, checksum, progress, cancellation, and no-overwrite publication.
+Disabled cores and descriptor-only modules cannot execute cartridge jobs.
+A nonblocking `flock` on `/run/lock/retrode3/bus.lock` protects the new
+common host across processes, but the older acceptance executables **do not
+participate** and must not run concurrently on the shared bus. The OS image
+still needs to create the lock directory with appropriate permissions.
+
+Crucially, `make -f Makefile.migration native-snes-module` now builds a
+**real generated upstream-derived SNES `snes.so`** (LoROM/HiROM,
+up to 4 MiB, no enhanced chips or SRAM), not merely a synthetic fixture.
+`src/retrode3/oscr_snes_posix.cpp` is shared by the existing acceptance
+binary and this dynamic adapter. Its output bytes now flow through the
+common host callbacks; tests compare them against the old native runner
+using the same synthetic kernel bus. The build also stages the module and
+manifest offline (no live system installation). **This new module remains
+MIPS hardware-test pending**, and is not a shipping replacement yet.
+
+Dedicated CI includes common-host mocked ROM/progress/CRC and cancellation,
+core enable/disable and invalid path tests, genuine original SNES dynamic
+module byte-for-byte comparison against the established acceptance path,
+plus legacy SNES/MD regressions. Document any final workflow run and physical
+acceptance separately. See [shared host instructions](shared-core-host.md).
+The complete Sanni special-chip/SRAM/Mapper modules, production packages,
+web backend service and per-core capability/EEPROM operations remain future
+steps; do not enable them prematurely.
+
 ## MegaDrive next-stage scope: all feasible special carts and saves (2026-11-18)
 
 The goal is broader than standard linear ROMs: integrate the **original**
