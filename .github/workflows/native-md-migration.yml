@@ -1,0 +1,37 @@
+name: Native MegaDrive OSCR migration
+
+on:
+  push:
+    branches:
+      - migration/oscr-firmware
+      - feature/native-md-stage1
+  pull_request:
+    paths:
+      - 'Makefile.migration'
+      - 'src/retrode3/**'
+      - 'include/retrode3/**'
+      - 'tests/**'
+      - 'tools/build-linux-md-core.py'
+      - 'third_party/oscr-firmware'
+      - '.github/workflows/native-md-migration.yml'
+  workflow_dispatch:
+
+jobs:
+  native-md:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize exact pinned OSCR firmware
+        run: git submodule update --init third_party/oscr-firmware
+      - name: Verify clean pinned upstream checkout
+        run: git -C third_party/oscr-firmware diff --exit-code
+      - name: Test generated upstream-derived C++ and mock Linux kernel
+        run: make -f Makefile.migration test-native-md
+      - name: Compile native Linux executable against existing C driver ABI
+        run: make -f Makefile.migration native-md
+      - name: Verify pinned upstream remains unmodified
+        run: |
+          git -C third_party/oscr-firmware diff --exit-code
+          test -z "$(git status --porcelain -- third_party/oscr-firmware)"
