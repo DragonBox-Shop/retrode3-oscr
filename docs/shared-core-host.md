@@ -131,7 +131,7 @@ An exact-version `packaging/cores/snes.core` is included, and
 *not* automatically installed in the device's live filesystem by the build. Debian image packaging is a separate OS-repository task.
 Do not install a module as if hardware-verified solely on successful CI.
 
-## MIPS hardware acceptance (build passed, test retest pending)
+## MIPS hardware acceptance (build and all 41 simulated tests passed; physical ROM pending)
 
 The real Retrode3 2.9.5 successfully compiled and staged `snes.so`
 with GCC C++11. `retrode3-cli --list-cores` returned an empty list as
@@ -144,10 +144,12 @@ all 16 legacy SNES tests**.
 That run next failed when the MIPS GCC 4.9 compiler rejected the shared
 CLI's `retrode3_probe_v1 result = {};` under
 `-Werror=missing-field-initializers`. That initialization is now replaced
-by explicit `std::memset` of the C ABI POD structure. A further target
-`test-native-snes-module` run is pending to validate the fix and all
-remaining tests. The new dynamic adapter is **not yet** physically
-ROM/CRC-verified.
+by explicit `std::memset` of the C ABI POD structure. A further real-target `test-native-snes-module` run **passed all
+41/41 tests**: 1 Python 3.4 compatibility guard, 16 old SNES tests,
+11 registry tests, 9 common-host tests and 4 genuine upstream-derived
+SNES `.so` adapter tests over a fake kernel bus. The GCC 4.9 host build
+succeeded. This does not yet constitute a physical cartridge read/CRC
+test of the new dynamic host.
 
 
 The build and CI run only virtual/mock cartridge hardware. The actual
