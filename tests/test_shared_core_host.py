@@ -1,5 +1,6 @@
 """Shared, cartridge-agnostic NDJSON operation-host integration (Python 3.4)."""
 import io
+import fcntl
 import json
 import os
 import shutil
@@ -117,6 +118,40 @@ class TestSharedHost(unittest.TestCase):
         self.assertFalse(os.path.exists(target))
         self.assertEqual([x for x in os.listdir(self.temp.name)
                           if x.startswith("cancel.sfc.partial-")], [])
+
+    def test_global_cartridge_bus_lock_rejects_overlap(self):
+        self.enable("snes")
+        lock_path = os.path.join(self.enabled, ".bus.lock")
+        with io.open(lock_path, "wb") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            rc, events, errors = self.run_commands([
+                {"command": "probe", "core": "snes", "request_id": "busy"}
+            ])
+            self.assertEqual(rc, 0, errors)
+            self.assertEqual(events[1]["event"], "error")
+            self.assertIn("cartridge bus busy", events[1]["message"])
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        rc, events, errors = self.run_commands([
+            {"command": "probe", "core": "snes", "request_id": "free"}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertEqual(events[1]["event"], "probe_result")
+
+    def test_bus_lock_symlink_is_refused(self):
+        self.enable("snes")
+        lock_path = os.path.join(self.enabled, ".bus.lock")
+        outside = os.path.join(self.temp.name, "outside")
+        with io.open(outside, "wb") as handle:
+            handle.write(b"LOCK")
+        os.symlink(outside, lock_path)
+        rc, events, _ = self.run_commands([
+            {"command": "probe", "core": "snes", "request_id": "lock"}
+        ])
+        self.assertEqual(rc, 0)
+        self.assertEqual(events[1]["event"], "error")
+        self.assertFalse(events[1].get("ok", False))
+        with io.open(outside, "rb") as handle:
+            self.assertEqual(handle.read(), b"LOCK")
 
     def test_existing_file_and_invalid_path_never_written(self):
         self.enable("snes")
