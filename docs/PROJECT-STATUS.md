@@ -185,8 +185,17 @@ The next `native-core-registry` build then failed in
 `retrode3_probe_v1 result = {};`. The host now explicitly zeroes this
 POD C-ABI structure with `std::memset(&result, 0, sizeof(result))` before
 setting `struct_size`. The compiler warning is **not disabled**.
-The user's full `test-native-snes-module` command still needs a new
-MIPS run to verify this specific compatibility fix and its remaining tests.
+**Retested successfully on the physical Retrode3 2.9.5 (MIPS, GCC 4.9,
+Python 3.4): `make -f Makefile.migration test-native-snes-module` passed
+all 41 tests:** 1 Python 3.4 compatibility guard, 16 original SNES native
+reader tests, 11 offline registry/enablement tests, 9 shared host
+NDJSON/CRC/cancel/locking tests, and 4 actual upstream-derived SNES dynamic
+adapter tests with the mock bus. The real dynamic `.so` also builds/stages.
+This validates the toolchain and virtual kernel adapter on target, **not yet
+a physical ROM dump through the new shared CLI**. Next: controlled manual
+installation of `snes.so`, read-only probe of known Terranigma HiROM
+(4194304 bytes, expected checksum 3856), then a fresh no-overwrite ROM
+dump checked against previously verified CRC32 `6FB8A4DF`.
 
 ## Shared operation runtime and first real dynamic core (2026-11-18)
 
