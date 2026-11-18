@@ -104,3 +104,12 @@ test-native-snes-module: build/migration/oscr_snes_banks.pic.o test-native-snes 
 		src/retrode3/oscr_snes_adapter.cpp tests/mock_snes_kernel.cpp \
 		build/migration/oscr_snes_banks.pic.o -o build/migration/real-snes-fixture/snes.so
 	python3 -m unittest discover -s tests -p 'test_real_snes_adapter.py' -v
+
+
+# Offline SD-image build can stage a released .so with its static metadata.
+# Staging neither enables the core nor modifies the device's live filesystem.
+.PHONY: stage-snes-module
+stage-snes-module: native-snes-module
+	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
+	cp build/migration/snes.so build/migration/stage/usr/lib/retrode3/cores-available/snes.so
+	cp packaging/cores/snes.core build/migration/stage/usr/lib/retrode3/cores-available/snes.core
