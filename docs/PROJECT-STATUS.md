@@ -157,7 +157,8 @@ See [core registry contract](core-registry.md).
 Branch `feature/shared-core-host` (draft PR #5, parent
 `feature/core-registry`) now implements a **single** operational NDJSON
 host accepting per-core `list_cores`, `get_capabilities`, `probe`,
-`read_rom` and `cancel` commands. The separate versioned C operation ABI
+`read_rom` and `cancel` commands, plus generic one-shot NDJSON
+`--core ID --action probe|read-rom` commands. The separate versioned C operation ABI
 passes safe probe metadata and byte streams to the host; the host owns file
 output, checksum, progress, cancellation, and no-overwrite publication.
 Disabled cores and descriptor-only modules cannot execute cartridge jobs.
