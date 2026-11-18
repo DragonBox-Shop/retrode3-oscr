@@ -98,7 +98,11 @@ expected installed module. Calls are idempotent. It does not touch module
 files or download anything. The normal CLI also refuses caller-supplied
 directories. Only the test-specific builds expose directory overrides.
 
-**Important:** No `retrode3-core-snes`, `retrode3-core-md`, or
+**Important:** The experimental `feature/shared-core-host` branch can
+now build a **real original OSCR-derived SNES `snes.so`** for standard
+LoROM/HiROM and stage its manifest locally. It has not been installed on
+physical hardware or packaged into a release image. No complete production
+`retrode3-core-snes`, `retrode3-core-md`, or
 `retrode3-core-nes` production `.so` module has been installed by this
 commit. The tests use synthetic modules, not original Sanni OSCR adapters.
 The static `liboscr-*-core.a` acceptance libraries are not dynamically
