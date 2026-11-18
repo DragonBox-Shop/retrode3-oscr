@@ -51,6 +51,32 @@ Related repositories:
   2.84s user / 31.75s sys. C++ was ~3.6% faster in these single runs;
   both share the kernel bus and larger hardware timing optimizations remain.
 
+## Native MegaDrive stage 1 (feature branch, CI and hardware pending)
+
+The isolated `feature/native-md-stage1` branch adds a generated static
+`liboscr-md-core.a` from the pinned original `MegaDrive.cpp` methods
+`readWord()` (AVR bus boundary replaced with the existing typed Linux HAL)
+and `copyToRomName()` (unchanged). The source generator hard-fails on
+unexpected changes to the upstream methods. The submodule is not edited.
+
+`oscr-md-native` currently supports a read-only standard SEGA-header probe
+through the upstream-derived `readWord()` and linear ROM dumping using the
+already tested kernel `MD_MODE_ROM` bulk-read interface. It reports CRC32
+and publishes files without overwrite. Explicitly excluded: 32X, SVP,
+Sonic & Knuckles lock-on, ROMs above 4 MiB, mapper writes, RAM, EEPROM,
+flash and special modes. This is **not** the original complete MD
+`getCartInfo()` or `readROM()`; those require a separate guarded HAL port.
+Automatic size and name in this partial stage come from the raw standard MD
+header and one upstream naming helper, not the full upstream title/size
+corrections, mapping or database logic.
+
+Build and mock tests: `make -f Makefile.migration test-native-md` and
+`make -f Makefile.migration native-md` after submodule init. The dedicated
+CI workflow is `.github/workflows/native-md-migration.yml`. Until its run
+finishes successfully this is **implemented, not CI verified**. Hardware
+readback and independent reference ROM comparison are still pending. Never
+start by testing a write-dependent special cart.
+
 ## Current implementation and limitations
 
 `make -f Makefile.migration native-snes` now builds:
