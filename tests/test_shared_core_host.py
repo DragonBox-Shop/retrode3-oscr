@@ -169,6 +169,30 @@ class TestSharedHost(unittest.TestCase):
         with io.open(target, "rb") as f:
             self.assertEqual(f.read(), b"KEEP")
 
+    def test_one_shot_core_probe_and_read_use_shared_host(self):
+        self.enable("snes")
+        target = os.path.join(self.temp.name, "one-shot.sfc")
+        base = [CLI, "--protocol", "ndjson-v1", "--core", "snes",
+                "--available-dir", self.available, "--enabled-dir", self.enabled]
+        p = subprocess.Popen(base + ["--action", "probe"],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        self.assertEqual(p.returncode, 0, err)
+        probe = json.loads(out.decode("utf-8"))
+        self.assertEqual(probe["event"], "probe_result")
+        self.assertEqual(probe["size_bytes"], 131072)
+        p = subprocess.Popen(base + ["--action", "read-rom", "--output", target],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        self.assertEqual(p.returncode, 0, err)
+        events = [json.loads(s) for s in out.decode("utf-8").splitlines()]
+        self.assertEqual(events[-1]["event"], "result")
+        self.assertEqual(events[-1]["bytes_written"], 131072)
+        with io.open(target, "rb") as handle:
+            data = handle.read()
+        self.assertEqual(events[-1]["crc32"],
+                         "%08X" % (zlib.crc32(data) & 0xffffffff))
+
     def test_invalid_command_keeps_host_alive(self):
         self.enable("snes")
         rc, events, err = self.run_commands([
