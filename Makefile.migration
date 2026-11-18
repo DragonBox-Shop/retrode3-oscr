@@ -80,3 +80,4 @@ test-core-registry: native-core-registry
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"md"' -DRETRODE3_MOCK_NAME='"Mega Drive"' -DRETRODE3_MOCK_SLOT='"md"' tests/mock_core_module.cpp -o build/migration/registry-fixtures/md.so
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"bad"' -DRETRODE3_MOCK_ABI=99 tests/mock_core_module.cpp -o build/migration/registry-fixtures/bad.so
 	python3 -m unittest discover -s tests -p 'test_core_registry.py' -v
+	python3 -m unittest discover -s tests -p 'test_shared_core_host.py' -v
