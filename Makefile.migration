@@ -76,7 +76,7 @@ test-core-registry: native-core-registry
 	mkdir -p build/migration/registry-fixtures
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli-mock
 	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING src/retrode3/retrode3_corectl.cpp -o build/migration/retrode3-corectl-mock
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared tests/mock_core_module.cpp -o build/migration/registry-fixtures/snes.so
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_OPERATIONS tests/mock_core_module.cpp -o build/migration/registry-fixtures/snes.so
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"md"' -DRETRODE3_MOCK_NAME='"Mega Drive"' -DRETRODE3_MOCK_SLOT='"md"' tests/mock_core_module.cpp -o build/migration/registry-fixtures/md.so
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"bad"' -DRETRODE3_MOCK_ABI=99 tests/mock_core_module.cpp -o build/migration/registry-fixtures/bad.so
 	python3 -m unittest discover -s tests -p 'test_core_registry.py' -v
