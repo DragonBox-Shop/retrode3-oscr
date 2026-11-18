@@ -61,3 +61,20 @@ native-md: $(MD_CORE_ARCHIVE)
 test-native-md: $(MD_CORE_ARCHIVE)
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/read_bus.cpp src/retrode3/oscr_md_native.cpp tests/mock_md_kernel.cpp $(MD_CORE_ARCHIVE) -o build/migration/oscr-md-native-mock
 	python3 -m unittest discover -s tests -p 'test_native_md.py' -v
+
+# Core discovery is in the COMMON host, not individual OSCR core libraries.
+# Static .a acceptance libraries are NOT listed as installable modules here.
+# The real CLI uses only /usr/lib/retrode3/cores (root-owned), while the
+# TEST-only binary allows a fixture directory to exercise installation.
+.PHONY: native-core-registry test-core-registry
+native-core-registry:
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli
+
+test-core-registry:
+	mkdir -p build/migration/registry-fixtures
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli-mock
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared tests/mock_core_module.cpp -o build/migration/registry-fixtures/snes.so
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"md"' -DRETRODE3_MOCK_NAME='"Mega Drive"' -DRETRODE3_MOCK_SLOT='"md"' tests/mock_core_module.cpp -o build/migration/registry-fixtures/md.so
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"bad"' -DRETRODE3_MOCK_ABI=99 tests/mock_core_module.cpp -o build/migration/registry-fixtures/bad.so
+	python3 -m unittest discover -s tests -p 'test_core_registry.py' -v
