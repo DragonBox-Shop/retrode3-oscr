@@ -18,9 +18,14 @@ The target is:
 Retrode3 CLI/web UI -> OSCR (and custom) cartridge core libraries ->
 typed Linux bus/HAL -> Retrode3 kernel driver -> cartridge.
 
-Prefer static `.a` archives initially. Future `.so` or process plugins are
-possible but not implemented or required today. A core compiled into a
-library is not automatically a supported production feature.
+Static `.a` archives remain known-good hardware acceptance references.
+On `feature/shared-core-host`, an experimental **real SNES `.so` adapter**
+is now generated from the original pinned C++ read routines and loaded via
+a versioned Retrode3 C operation ABI. This is not yet a released or
+hardware-reverified dynamic module. Dynamic adapters use the same generated
+upstream C++ library and POSIX/HAL shim, not a fork of Sanni's algorithms.
+A core compiled into a library is not automatically a supported production
+feature.
 
 ## Repositories
 
@@ -102,6 +107,24 @@ Distinguish software cores, physically inserted cartridge adapters, slot
 compatibility and cartridge presence; all are separate states. Reject
 user-supplied plugin paths and untrusted/misdirected symlinks. The operation
 dispatch ABI, SD-image packaging and physical verification follow separately.
+
+## Shared runtime implementation boundary (2026-11-18)
+
+The new `feature/shared-core-host` branch implements a shared NDJSON
+multi-core runner, operation ABI v1 and a genuine (still stage-1 limited)
+SNES dynamic adapter. All bytes-written progress, cancellation, CRC32,
+atomic no-overwrite file publication and command validation stay in the
+host. The pinned original `SNES.cpp` bank-read code is generated unchanged
+except for strictly guarded AVR-to-HAL substitutions; the existing legacy
+SNES acceptance binary reuses the same POSIX shim. See
+[docs/shared-core-host.md](docs/shared-core-host.md).
+
+The new CLI uses a nonblocking `flock` on
+`/run/lock/retrode3/bus.lock` per physical job; the OS image must securely
+create `/run/lock/retrode3` and grant the service account appropriate
+access. **Legacy acceptance binaries do not yet participate**, so this is
+not a guarantee of exclusivity while those binaries run independently.
+Keep the original SNES/MD hardware paths available for regression checks.
 
 ## Safe engineering workflow
 
