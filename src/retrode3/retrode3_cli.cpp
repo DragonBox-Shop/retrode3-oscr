@@ -680,7 +680,8 @@ int main(int argc, char **argv)
         } else {
             retrode3::NdjsonProtocol stream(false);
             try {
-                Core const &c = find_usable(discover(available, enabled), core_id);
+                std::vector<Core> installed = discover(available, enabled);
+                Core const &c = find_usable(installed, core_id);
                 BusLock lock(enabled);
                 OpenCore module(available + "/" + c.id + ".so");
                 retrode3_probe_v1 info = probe(module);
