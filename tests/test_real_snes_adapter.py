@@ -22,10 +22,8 @@ class TestRealSnesAdapter(unittest.TestCase):
         os.mkdir(self.available)
         os.mkdir(self.enabled)
         shutil.copyfile(SNES_MODULE, os.path.join(self.available, "snes.so"))
-        with io.open(os.path.join(self.available, "snes.core"),
-                     "w", encoding="utf-8") as f:
-            f.write("id=snes\nname=Super Nintendo\n"
-                    "version=0.1.0-stage1\nslot=snes\n")
+        shutil.copyfile(os.path.join(ROOT, "packaging/cores/snes.core"),
+                        os.path.join(self.available, "snes.core"))
 
     def tearDown(self):
         self.temp.cleanup()
