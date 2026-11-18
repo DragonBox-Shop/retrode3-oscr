@@ -94,6 +94,48 @@ Native CLI database lookup and the complete upstream MegaDrive reader
 remain pending. Reproduce with [MD stage-1 hardware instructions](oscr-linux-md-stage1.md). Never
 start by testing a write-dependent special cart.
 
+## MegaDrive next-stage scope: all feasible special carts and saves (2026-11-18)
+
+The goal is broader than standard linear ROMs: integrate the **original**
+Sanni `MegaDrive.cpp` cartridge algorithms and mapper handlers where the
+Retrode3 kernel and electrical hardware actually support their bus semantics.
+Do not claim universal compatibility without individual cartridge evidence.
+The current partial native library does not yet include these functions.
+
+Pinned upstream integrates saves **inside the MegaDrive core**: `getCartInfo()`
+identifies SRAM arrangements (low/odd, high/even, both byte lanes), serial
+EEPROM and various special cases; `readSram()`, `readEEP()`, and the
+Sega-CD backup RAM cartridge `readBram()` are separate *actions* within
+MegaDrive, not independent console cores. `writeSram()`, `writeEEP()`,
+`writeBram()` and flash programming also exist upstream but must remain
+unavailable until an explicit, separately reviewed restore/write stage.
+
+Planned incremental integration:
+1. Separate pure metadata/header recognition from `getCartInfo()` side
+   effects. Its upstream implementation invokes cartridge power transitions
+   and, for Sonic & Knuckles plus Sonic 2, `writeSSF2Map()`; do not run this
+   unguarded for a generic probe.
+2. Port the remaining upstream ROM and mapper logic using small strictly
+   verified source overlays and **typed kernel-level bus transactions**:
+   banked SSF2 / expanded ROMs, lock-on, Realtec, 32X and SVP as electrically
+   feasible. Keep tested linear reads as a regression reference. Each mode
+   needs a separate mock and physical CRC/byte comparison.
+3. Implement **save backup only**, with detected low/high/both SRAM wiring,
+   EEPROM protocols, Sonic 3 FRAM and Sega-CD backup RAM as separately
+   capability-gated operations. An SRAM/FRAM *read* can still require a
+   mapper/control-register **write** to expose memory; this must be explicit,
+   reviewed for timing and save integrity. `retrode3-lib.h` warns that the
+   generic `MD_MODE_TIME` path for Sonic 3 FRAM is glitchy and even reads
+   can lose data; use the dedicated `MD_MODE_ENSRAM` / `md_enablefram()`
+   design only after confirming the cart identity and kernel behavior.
+4. Save restore, flash/erase, unknown hardware and risky mapper probing
+   remain disabled until separate electrical review, backups and approval.
+
+All systems should eventually expose these actions via the same capability
+registry and NDJSON model. **Do not equate read-only user intention with
+zero electrical writes**, and do not probe arbitrary unknown mappers by
+writing control registers.
+
 ## Current implementation and limitations
 
 `make -f Makefile.migration native-snes` now builds:
