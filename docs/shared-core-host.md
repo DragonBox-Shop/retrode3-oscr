@@ -118,6 +118,55 @@ An exact-version `packaging/cores/snes.core` is included, and
 *not* automatically installed in the device's live filesystem by the build. Debian image packaging is a separate OS-repository task.
 Do not install a module as if hardware-verified solely on successful CI.
 
+## MIPS hardware acceptance (pending; never automatic)
+
+The build and CI run only virtual/mock cartridge hardware. The actual
+Retrode3 2.9.5 MIPS native shared module has **not** been physically
+verified. Begin with compilation and the safe, hardware-free test suite:
+
+```sh
+git fetch origin
+git checkout feature/shared-core-host
+git pull --ff-only
+git submodule update --init third_party/oscr-firmware
+make -f Makefile.migration test-native-snes-module
+make -f Makefile.migration stage-snes-module
+build/migration/retrode3-cli --list-cores
+```
+
+Do not expect a usable core listing yet: build/stage never installs/activates
+anything. Before manual testing, ensure the host/device already has a known
+ordinary SNES cartridge (e.g. the previously verified Terranigma Germany
+Rev 1) and the reference ROM/CRC. Do not test enhanced chips/unknown
+cartridges. Stop if any of the previous build/tests fail.
+
+For a *manual experimental install only*, root creates the fixed directories
+including the bus lock location. Check for existing modules first: do not
+overwrite any preinstalled production package or registered module.
+
+```sh
+install -d -m 755 /usr/lib/retrode3/cores-available
+install -d -m 755 /etc/retrode3/cores-enabled
+install -d -m 755 /run/lock/retrode3
+# Only if these paths do not already exist:
+install -m 644 build/migration/snes.so /usr/lib/retrode3/cores-available/snes.so
+install -m 644 packaging/cores/snes.core /usr/lib/retrode3/cores-available/snes.core
+build/migration/retrode3-corectl enable snes
+
+build/migration/retrode3-cli --list-cores
+printf '%s\n' \
+  '{"command":"probe","core":"snes","request_id":"hw1"}' \
+  | build/migration/retrode3-cli --protocol ndjson-v1 --interactive
+```
+
+Only after a plausible probe, perform a read-only dump to a fresh output
+path; compare CRC32 and `cmp` against the existing trusted Terranigma
+reference if available. Never run the legacy SNES acceptance reader
+**concurrently** with this new host: the legacy binary does not acquire the
+shared bus lock. Reboot recreates `/run/lock/retrode3` only when the OS
+image/service has provided an appropriate tmpfiles/init rule; this
+manual directory is not a permanent packaging solution.
+
 ## Unfinished foundation work (in priority order)
 
 1. Verify MIPS build, core listing, and safe physical read/CRC of the real
