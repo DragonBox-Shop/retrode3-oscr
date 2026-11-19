@@ -203,11 +203,40 @@ shared bus lock. Reboot recreates `/run/lock/retrode3` only when the OS
 image/service has provided an appropriate tmpfiles/init rule; this
 manual directory is not a permanent packaging solution.
 
+## First physical full-ROM shared-host acceptance (2026-11-19)
+
+**Passed on actual Retrode3 2.9.5:** Terranigma (Germany) Rev 1
+was probed as HiROM / 4194304 bytes / title `TERRANIGMA D` /
+header checksum `3856`. The enabled original-OSCR-derived
+`snes.so` subsequently streamed a complete ROM through the **single
+shared CLI** to `/tmp/terranigma-plugin.sfc`, emitting actual-byte NDJSON
+progress followed by this final `result` event:
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"result","request_id":"cli","ok":true,"system":"snes","bytes_written":4194304,"crc32":"6FB8A4DF","output":"/tmp/terranigma-plugin.sfc","verified":null}
+```
+
+The size and CRC match the previously independently verified reference
+`6FB8A4DF`. The new dynamic host's end-to-end standard HiROM path is
+physically proven. `verified:null` is expected because automatic OSCR
+database lookup is not connected. No byte-for-byte `cmp` from this
+specific run was provided. No standard LoROM physical read through this
+new module has been reported yet.
+
+This does **not** imply full original Sanni SNES support: stage 1 only
+includes original `checkcart()`, `readLoRomBanks()` and
+`readHiRomBanks()` plus the host adapter. Original special-chip
+dispatch, enhanced mappings, SRAM backup, SRAM restoration and all other
+save writes remain absent. Add them as separately capability-gated
+operations of the SNES core after reviewing required kernel/HAL control
+transactions and save safety. No new protocol or per-core progress
+implementation is needed.
+
 ## Unfinished foundation work (in priority order)
 
-1. Verify MIPS build, core listing, and safe physical read/CRC of the real
-   SNES module against the already verified Terranigma reference before
-   enabling a module in the shipping image.
+1. **Completed:** MIPS build, core listing and standard HiROM physical
+   read/CRC of the dynamic SNES module against the Terranigma reference.
+   **Pending:** physical LoROM acceptance and release packaging/hardening.
 2. Move per-console protocol-specific code out of legacy acceptances
    after the common host has parity; keep them as rollback/test references.
 3. Extend the already implemented common-host `flock` protection to the
