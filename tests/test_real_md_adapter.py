@@ -95,6 +95,42 @@ class TestRealMdAdapter(unittest.TestCase):
         self.assertEqual(actual[0x100:0x104], b"SEGA")
         self.assertEqual(result["crc32"], "%08X" % (zlib.crc32(actual) & 0xffffffff))
 
+    def test_real_md_and_snes_share_one_host_without_protocol_forks(self):
+        self.enable()
+        # A generic mock SNES module is enough to verify the same CLI can
+        # dispatch two independently enabled cores without per-core NDJSON.
+        source = os.path.join(ROOT, "build/migration/registry-fixtures/snes.so")
+        shutil.copyfile(source, os.path.join(self.available, "snes.so"))
+        with io.open(os.path.join(self.available, "snes.core"), "w",
+                     encoding="utf-8") as handle:
+            handle.write("id=snes\\nname=Super Nintendo\\n"
+                         "version=0.1.0-test\\nslot=snes\\n")
+        os.symlink(os.path.join(self.available, "snes.so"),
+                   os.path.join(self.enabled, "snes.so"))
+        md_output = os.path.join(self.temp.name, "both-md.bin")
+        snes_output = os.path.join(self.temp.name, "both-snes.bin")
+        rc, events, errors = self.host([
+            {"command": "list_cores", "request_id": "list"},
+            {"command": "probe", "core": "md", "request_id": "md-probe"},
+            {"command": "probe", "core": "snes", "request_id": "snes-probe"},
+            {"command": "read_rom", "core": "md", "request_id": "md-read",
+             "output": md_output},
+            {"command": "read_rom", "core": "snes", "request_id": "snes-read",
+             "output": snes_output}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertEqual([x["id"] for x in events[1]["cores"]],
+                         ["md", "snes"])
+        self.assertTrue(all(x["usable"] for x in events[1]["cores"]))
+        probes = [x for x in events if x["event"] == "probe_result"]
+        self.assertEqual([(x["system"], x["size_bytes"]) for x in probes],
+                         [("md", 524288), ("snes", 131072)])
+        results = [x for x in events if x["event"] == "result"]
+        self.assertEqual([(x["request_id"], x["bytes_written"]) for x in results],
+                         [("md-read", 524288), ("snes-read", 131072)])
+        self.assertEqual(os.stat(md_output).st_size, 524288)
+        self.assertEqual(os.stat(snes_output).st_size, 131072)
+
     def test_md_one_shot_probe_and_host_crc(self):
         self.enable()
         args = [HOST, "--protocol", "ndjson-v1", "--core", "md",
