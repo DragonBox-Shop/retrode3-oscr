@@ -232,6 +232,11 @@ NromRecord const records[] = {
     {0xa46603f9u,0x0a549638u,0xe492d45au,16,8,"4E45531A010100080000000000000001","Zippy Race (Japan)"},
     {0xdb4c26b2u,0x9cc6dca4u,0xec0517c4u,32,8,"4E45531A020100080000000000000001","Zunou Senkan Galg (Japan) (En)"},
     {0xb084d7b6u,0xd3ed26acu,0x23f38647u,32,8,"4E45531A020100080000000000000001","Zunou Senkan Galg (Japan) (En) (Beta)"},
+#ifdef RETRODE3_TESTING
+    // Synthetic mock only: never included in the production cartridge catalog.
+    {0xd14b6d1bu,0x76914dbeu,0x6124e914u,16,8,
+     "4E45531A010101080000000001000020","MOCK NES NROM"},
+#endif
 };
 std::size_t const record_count = sizeof(records) / sizeof(records[0]);
 } }
