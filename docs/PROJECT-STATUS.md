@@ -1,7 +1,7 @@
 # Retrode3 project status and next-step contract
 
-Updated: 2026-11-18
-Working branch: `migration/oscr-firmware` (do not merge to master by default).
+Updated: 2026-11-19
+Main development line: master (subject to integration CI); OS/web deployment is separate.
 Purpose: durable, source-controlled project memory for contributors and assistants.
 Read [AGENTS.md](../AGENTS.md) and the
 [OSCR migration architecture](oscr-firmware-migration.md) before editing.
@@ -355,6 +355,118 @@ Snake Rattle n Roll (Europe) cartridge to a new file through the
 to the previously verified *legacy* physical reference. Other special
 mappers/SRAM remain future work. See
 [shared-md-core.md](shared-md-core.md) for safe reproduction.
+
+## NES NROM live physical full-ROM acceptance: PASSED (2026-11-19)
+
+**Hardware-verified on real Retrode3 2.9.5 MIPS:** Compiled,
+installed and enabled the original-Sanni-bank-loop-derived `nes.so`.
+The real generic CLI `--list-cores` reported **md, nes and snes**
+all `ready`, `usable:true`, offering `["probe","read_rom"]`.
+
+**Physical read-only Excitebike (Europe) probe** on the NES slot:
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"probe_result","request_id":"cli","system":"nes","mapping":"nrom","size_bytes":24592,"title":"Excitebike (Europe)","checksum":"8A0C7337","candidates":[],"candidate_lookup":"not_integrated"}
+```
+
+The user then performed an actual **complete ROM dump** through
+the same common CLI:
+
+```sh
+build/migration/retrode3-cli --protocol ndjson-v1 --core nes --action read-rom --output /tmp/excitebike-nes-plugin.nes
+```
+
+The shared CLI (not the NES core) emitted real bytes-written progress
+at 0, 4112, 8208, 12304, 16400, 20496 and 24592 bytes,
+ending at exactly 100%. Final physical NDJSON:
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"result","request_id":"cli","ok":true,"system":"nes","bytes_written":24592,"crc32":"F749E780","output":"/tmp/excitebike-nes-plugin.nes","verified":null}
+```
+
+**Full-file CRC independently cross-checked algebraically:** the exact
+original OSCR DB iNES header `4E45531A010101080000000001000020`
+(16 bytes; header CRC32 `43EABD6C`) concatenated with 24576 bytes of
+PRG+CHR data whose catalog-verified payload CRC32 is `8A0C7337`
+must yield the entire-file CRC32 **`F749E780`** by `zlib.crc32_combine`.
+This exactly matches the physically read file, validating the complete
+NROM ROM data path, correct 16-byte header, PRG/CHR output order,
+shared host CRC, progress and file publication. A separate new-file
+byte-for-byte `cmp` against an archived independent reference has not
+been reported; this is a CRC-matched hardware acceptance.
+
+**Three console types now complete real full-ROM reads through the
+same common NDJSON host:**
+- SNES HiROM Terranigma D: **4194304** bytes, CRC32 `6FB8A4DF`.
+- MegaDrive linear Snake Rattle n Roll: **524288** bytes,
+  CRC32 `543BED30`.
+- NES NROM Excitebike Europe: **24592** bytes, full .nes CRC32
+  `F749E780`, PRG+CHR CRC32 `8A0C7337`.
+
+The host fields `candidate_lookup:"not_integrated"` and
+`verified:null` remain correct for the **generic host-wide** OSCR
+database lookup, which is separate from the **working pinned internal
+NES NROM catalog**. This is **stage-1 mapper 0 only**, not hardware
+acceptance of arbitrary NES mapper/cart, save RAM or mapper writes.
+Release packaging and web privilege integration remain pending.
+
+## NES NROM dynamic adapter, first CI/mock acceptance (2026-11-19)
+
+Working branch **`feature/shared-nes-core`**, stacked draft
+[PR #7](https://github.com/DragonBox-Shop/retrode3-oscr/pull/7)
+on shared-host PR #5. It is **independent of the parallel
+`feature/shared-md-core` PR #6**, so ongoing MD hardware tests are
+not disturbed.
+
+A genuine stage-1 dynamic `build/migration/nes.so` now exports the
+common `probe/read_rom/release` C ABI, sharing host NDJSON,
+real bytes-written progress, CRC32, cancel, global bus lock and
+no-clobber output. Its generated OSCR C++ retains **Sanni's original
+`NES::dumpBankPRG` and `NES::dumpBankCHR` bank-order loops** from
+pinned `NES.cpp`; original per-byte AVR dump readers were explicitly
+substituted by batched 512-byte Linux `nes_read()` HAL calls, protected
+by a strict source-change guard. The upstream submodule is unchanged.
+
+NES has no physical ROM header, so the core uses Sanni's original
+first/last 512-byte CPU PRG CRC32 candidate lookup plus a complete
+PRG+CHR CRC check to identify exactly **one** original NES mapper-0
+database record. A compact pinned NROM catalog contains **226** records
+derived from `oscartreader/oscr-databases` commit
+`87a48948c6a04260205f148d313614cc44e05cd5`. Only NROM mapper 0,
+submapper 0, 16/32 KiB PRG, 0/8 KiB CHR without trainer; unknown/
+ambiguous carts fail closed. No mapper writes, SRAM, EEPROM, save
+restore or arbitrary user-selectable geometry. Read output is the
+exact 16-byte verified catalog iNES/NES2 header followed by original
+Sanni PRG/CHR bank ordering. **Probe's `checksum` is CRC32 of raw
+PRG+CHR, while host `result.crc32` covers the final .nes file
+including the 16-byte header.**
+
+Dedicated native NES CI **passed all 10 module tests** using a
+genuine original-Sanni-derived `.so` against a mocked Linux NES kernel:
+original-source guard, NROM-128/NROM-256 (16/32 KiB PRG with 0/8 KiB CHR),
+full `.nes` byte comparisons, fingerprint and payload CRC identification,
+bad/empty cart refusal, cancellation, no-overwrite and offline staging.
+The extra cross-core test registers both NES and SNES through the SAME
+central host. Separate general CI, MegaDrive legacy CI, native NES CI,
+and shared core-registry CI all passed at tested commit
+`721487bcd1b86fc1997db15f2af845768042f16c`.
+The four separately labeled NROM mock cartridges use distinct PRG
+fingerprints: deliberately using identical PRG data with and without
+CHR created a real ambiguity, which the fail-closed check correctly
+rejected and we preserved.
+Python 3.4 compatibility is checked by the existing static test guard.
+See [shared-nes-core.md](shared-nes-core.md).
+
+**Not physically verified yet.** Hardware acceptance requires first
+MIPS GCC 4.9 build and test on actual Retrode3 2.9.5, then known
+real NROM Excitebike (Europe) read-only probe (catalog PRG+CHR CRC
+`8A0C7337`, output size 24592 bytes), then complete new .nes dump
+and comparison to prior reference if available. Do not interrupt the
+ongoing MegaDrive hardware test by switching its checkout.
+NES additional mappers require separately reviewed safe kernel/HAL
+control, and the initial database-only fingerprint gate will not
+support unknown/homebrew NROM until an explicit safe selection API
+is added to the shared host.
 
 ## Prioritized next-core roadmap and Retrode adapters (2026-11-19)
 

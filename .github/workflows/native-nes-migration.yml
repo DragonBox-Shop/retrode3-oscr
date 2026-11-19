@@ -1,0 +1,41 @@
+name: Native NES Sanni OSCR migration
+
+on:
+  pull_request:
+    paths:
+      - 'Makefile.migration'
+      - 'src/retrode3/oscr_nes_*.cpp'
+      - 'include/retrode3/oscr_nes_*.h'
+      - 'tests/test_real_nes_adapter.py'
+      - 'tests/mock_nes_kernel.cpp'
+      - 'tools/build-linux-nes-core.py'
+      - 'packaging/cores/nes.core'
+      - '.github/workflows/native-nes-migration.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-nes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize exact pinned Sanni OSCR C++ source
+        run: git submodule update --init third_party/oscr-firmware
+      - name: Validate genuine NES bank-reader extraction and shared CLI integration
+        run: make -f Makefile.migration test-native-nes-module
+      - name: Compile the production read-only NES dynamic core
+        run: make -f Makefile.migration native-nes-module
+      - name: Offline stage no-auto-enable NES module
+        run: |
+          make -f Makefile.migration stage-nes-module
+          test -f build/migration/stage/usr/lib/retrode3/cores-available/nes.so
+          cmp packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
+      - name: Pinned Sanni OSCR firmware submodule must stay untouched
+        run: |
+          git -C third_party/oscr-firmware diff --exit-code
+          test -z "$(git status --porcelain -- third_party/oscr-firmware)"

@@ -94,6 +94,41 @@ stage-md-module: native-md-module
 	cp build/migration/md.so build/migration/stage/usr/lib/retrode3/cores-available/md.so
 	cp packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
 
+# Stage-1 NES NROM: original pinned Sanni dumpBankPRG/CHR loops only,
+# with reviewed 512-byte read-only HAL substitution for per-byte AVR calls.
+# A pinned OSCR mapper-0 fingerprint catalog uniquely identifies ROM layout.
+# Never guess size; never issue mapper, SRAM, EEPROM or flash writes.
+build/migration/oscr_nes_nrom.cpp: tools/build-linux-nes-core.py third_party/oscr-firmware/src/cores/NES.cpp
+	python3 tools/build-linux-nes-core.py --output $@
+
+build/migration/oscr_nes_nrom.pic.o: build/migration/oscr_nes_nrom.cpp include/retrode3/oscr_nes_compat.h
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC $(NATIVE_INCLUDES) -c $< -o $@
+
+.PHONY: native-nes-module test-native-nes-module stage-nes-module
+native-nes-module: build/migration/oscr_nes_nrom.pic.o
+	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/retrode3-lib.pic.o
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
+		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_adapter.cpp build/migration/retrode3-lib.pic.o \
+		build/migration/oscr_nes_nrom.pic.o -o build/migration/nes.so
+
+test-native-nes-module: build/migration/oscr_nes_nrom.pic.o test-core-registry
+	mkdir -p build/migration/real-nes-fixture
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs -DRETRODE3_TESTING $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
+		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_adapter.cpp tests/mock_nes_kernel.cpp \
+		build/migration/oscr_nes_nrom.pic.o -o build/migration/real-nes-fixture/nes.so
+	python3 -m unittest discover -s tests -p 'test_python34_compat.py' -v
+	python3 -m unittest discover -s tests -p 'test_real_nes_adapter.py' -v
+
+# Offline image staging, never a live install or default enablement.
+stage-nes-module: native-nes-module
+	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
+	cp build/migration/nes.so build/migration/stage/usr/lib/retrode3/cores-available/nes.so
+	cp packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
+
 # Core discovery is in the COMMON host, not individual OSCR core libraries.
 # Static .a acceptance libraries are NOT listed as installable modules here.
 # The real CLI uses root-owned cores-available / cores-enabled directories, while the
@@ -145,3 +180,11 @@ stage-snes-module: native-snes-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
 	cp build/migration/snes.so build/migration/stage/usr/lib/retrode3/cores-available/snes.so
 	cp packaging/cores/snes.core build/migration/stage/usr/lib/retrode3/cores-available/snes.core
+
+# Combined offline acceptance; retains all original standalone readers.
+.PHONY: test-three-core-host test-all-shared-cores stage-all-shared-cores
+test-three-core-host:
+	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
+
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host
+stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module

@@ -142,9 +142,34 @@ MegaDrive ROMs up to 4 MiB, no mapper control, special carts or SRAM.
 The host, not the module, handles progress, CRC32, NDJSON, cancellation,
 output files and bus locking. CI compares the real module's bytes
 with the prior standalone mock reader and exercises cross-core dispatch.
-Only prior standalone MD hardware was verified (Snake Rattle n Roll
-CRC32 `543BED30`); physical dynamic `.so` acceptance is pending.
+The dynamic MegaDrive .so has now passed a real physical full-ROM dump
+(Snake Rattle n Roll, CRC32 `543BED30`).
 See [docs/shared-md-core.md](docs/shared-md-core.md).
+
+## Parallel NES mapper-0 dynamic core (2026-11-19)
+
+The independent `feature/shared-nes-core` branch (draft PR #7,
+stacked on PR #5 but **not** on in-progress MD PR #6) adds a
+genuine original Sanni NES bank-loop adapter `nes.so` for the same
+shared CLI. A strict original-source guard checks `dumpPRG/dumpCHR`
+and `dumpBankPRG/dumpBankCHR`; **Sanni's exact PRG/CHR bank loops
+remain unchanged** and the AVR per-byte reads are replaced with safe
+512-byte Linux `ReadBus::nes_block` transactions. Do not copy NDJSON,
+progress, output or CRC into this module.
+
+**NES carts have no header.** Probe only explicitly supported mapper-0
+NROM via pinned OSCR first/last 512-byte fingerprint lookup followed
+by a complete raw PRG+CHR CRC check against the frozen 226-record
+NES NROM catalog. If missing or ambiguous, **refuse to dump**, never
+guess mapper/geometry. Output begins with exact trusted 16-byte header
+from the matched catalog; host `result.crc32` includes header, but
+the NES probe `checksum` is raw PRG+CHR CRC excluding header.
+No NES mapper, SRAM, save or flash writes in this stage.
+
+Real MIPS NROM full-ROM acceptance is complete: Excitebike Europe,
+24592 bytes, full-file CRC32 `F749E780`. See [docs/shared-nes-core.md](docs/shared-nes-core.md).
+NES higher mapper support requires separately reviewed controlled
+kernel writes and safety gates.
 
 ## Safe engineering workflow
 

@@ -3,8 +3,6 @@ name: Native Retrode3 core registry
 on:
   push:
     branches:
-      - feature/core-registry
-      - feature/shared-md-core
       - migration/oscr-firmware
   pull_request:
     paths:
@@ -23,6 +21,13 @@ on:
       - 'include/retrode3/oscr_md_stage1.h'
       - 'tests/test_real_md_adapter.py'
       - 'packaging/cores/md.core'
+      - 'src/retrode3/oscr_nes_*.cpp'
+      - 'include/retrode3/oscr_nes_*.h'
+      - 'tools/build-linux-nes-core.py'
+      - 'tests/test_real_nes_adapter.py'
+      - 'tests/test_three_core_host.py'
+      - 'tests/mock_nes_kernel.cpp'
+      - 'packaging/cores/nes.core'
       - 'tests/test_real_snes_adapter.py'
       - 'packaging/cores/snes.core'
       - 'tests/mock_core_module.cpp'
@@ -31,6 +36,10 @@ on:
       - 'Makefile.migration'
       - '.github/workflows/core-registry.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   core-registry:
@@ -51,6 +60,10 @@ jobs:
         run: make -f Makefile.migration test-native-snes-module
       - name: Compare actual OSCR MegaDrive .so against accepted standalone reader
         run: make -f Makefile.migration test-native-md-module
+      - name: Validate original-Sanni NES module and source guard
+        run: make -f Makefile.migration test-native-nes-module
+      - name: Validate all three original-derived Cores share one host
+        run: make -f Makefile.migration test-three-core-host
       - name: Prepare offline core image staging without installing or enabling
         run: |
           make -f Makefile.migration stage-snes-module
@@ -59,6 +72,9 @@ jobs:
           make -f Makefile.migration stage-md-module
           test -f build/migration/stage/usr/lib/retrode3/cores-available/md.so
           cmp packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
+          make -f Makefile.migration stage-nes-module
+          test -f build/migration/stage/usr/lib/retrode3/cores-available/nes.so
+          cmp packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
       - name: Verify pinned upstream checkout untouched
         run: |
           git -C third_party/oscr-firmware diff --exit-code
