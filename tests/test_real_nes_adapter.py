@@ -109,8 +109,8 @@ class TestRealNesAdapter(unittest.TestCase):
         shutil.copyfile(fixture, os.path.join(self.available, "snes.so"))
         with io.open(os.path.join(self.available, "snes.core"), "w",
                      encoding="utf-8") as handle:
-            handle.write("id=snes\\nname=Super Nintendo\\n"
-                         "version=0.1.0-test\\nslot=snes\\n")
+            handle.write("id=snes\nname=Super Nintendo\n"
+                         "version=0.1.0-test\nslot=snes\n")
         os.symlink(os.path.join(self.available, "snes.so"),
                    os.path.join(self.enabled, "snes.so"))
         output = os.path.join(self.temp.name, "both-nes.nes")
