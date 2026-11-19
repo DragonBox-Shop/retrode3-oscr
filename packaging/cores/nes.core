@@ -1,0 +1,4 @@
+id=nes
+name=Nintendo Entertainment System
+version=0.1.0-nrom-stage1
+slot=nes
