@@ -19,11 +19,16 @@ Retrode3 CLI/web UI -> OSCR (and custom) cartridge core libraries ->
 typed Linux bus/HAL -> Retrode3 kernel driver -> cartridge.
 
 Static `.a` archives remain known-good hardware acceptance references.
-On `feature/shared-core-host`, an experimental **real SNES `.so` adapter**
-is now generated from the original pinned C++ read routines and loaded via
-a versioned Retrode3 C operation ABI. This is not yet a released or
-hardware-reverified dynamic module. Dynamic adapters use the same generated
-upstream C++ library and POSIX/HAL shim, not a fork of Sanni's algorithms.
+On `feature/shared-core-host`, a real SNES `.so` adapter is generated
+from the original pinned C++ read routines and loaded via a versioned
+Retrode3 C operation ABI. Its standard HiROM path was **physically verified**
+with Terranigma (Germany) Rev 1 (4 MiB, CRC32 `6FB8A4DF`).
+On `feature/shared-md-core`, the original-derived MegaDrive stage-1
+reader likewise exposes `md.so` and passes CI/mock byte-for-byte
+comparisons, but its new dynamic path is **not yet physically verified**.
+Neither stage-1 adapter is released as a shipping OS package.
+Dynamic adapters reuse the same generated upstream C++ functions and
+shared typed Linux HAL, not a fork of Sanni's algorithms.
 A core compiled into a library is not automatically a supported production
 feature.
 
@@ -125,6 +130,21 @@ create `/run/lock/retrode3` and grant the service account appropriate
 access. **Legacy acceptance binaries do not yet participate**, so this is
 not a guarantee of exclusivity while those binaries run independently.
 Keep the original SNES/MD hardware paths available for regression checks.
+
+## MegaDrive real dynamic adapter (draft, 2026-11-19)
+
+The stacked `feature/shared-md-core` draft PR #6 builds
+`build/migration/md.so` using the pinned original Sanni MD
+`readWord()`/naming-helper code and `src/retrode3/oscr_md_stage1.cpp`.
+That stage-1 helper is shared by the prior standalone hardware acceptance
+CLI and the new dynamic adapter. It supports standard linear read-only
+MegaDrive ROMs up to 4 MiB, no mapper control, special carts or SRAM.
+The host, not the module, handles progress, CRC32, NDJSON, cancellation,
+output files and bus locking. CI compares the real module's bytes
+with the prior standalone mock reader and exercises cross-core dispatch.
+Only prior standalone MD hardware was verified (Snake Rattle n Roll
+CRC32 `543BED30`); physical dynamic `.so` acceptance is pending.
+See [docs/shared-md-core.md](docs/shared-md-core.md).
 
 ## Safe engineering workflow
 
