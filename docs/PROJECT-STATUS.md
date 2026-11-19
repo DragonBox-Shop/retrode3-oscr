@@ -278,40 +278,59 @@ participate in the shared bus lock. If probe succeeds, read a fresh ROM file
 and confirm full CRC32 `6FB8A4DF` against the previously proven reference.
 Special chips and saves remain outside stage-1 capability.
 
-## NES NROM live target registry and physical probe: PASSED (2026-11-19)
+## NES NROM live physical full-ROM acceptance: PASSED (2026-11-19)
 
-User-confirmed on **real Retrode3 2.9.5 MIPS hardware**: stage-1
-`nes.so` built and staged successfully
-(`build/migration/nes.so` 47860 bytes), then installed/enabled
-under the production core registry. Real common CLI
-`build/migration/retrode3-cli --list-cores` reported all three
-modules **md, nes, snes** as installed, enabled, ABI-compatible,
-`status:"ready"`, `usable:true`, and offering
-`["probe","read_rom"]`.
+**Hardware-verified on real Retrode3 2.9.5 MIPS:** Compiled,
+installed and enabled the original-Sanni-bank-loop-derived `nes.so`.
+The real generic CLI `--list-cores` reported **md, nes and snes**
+all `ready`, `usable:true`, offering `["probe","read_rom"]`.
 
-With a real **Excitebike (Europe)** in the NES cartridge slot:
+**Physical read-only Excitebike (Europe) probe** on the NES slot:
 
 ```json
 {"protocol":"retrode3-ndjson","version":1,"event":"probe_result","request_id":"cli","system":"nes","mapping":"nrom","size_bytes":24592,"title":"Excitebike (Europe)","checksum":"8A0C7337","candidates":[],"candidate_lookup":"not_integrated"}
 ```
 
-The complete size, title and PRG+CHR catalog CRC32 exactly match
-the pinned Sanni OSCR database. This is **physical hardware acceptance
-of NROM identification**, including the read-only kernel/HAL access and
-frozen mapper-0 catalog. **No full-ROM `read_rom` hardware result has
-yet been submitted for the new NES `.so`**. Next safe test: common CLI
-`--protocol ndjson-v1 --core nes --action read-rom --output
-/tmp/excitebike-nes-plugin.nes` followed by a Python 3.4-compatible
-CRC32 of **data[16:]** expected `8A0C7337`; host `result.crc32`
-covers the complete 24592-byte .nes file **including** the 16-byte
-catalog-supplied iNES header, so its value will differ. A full-file
-`cmp` with independent reference can be performed if available.
-`candidate_lookup:"not_integrated"` concerns generic host lookups
-and does **not** mean the NES core's pinned internal catalog lookup
-is missing.
+The user then performed an actual **complete ROM dump** through
+the same common CLI:
 
-Physical capabilities are still limited to conservative read-only
-NROM mapper 0; full NES mapper support and SRAM remain unavailable.
+```sh
+build/migration/retrode3-cli --protocol ndjson-v1 --core nes --action read-rom --output /tmp/excitebike-nes-plugin.nes
+```
+
+The shared CLI (not the NES core) emitted real bytes-written progress
+at 0, 4112, 8208, 12304, 16400, 20496 and 24592 bytes,
+ending at exactly 100%. Final physical NDJSON:
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"result","request_id":"cli","ok":true,"system":"nes","bytes_written":24592,"crc32":"F749E780","output":"/tmp/excitebike-nes-plugin.nes","verified":null}
+```
+
+**Full-file CRC independently cross-checked algebraically:** the exact
+original OSCR DB iNES header `4E45531A010101080000000001000020`
+(16 bytes; header CRC32 `43EABD6C`) concatenated with 24576 bytes of
+PRG+CHR data whose catalog-verified payload CRC32 is `8A0C7337`
+must yield the entire-file CRC32 **`F749E780`** by `zlib.crc32_combine`.
+This exactly matches the physically read file, validating the complete
+NROM ROM data path, correct 16-byte header, PRG/CHR output order,
+shared host CRC, progress and file publication. A separate new-file
+byte-for-byte `cmp` against an archived independent reference has not
+been reported; this is a CRC-matched hardware acceptance.
+
+**Three console types now complete real full-ROM reads through the
+same common NDJSON host:**
+- SNES HiROM Terranigma D: **4194304** bytes, CRC32 `6FB8A4DF`.
+- MegaDrive linear Snake Rattle n Roll: **524288** bytes,
+  CRC32 `543BED30`.
+- NES NROM Excitebike Europe: **24592** bytes, full .nes CRC32
+  `F749E780`, PRG+CHR CRC32 `8A0C7337`.
+
+The host fields `candidate_lookup:"not_integrated"` and
+`verified:null` remain correct for the **generic host-wide** OSCR
+database lookup, which is separate from the **working pinned internal
+NES NROM catalog**. This is **stage-1 mapper 0 only**, not hardware
+acceptance of arbitrary NES mapper/cart, save RAM or mapper writes.
+Release packaging and web privilege integration remain pending.
 
 ## NES NROM dynamic adapter, first CI/mock acceptance (2026-11-19)
 
