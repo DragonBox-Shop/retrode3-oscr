@@ -55,7 +55,34 @@ Only a controlled, trusted root install under
 `/etc/retrode3/cores-enabled/` can activate it. Never overwrite an
 existing deployed module without an upgrade/rollback plan.
 
-## Acceptance required on real Retrode3 2.9.5 MIPS
+## Accepted physical MegaDrive ROM dump on Retrode3 2.9.5 (2026-11-19)
+
+**PASSED** for the first standard linear MegaDrive ROM. After building
+and enabling the original-derived dynamic `md.so` on the real target,
+the user read **Snake Rattle n Roll (Europe)** through the **common
+`retrode3-cli` host** to
+`/tmp/snake-rattle-n-roll-md-plugin.bin`. Final actual NDJSON:
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"result","request_id":"cli","ok":true,"system":"md","bytes_written":524288,"crc32":"543BED30","output":"/tmp/snake-rattle-n-roll-md-plugin.bin","verified":null}
+```
+
+The full 524288 bytes and CRC32 `543BED30` **exactly match** the
+earlier independently verified real-cartridge standalone MD acceptance
+reader. This hardware result validates the dynamic module, shared
+NDJSON host, Linux read-only HAL and existing kernel MD ROM bulk path.
+No fresh full probe JSON, independent `cmp` of the new output file or
+special cartridge tests were submitted with this read. Automatic OSCR
+database lookup is not yet connected to the shared host, so
+`verified:null` is **expected**.
+
+The original scope restrictions continue: standard direct-mapped
+read-only ROMs up to 4 MiB only. No SRAM, 32X, SVP, lock-on, EEPROM,
+mapper writes or save/flash operations. Physical success does not
+mean the plugin is packaged for the release SD image or that web
+enable/disable privileges are already installed.
+
+## Reproducible MIPS hardware acceptance procedure (passed for first linear ROM)
 
 1. Verify `test-native-md-module` and `stage-md-module` on the MIPS
    device using its GCC 4.9/C++11 and Python 3.4 toolchain.
