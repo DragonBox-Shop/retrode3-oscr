@@ -1,7 +1,19 @@
 name: Native NES Sanni OSCR migration
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/retrode3/oscr_nes_*.cpp'
+      - 'tools/build-linux-nes-core.py'
+      - 'third_party/oscr-firmware'
+      - 'Makefile.migration'
+      - '.github/workflows/native-nes-migration.yml'
   pull_request:
+    branches:
+      - master
+      - develop
     paths:
       - 'Makefile.migration'
       - 'src/retrode3/oscr_nes_*.cpp'

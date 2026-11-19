@@ -3,8 +3,11 @@ name: Native Retrode3 core registry
 on:
   push:
     branches:
-      - migration/oscr-firmware
+      - master
   pull_request:
+    branches:
+      - master
+      - develop
     paths:
       - 'include/retrode3/core_descriptor_v1.h'
       - 'include/retrode3/core_operations_v1.h'
@@ -34,6 +37,11 @@ on:
       - 'tests/test_core_registry.py'
       - 'tests/test_shared_core_host.py'
       - 'Makefile.migration'
+      - 'third_party/oscr-firmware'
+      - 'retrode3-lib.c'
+      - 'retrode3-lib.h'
+      - 'tools/build-linux-snes-core.py'
+      - 'tools/build-linux-md-core.py'
       - '.github/workflows/core-registry.yml'
   workflow_dispatch:
 

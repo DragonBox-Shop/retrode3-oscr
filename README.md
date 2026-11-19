@@ -22,7 +22,8 @@ Es erfolgt kein automatischer Austausch der laufenden OS-Installation.
 Die späteren Legacy-Binaries werden im OS-Paket in einem getrennten
 Verzeichnis aufbewahrt, anstatt überschrieben zu werden.
 
-Weiteres: [Master-Integration und Rollback](docs/master-integration.md),
+Weiteres: [Branching, Debian-Pakete und SD-Images](docs/branching-and-builds.md),
+[Master-Integration und Rollback](docs/master-integration.md),
 [Projektstatus](docs/PROJECT-STATUS.md).
 
 ---

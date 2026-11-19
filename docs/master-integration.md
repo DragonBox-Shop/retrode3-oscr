@@ -57,3 +57,10 @@ auf und nimmt den unabhängigen NES-Branch als zweiten Git-Eltern-Commit
 auf. So bleibt die Historie beider Cores erhalten, ohne dass ihre
 Makefiles, Tests oder Workflows sich gegenseitig überschreiben.
 `master` wird erst nach vollständig grüner gemeinsamer CI aktualisiert.
+
+## Folgeentwicklung
+
+Neue Entwicklung beginnt auf `develop`, niemals direkt auf `master`.
+Der konkrete Ablauf für PRs, Hardware-Freigaben, OSCR-Upstream-Konvertierung,
+Debian-Pakete und SD-Images ist in
+[Entwicklung und Build-Verantwortung](branching-and-builds.md) dokumentiert.

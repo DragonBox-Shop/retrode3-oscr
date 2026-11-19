@@ -3,8 +3,11 @@ name: Native MegaDrive OSCR migration
 on:
   push:
     branches:
-      - migration/oscr-firmware
+      - master
   pull_request:
+    branches:
+      - master
+      - develop
     paths:
       - 'Makefile.migration'
       - 'src/retrode3/oscr_md_*.cpp'
