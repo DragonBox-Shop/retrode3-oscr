@@ -1,0 +1,194 @@
+"""Pinned Sanni NES mapper-0 bank loops and shared host tests (Python 3.4)."""
+import io
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+import unittest
+import zlib
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HOST = os.path.join(ROOT, "build/migration/retrode3-cli-mock")
+MODULE = os.path.join(ROOT, "build/migration/real-nes-fixture/nes.so")
+MANIFEST = os.path.join(ROOT, "packaging/cores/nes.core")
+GENERATED = os.path.join(ROOT, "build/migration/oscr_nes_nrom.cpp")
+
+def expected_rom():
+    header = bytes(bytearray.fromhex("4E45531A010101080000000001000020"))
+    prg = bytes(bytearray((i * 7 + (i >> 8)) & 255 for i in range(16384)))
+    chr_data = bytes(bytearray((i * 11 + 3) & 255 for i in range(8192)))
+    return header + prg + chr_data
+
+
+class TestRealNesAdapter(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.available = os.path.join(self.temp.name, "available")
+        self.enabled = os.path.join(self.temp.name, "enabled")
+        os.mkdir(self.available)
+        os.mkdir(self.enabled)
+        shutil.copyfile(MODULE, os.path.join(self.available, "nes.so"))
+        shutil.copyfile(MANIFEST, os.path.join(self.available, "nes.core"))
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def enable(self):
+        os.symlink(os.path.join(self.available, "nes.so"),
+                   os.path.join(self.enabled, "nes.so"))
+
+    def host(self, commands, env=None):
+        args = [HOST, "--protocol", "ndjson-v1", "--interactive",
+                "--available-dir", self.available, "--enabled-dir", self.enabled]
+        process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, env=env)
+        stdin = "".join(json.dumps(command) + "\n" for command in commands).encode("utf-8")
+        stdout, stderr = process.communicate(stdin)
+        return (process.returncode,
+                [json.loads(line) for line in stdout.decode("utf-8").splitlines()],
+                stderr.decode("utf-8", "replace"))
+
+    def test_original_sanni_bank_order_and_complete_ines_output(self):
+        self.enable()
+        target = os.path.join(self.temp.name, "mock.nes")
+        rc, events, errors = self.host([
+            {"command": "list_cores", "request_id": "list"},
+            {"command": "get_capabilities", "core": "nes", "request_id": "cap"},
+            {"command": "probe", "core": "nes", "request_id": "probe"},
+            {"command": "read_rom", "core": "nes", "request_id": "read",
+             "output": target}
+        ])
+        self.assertEqual(rc, 0, errors)
+        core = events[1]["cores"][0]
+        self.assertEqual(core["id"], "nes")
+        self.assertTrue(core["usable"])
+        self.assertEqual(core["status"], "ready")
+        self.assertEqual(core["actions"], ["probe", "read_rom"])
+        self.assertEqual(events[2]["event"], "capabilities")
+        self.assertFalse(events[2]["write_operations"])
+        self.assertEqual(events[3]["event"], "probe_result")
+        self.assertEqual(events[3]["mapping"], "nrom")
+        self.assertEqual(events[3]["title"], "MOCK NES NROM")
+        self.assertEqual(events[3]["checksum"], "6124E914")
+        self.assertEqual(events[3]["size_bytes"], 24592)
+        progress = [event for event in events if event["event"] == "progress"]
+        self.assertGreater(len(progress), 2)
+        self.assertEqual(progress[0]["bytes_done"], 0)
+        self.assertEqual(progress[-1]["bytes_done"], 24592)
+        self.assertEqual(progress[-1]["percent"], 100)
+        self.assertTrue(all(a["bytes_done"] <= b["bytes_done"]
+                            for a, b in zip(progress, progress[1:])))
+        self.assertEqual(events[-1]["event"], "result")
+        self.assertEqual(events[-1]["bytes_written"], 24592)
+        with io.open(target, "rb") as handle:
+            actual = handle.read()
+        self.assertEqual(actual, expected_rom())
+        self.assertEqual("%08X" % (zlib.crc32(actual[16:]) & 0xffffffff), "6124E914")
+        self.assertEqual(events[-1]["crc32"],
+                         "%08X" % (zlib.crc32(actual) & 0xffffffff))
+        self.assertIsNone(events[-1]["verified"])
+
+    def test_one_shot_original_mapper_zero_probe(self):
+        self.enable()
+        args = [HOST, "--protocol", "ndjson-v1", "--core", "nes",
+                "--action", "probe",
+                "--available-dir", self.available, "--enabled-dir", self.enabled]
+        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = process.communicate()
+        self.assertEqual(process.returncode, 0, error)
+        event = json.loads(output.decode("utf-8"))
+        self.assertEqual(event["event"], "probe_result")
+        self.assertEqual(event["mapping"], "nrom")
+        self.assertEqual(event["size_bytes"], 24592)
+
+    def test_disabled_nes_module_not_usable(self):
+        rc, events, errors = self.host([
+            {"command": "list_cores", "request_id": "list"},
+            {"command": "probe", "core": "nes", "request_id": "probe"}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertFalse(events[1]["cores"][0]["usable"])
+        self.assertEqual(events[1]["cores"][0]["status"], "disabled")
+        self.assertEqual(events[-1]["event"], "error")
+
+    def test_unknown_or_empty_carts_fail_without_rom_output(self):
+        self.enable()
+        for bad in ("unknown", "empty"):
+            output = os.path.join(self.temp.name, bad + ".nes")
+            env = os.environ.copy()
+            env["RETRODE_MOCK_NES_BAD"] = bad
+            rc, events, errors = self.host([
+                {"command": "read_rom", "core": "nes", "request_id": bad,
+                 "output": output}
+            ], env=env)
+            self.assertEqual(rc, 0, errors)
+            self.assertEqual(events[-1]["event"], "error")
+            self.assertFalse(os.path.exists(output))
+            self.assertFalse(any(name.startswith(bad + ".nes.partial-")
+                                 for name in os.listdir(self.temp.name)))
+
+    def test_cancel_cleans_partial_output(self):
+        self.enable()
+        output = os.path.join(self.temp.name, "cancel.nes")
+        rc, events, errors = self.host([
+            {"command": "read_rom", "core": "nes", "request_id": "job",
+             "output": output},
+            {"command": "cancel", "request_id": "job"}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertTrue(any(event.get("code") == "cancelled" for event in events))
+        self.assertFalse(os.path.exists(output))
+        self.assertFalse(any(name.startswith("cancel.nes.partial-")
+                             for name in os.listdir(self.temp.name)))
+
+    def test_existing_rom_not_overwritten(self):
+        self.enable()
+        output = os.path.join(self.temp.name, "existing.nes")
+        with io.open(output, "wb") as handle:
+            handle.write(b"KEEP")
+        rc, events, errors = self.host([
+            {"command": "read_rom", "core": "nes", "request_id": "keep",
+             "output": output}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertEqual(events[-1]["event"], "error")
+        with io.open(output, "rb") as handle:
+            self.assertEqual(handle.read(), b"KEEP")
+
+    def test_generator_original_sanni_loops_and_no_unreviewed_writes(self):
+        with io.open(GENERATED, "r", encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertIn("void dumpBankPRG(", source)
+        self.assertIn("void dumpBankCHR(", source)
+        self.assertIn("address += 512", source)
+        self.assertIn("OSCR::RetroDe3::readPRGBlock(", source)
+        self.assertIn("OSCR::RetroDe3::readCHRBlock(", source)
+        for forbidden in ("write_prg_byte(", "nes_write(", "NES_MAPPER", "writeRAM("):
+            self.assertNotIn(forbidden, source)
+
+    def test_strict_upstream_guard_rejects_modified_bank_iterator(self):
+        original = os.path.join(ROOT, "third_party/oscr-firmware/src/cores/NES.cpp")
+        with io.open(original, "r", encoding="utf-8") as handle:
+            source = handle.read()
+        first = source.index("  void dumpBankPRG(")
+        last = source.index("  void dumpBankCHR(", first)
+        changed = source[:first] + source[first:last].replace(
+            "address += 512", "address += 256", 1) + source[last:]
+        self.assertNotEqual(changed, source)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "upstream.cpp")
+            output = os.path.join(tmp, "generated.cpp")
+            with io.open(path, "w", encoding="utf-8") as handle:
+                handle.write(changed)
+            process = subprocess.Popen(
+                ["python3", os.path.join(ROOT, "tools/build-linux-nes-core.py"),
+                 "--upstream", path, "--output", output],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, error = process.communicate()
+            self.assertEqual(process.returncode, 2)
+            self.assertIn(b"review required", error)
+            self.assertFalse(os.path.exists(output))
+
+if __name__ == "__main__":
+    unittest.main()
