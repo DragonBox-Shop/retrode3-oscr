@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/core-registry
+      - feature/shared-md-core
       - migration/oscr-firmware
   pull_request:
     paths:
@@ -17,6 +18,11 @@ on:
       - 'src/retrode3/oscr_snes_posix.cpp'
       - 'include/retrode3/oscr_snes_compat.h'
       - 'src/retrode3/oscr_snes_native.cpp'
+      - 'src/retrode3/oscr_md_stage1.cpp'
+      - 'src/retrode3/oscr_md_adapter.cpp'
+      - 'include/retrode3/oscr_md_stage1.h'
+      - 'tests/test_real_md_adapter.py'
+      - 'packaging/cores/md.core'
       - 'tests/test_real_snes_adapter.py'
       - 'packaging/cores/snes.core'
       - 'tests/mock_core_module.cpp'
@@ -43,11 +49,16 @@ jobs:
         run: make -f Makefile.migration test-core-registry
       - name: Compare genuine SNES module against original acceptance runner
         run: make -f Makefile.migration test-native-snes-module
+      - name: Compare actual OSCR MegaDrive .so against accepted standalone reader
+        run: make -f Makefile.migration test-native-md-module
       - name: Prepare offline core image staging without installing or enabling
         run: |
           make -f Makefile.migration stage-snes-module
           test -f build/migration/stage/usr/lib/retrode3/cores-available/snes.so
           cmp packaging/cores/snes.core build/migration/stage/usr/lib/retrode3/cores-available/snes.core
+          make -f Makefile.migration stage-md-module
+          test -f build/migration/stage/usr/lib/retrode3/cores-available/md.so
+          cmp packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
       - name: Verify pinned upstream checkout untouched
         run: |
           git -C third_party/oscr-firmware diff --exit-code
