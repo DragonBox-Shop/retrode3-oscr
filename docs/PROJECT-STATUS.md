@@ -197,6 +197,29 @@ installation of `snes.so`, read-only probe of known Terranigma HiROM
 (4194304 bytes, expected checksum 3856), then a fresh no-overwrite ROM
 dump checked against previously verified CRC32 `6FB8A4DF`.
 
+## Actual MIPS dynamic core registration accepted (2026-11-19)
+
+On real Retrode3 2.9.5 hardware, following 41/41 C++11/Python 3.4
+host-and-mock tests, the user copied the generated pinned-upstream-derived
+`snes.so` and `packaging/cores/snes.core` into
+`/usr/lib/retrode3/cores-available/`, ran
+`build/migration/retrode3-corectl enable snes` successfully, and
+`build/migration/retrode3-cli --list-cores` emitted:
+
+```json
+{"id":"snes","name":"Super Nintendo","version":"0.1.0-stage1","slot":"snes","installed":true,"enabled":true,"status":"ready","usable":true,"actions":["probe","read_rom"]}
+```
+
+Thus real target-side module loading, descriptor and operation ABI matching,
+and offline enablement are confirmed. **No physical cartridge probe or ROM
+read via the shared host has yet been reported.** Next safe step: read-only
+`--protocol ndjson-v1 --core snes --action probe` with known Terranigma
+(Germany) Rev 1 inserted, confirm HiROM, 4194304 bytes, checksum `3856`.
+Do not run the legacy acceptance reader concurrently because it does not
+participate in the shared bus lock. If probe succeeds, read a fresh ROM file
+and confirm full CRC32 `6FB8A4DF` against the previously proven reference.
+Special chips and saves remain outside stage-1 capability.
+
 ## Shared operation runtime and first real dynamic core (2026-11-18)
 
 Branch `feature/shared-core-host` (draft PR #5, parent
