@@ -67,7 +67,7 @@ class TestRealNesAdapter(unittest.TestCase):
         self.assertEqual(core["actions"], ["probe", "read_rom"])
         self.assertEqual(events[2]["event"], "capabilities")
         self.assertFalse(events[2]["write_operations"])
-        self.assertEqual(events[3]["event"], "probe_result")
+        self.assertEqual(events[3]["event"], "probe_result", events)
         self.assertEqual(events[3]["mapping"], "nrom")
         self.assertEqual(events[3]["title"], "MOCK NES NROM")
         self.assertEqual(events[3]["checksum"], "6124E914")
@@ -133,7 +133,7 @@ class TestRealNesAdapter(unittest.TestCase):
                 "--available-dir", self.available, "--enabled-dir", self.enabled]
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output, error = process.communicate()
-        self.assertEqual(process.returncode, 0, error)
+        self.assertEqual(process.returncode, 0, (error, output))
         event = json.loads(output.decode("utf-8"))
         self.assertEqual(event["event"], "probe_result")
         self.assertEqual(event["mapping"], "nrom")
