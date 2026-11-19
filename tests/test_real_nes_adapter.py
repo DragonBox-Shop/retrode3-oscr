@@ -89,6 +89,43 @@ class TestRealNesAdapter(unittest.TestCase):
                          "%08X" % (zlib.crc32(actual) & 0xffffffff))
         self.assertIsNone(events[-1]["verified"])
 
+    def test_nrom_16_and_32_kib_prg_with_optional_chr(self):
+        self.enable()
+        for variant, prg_kib, chr_kib, expected_crc, title, header_hex in (
+            ("16-0", 16, 0, "A219C94F", "MOCK NES NROM 16-0",
+             "4E45531A010001080000000000000001"),
+            ("32-0", 32, 0, "D1DF4327", "MOCK NES NROM 32-0",
+             "4E45531A020001080000000000000001"),
+            ("32-8", 32, 8, "27635BAE", "MOCK NES NROM 32-8",
+             "4E45531A020101080000000000000001"),
+        ):
+            output = os.path.join(self.temp.name, variant + ".nes")
+            env = os.environ.copy()
+            env["RETRODE_MOCK_NES_SIZE"] = variant
+            rc, events, errors = self.host([
+                {"command": "probe", "core": "nes", "request_id": "probe"},
+                {"command": "read_rom", "core": "nes", "request_id": "read",
+                 "output": output}
+            ], env=env)
+            self.assertEqual(rc, 0, (variant, errors))
+            self.assertEqual(events[1]["event"], "probe_result")
+            self.assertEqual(events[1]["title"], title)
+            self.assertEqual(events[1]["checksum"], expected_crc)
+            self.assertEqual(events[1]["size_bytes"], 16 + (prg_kib + chr_kib) * 1024)
+            self.assertEqual(events[-1]["event"], "result")
+            with io.open(output, "rb") as handle:
+                actual = handle.read()
+            header = bytes(bytearray.fromhex(header_hex))
+            prg = bytes(bytearray((i * 7 + (i >> 8)) & 255
+                                  for i in range(prg_kib * 1024)))
+            chr_data = bytes(bytearray((i * 11 + 3) & 255
+                                       for i in range(chr_kib * 1024)))
+            self.assertEqual(actual, header + prg + chr_data)
+            self.assertEqual("%08X" % (zlib.crc32(actual[16:]) & 0xffffffff),
+                             expected_crc)
+            self.assertEqual(events[-1]["crc32"],
+                             "%08X" % (zlib.crc32(actual) & 0xffffffff))
+
     def test_one_shot_original_mapper_zero_probe(self):
         self.enable()
         args = [HOST, "--protocol", "ndjson-v1", "--core", "nes",
