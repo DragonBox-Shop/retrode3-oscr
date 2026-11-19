@@ -278,6 +278,41 @@ participate in the shared bus lock. If probe succeeds, read a fresh ROM file
 and confirm full CRC32 `6FB8A4DF` against the previously proven reference.
 Special chips and saves remain outside stage-1 capability.
 
+## NES NROM live target registry and physical probe: PASSED (2026-11-19)
+
+User-confirmed on **real Retrode3 2.9.5 MIPS hardware**: stage-1
+`nes.so` built and staged successfully
+(`build/migration/nes.so` 47860 bytes), then installed/enabled
+under the production core registry. Real common CLI
+`build/migration/retrode3-cli --list-cores` reported all three
+modules **md, nes, snes** as installed, enabled, ABI-compatible,
+`status:"ready"`, `usable:true`, and offering
+`["probe","read_rom"]`.
+
+With a real **Excitebike (Europe)** in the NES cartridge slot:
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"probe_result","request_id":"cli","system":"nes","mapping":"nrom","size_bytes":24592,"title":"Excitebike (Europe)","checksum":"8A0C7337","candidates":[],"candidate_lookup":"not_integrated"}
+```
+
+The complete size, title and PRG+CHR catalog CRC32 exactly match
+the pinned Sanni OSCR database. This is **physical hardware acceptance
+of NROM identification**, including the read-only kernel/HAL access and
+frozen mapper-0 catalog. **No full-ROM `read_rom` hardware result has
+yet been submitted for the new NES `.so`**. Next safe test: common CLI
+`--protocol ndjson-v1 --core nes --action read-rom --output
+/tmp/excitebike-nes-plugin.nes` followed by a Python 3.4-compatible
+CRC32 of **data[16:]** expected `8A0C7337`; host `result.crc32`
+covers the complete 24592-byte .nes file **including** the 16-byte
+catalog-supplied iNES header, so its value will differ. A full-file
+`cmp` with independent reference can be performed if available.
+`candidate_lookup:"not_integrated"` concerns generic host lookups
+and does **not** mean the NES core's pinned internal catalog lookup
+is missing.
+
+Physical capabilities are still limited to conservative read-only
+NROM mapper 0; full NES mapper support and SRAM remain unavailable.
+
 ## NES NROM dynamic adapter, first CI/mock acceptance (2026-11-19)
 
 Working branch **`feature/shared-nes-core`**, stacked draft
