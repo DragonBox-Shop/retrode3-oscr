@@ -102,6 +102,35 @@ class TestRealNesAdapter(unittest.TestCase):
         self.assertEqual(event["mapping"], "nrom")
         self.assertEqual(event["size_bytes"], 24592)
 
+    def test_snes_and_nes_are_discovered_in_the_same_shared_cli(self):
+        self.enable()
+        # The existing SNES test module needs no cartridge hardware.
+        fixture = os.path.join(ROOT, "build/migration/registry-fixtures/snes.so")
+        shutil.copyfile(fixture, os.path.join(self.available, "snes.so"))
+        with io.open(os.path.join(self.available, "snes.core"), "w",
+                     encoding="utf-8") as handle:
+            handle.write("id=snes\\nname=Super Nintendo\\n"
+                         "version=0.1.0-test\\nslot=snes\\n")
+        os.symlink(os.path.join(self.available, "snes.so"),
+                   os.path.join(self.enabled, "snes.so"))
+        output = os.path.join(self.temp.name, "both-nes.nes")
+        rc, events, errors = self.host([
+            {"command": "list_cores", "request_id": "list"},
+            {"command": "probe", "core": "nes", "request_id": "nes-probe"},
+            {"command": "probe", "core": "snes", "request_id": "snes-probe"},
+            {"command": "read_rom", "core": "nes", "request_id": "nes-read",
+             "output": output}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertEqual([x["id"] for x in events[1]["cores"]], ["nes", "snes"])
+        self.assertTrue(all(x["usable"] for x in events[1]["cores"]))
+        probes = [x for x in events if x["event"] == "probe_result"]
+        self.assertEqual([(x["system"], x["mapping"]) for x in probes],
+                         [("nes", "nrom"), ("snes", "lo")])
+        self.assertEqual(events[-1]["event"], "result")
+        with io.open(output, "rb") as handle:
+            self.assertEqual(handle.read(), expected_rom())
+
     def test_disabled_nes_module_not_usable(self):
         rc, events, errors = self.host([
             {"command": "list_cores", "request_id": "list"},
