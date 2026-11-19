@@ -12,7 +12,8 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGETS = ("test_native_snes.py", "test_native_md.py",
-           "test_real_snes_adapter.py", "test_shared_core_host.py",
+           "test_real_snes_adapter.py", "test_real_nes_adapter.py",
+           "test_shared_core_host.py",
            "test_core_registry.py")
 UNSUPPORTED_PATH_METHODS = ("read_bytes", "write_bytes",
                             "read_text", "write_text")
