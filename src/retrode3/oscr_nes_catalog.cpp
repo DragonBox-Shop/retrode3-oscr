@@ -236,11 +236,11 @@ NromRecord const records[] = {
     // Synthetic mock only: never included in the production cartridge catalog.
     {0xd14b6d1bu,0x76914dbeu,0x6124e914u,16,8,
      "4E45531A010101080000000001000020","MOCK NES NROM"},
-    {0xd14b6d1bu,0x76914dbeu,0xa219c94fu,16,0,
+    {0xac5d9aa3u,0x29c35eebu,0x716a9a25u,16,0,
      "4E45531A010001080000000000000001","MOCK NES NROM 16-0"},
-    {0xd14b6d1bu,0x4c9f7dabu,0x27635baeu,32,8,
+    {0xf97dfabbu,0xc213088cu,0x3f59f616u,32,8,
      "4E45531A020101080000000000000001","MOCK NES NROM 32-8"},
-    {0xd14b6d1bu,0x4c9f7dabu,0xd1df4327u,32,0,
+    {0x5a505c94u,0xdc6971c2u,0x9a4d4ba5u,32,0,
      "4E45531A020001080000000000000001","MOCK NES NROM 32-0"},
 #endif
 };
