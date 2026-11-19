@@ -15,6 +15,12 @@ void init()
         prg[i] = static_cast<unsigned char>((i * 7u + (i >> 8)) & 255u);
     for (unsigned i = 0; i < sizeof(chr); ++i)
         chr[i] = static_cast<unsigned char>((i * 11u + 3u) & 255u);
+    char const *bad = std::getenv("RETRODE_MOCK_NES_BAD");
+    if (bad && std::strcmp(bad, "empty") == 0) {
+        std::memset(prg, 0xff, sizeof(prg));
+        std::memset(chr, 0xff, sizeof(chr));
+    }
+    if (bad && std::strcmp(bad, "unknown") == 0) prg[0] ^= 0x5a;
 }
 }
 extern "C" int nes_read(std::uint16_t address, void *buf,
