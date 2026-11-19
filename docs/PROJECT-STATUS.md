@@ -278,6 +278,48 @@ participate in the shared bus lock. If probe succeeds, read a fresh ROM file
 and confirm full CRC32 `6FB8A4DF` against the previously proven reference.
 Special chips and saves remain outside stage-1 capability.
 
+## MegaDrive dynamic adapter implemented, CI/mock passed (2026-11-19)
+
+Working branch: **`feature/shared-md-core`**, stacked draft
+[PR #6](https://github.com/DragonBox-Shop/retrode3-oscr/pull/6) on
+the already physically verified common SNES runtime PR #5.
+
+The original Sanni-derived native MegaDrive stage-1 ROM reader
+(`MegaDrive::readWord()` plus `copyToRomName()` from the pinned
+`MegaDrive.cpp`) now exposes a real independently loadable
+`build/migration/md.so` with `md.core` metadata. The validated
+read-only header probe was factored into
+`oscr_md_stage1.cpp` and is shared by the legacy acceptance CLI and
+the new dynamic module; original extracted OSCR remains intact.
+The existing kernel HAL still uses `MD_MODE_P10` for header and
+`MD_MODE_ROM` for bulk ROM reads. The module uses the standard
+`probe/read_rom/release` ABI, streams bytes through common-host
+callbacks, and has **no per-plugin NDJSON, CRC, progress, output file,
+or cancel dispatch**. The shared host owns those.
+
+Normal 512 B..4 MiB direct-mapped MegaDrive ROMs only, **no**
+32X/SVP/Sonic & Knuckles lock-on/mapper writes/flash/SRAM/FRAM/EEPROM.
+Unrecognized and incompatible headers fail closed. Module-probe identity
+is checked again before ROM streaming. No new kernel write operations.
+
+**Dedicated MegaDrive CI passed:** generated upstream source guard,
+legacy native mock regression (7 tests), real generated `md.so`
+mock-host integration (6 new tests) including byte-for-byte output
+comparison against the legacy reader, plus existing registry (11 tests)
+and common host (9 tests). Offline `stage-md-module` compiled a
+release `.so` and staged a `md.core` descriptor without installation.
+The independent core-registry workflow also includes MD test/staging.
+All new tests are Python 3.4 compatible and compile as C++11.
+
+**Not yet hardware verified for new `md.so`:** run on actual MIPS
+Retrode3 2.9.5 with GCC 4.9 and Python 3.4, then explicitly install
+and enable module only after passing tests. Read standard
+Snake Rattle n Roll (Europe) cartridge to a new file through the
+**shared CLI** and compare final 524288 bytes / CRC32 `543BED30`
+to the previously verified *legacy* physical reference. Other special
+mappers/SRAM remain future work. See
+[shared-md-core.md](shared-md-core.md) for safe reproduction.
+
 ## Prioritized next-core roadmap and Retrode adapters (2026-11-19)
 
 User-confirmed strategy: **finish the common architecture first**, then port
