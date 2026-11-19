@@ -197,6 +197,30 @@ installation of `snes.so`, read-only probe of known Terranigma HiROM
 (4194304 bytes, expected checksum 3856), then a fresh no-overwrite ROM
 dump checked against previously verified CRC32 `6FB8A4DF`.
 
+## Actual MIPS dynamic SNES physical probe accepted (2026-11-19)
+
+Using the installed, enabled `snes.so` via the **single new shared
+host**, the user ran:
+
+```sh
+build/migration/retrode3-cli --protocol ndjson-v1 --core snes --action probe
+```
+
+The live Retrode3 2.9.5 physical Terranigma cartridge produced:
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"probe_result","request_id":"cli","system":"snes","mapping":"hi","size_bytes":4194304,"title":"TERRANIGMA D","checksum":"3856","candidates":[],"candidate_lookup":"not_integrated"}
+```
+
+All fields match the previously verified cartridge; this validates
+physical hardware probe through the common host, dynamically loaded OSCR
+SNES adapter, shared POSIX HAL and Linux kernel. **Full ROM dumping and
+CRC32 through this new shared-host pathway remain untested** at this point.
+Next test is read-only `--action read-rom --output
+/tmp/terranigma-plugin.sfc`, compare result CRC32 to previously established
+`6FB8A4DF`, and (if reference exists) compare files byte-for-byte.
+Do not enable SRAM, special chips or save restore yet.
+
 ## Actual MIPS dynamic core registration accepted (2026-11-19)
 
 On real Retrode3 2.9.5 hardware, following 41/41 C++11/Python 3.4
