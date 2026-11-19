@@ -278,6 +278,48 @@ participate in the shared bus lock. If probe succeeds, read a fresh ROM file
 and confirm full CRC32 `6FB8A4DF` against the previously proven reference.
 Special chips and saves remain outside stage-1 capability.
 
+## Prioritized next-core roadmap and Retrode adapters (2026-11-19)
+
+User-confirmed strategy: **finish the common architecture first**, then port
+the existing **MegaDrive** and **NES** readers into the shared module ABI,
+before adding Retrode physical plugins. Preferred order:
+
+1. **MegaDrive first:** already physically hardware-verified as a standalone
+   original-OSCR-derived C++ stage-1 standard linear ROM reader; wrap the
+   existing code in a dynamic `md.so` adapter with host-owned NDJSON,
+   progress, CRC, cancellation and no-clobber output. Test physical CRC
+   `543BED30` against Snake Rattle n Roll (Europe). Do not claim
+   mapper/save/full original OSCR coverage.
+2. **NES second:** adapt original Sanni mapper/PRG/CHR algorithms into the
+   common ABI, starting with verified mapper-0 read-only operation. Expand
+   mapper capabilities only as kernel/HAL transactions permit.
+3. **Retrode SMS adapter third:** physical original Retrode Master System
+   plugin is now available for tests. Important upstream discovery:
+   pinned `oscartreader/oscr-firmware/src/cores/SMS.cpp` **already has**
+   explicit `SMSMode::SMSRetrode` and `SMSMode::GGRetrode` paths,
+   bank-switched ROM reading plus SRAM read/write algorithms. Reuse
+   that original source rather than creating a duplicate Master System
+   ROM algorithm. The hardware transaction HAL still needs review:
+   reads and **controlled** writes to SMS mapper addresses
+   `0xFFFC`-`0xFFFF`, correct Retrode adapter pin and data-lane mapping,
+   voltage, direction and timing. No uncontrolled save writes.
+4. **Retrode GB/GBA and N64 adapters:** original pinned upstream includes
+   `GameBoy.cpp`, `GameBoyAdvance.cpp`, `N64.cpp`; assess adapter
+   pinouts, physical slot compatibility, voltage and electrical control
+   on Retrode3. Reuse upstream algorithms behind adapters, not duplicate
+   per-console CLI code. Physical plug-ins are available for testing.
+5. Optional upstream work: propose small generic reusable Linux HAL or
+   Retrode-adapter support improvements to Sanni after reviewing electrical
+   compatibility and validating on an actual Sanni CartReader. The original
+   upstream SMS already recognizes Retrode SMS adapters; do not imply
+   initial upstream support needs to be invented. Do not push upstream
+   without explicit owner authorization.
+
+Real full shared-host SNES HiROM dump (Terranigma 4 MiB, CRC32 `6FB8A4DF`)
+is already physically successful; advanced SNES chips/SRAM remain future
+capability-gated tasks. Prioritize shared CLI, safe packaging and adapter
+contracts before breadth of consoles.
+
 ## Shared operation runtime and first real dynamic core (2026-11-18)
 
 Branch `feature/shared-core-host` (draft PR #5, parent
