@@ -5,6 +5,7 @@ on:
     branches:
       - migration/oscr-firmware
       - feature/native-md-stage1
+      - feature/shared-md-core
   pull_request:
     paths:
       - 'Makefile.migration'
@@ -31,6 +32,15 @@ jobs:
         run: make -f Makefile.migration test-native-md
       - name: Compile native Linux executable against existing C driver ABI
         run: make -f Makefile.migration native-md
+      - name: Build actual upstream-derived shared-host MegaDrive module
+        run: make -f Makefile.migration native-md-module
+      - name: Compare real MegaDrive adapter against accepted mock reader
+        run: make -f Makefile.migration test-native-md-module
+      - name: Stage MegaDrive package offline without activating the module
+        run: |
+          make -f Makefile.migration stage-md-module
+          test -f build/migration/stage/usr/lib/retrode3/cores-available/md.so
+          cmp packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
       - name: Verify pinned upstream remains unmodified
         run: |
           git -C third_party/oscr-firmware diff --exit-code
