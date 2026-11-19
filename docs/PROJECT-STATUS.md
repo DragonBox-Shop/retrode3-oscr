@@ -197,6 +197,40 @@ installation of `snes.so`, read-only probe of known Terranigma HiROM
 (4194304 bytes, expected checksum 3856), then a fresh no-overwrite ROM
 dump checked against previously verified CRC32 `6FB8A4DF`.
 
+## Complete shared-host SNES ROM dump physically verified (2026-11-19)
+
+**First complete, real-cartridge end-to-end proof for the new shared host /
+dynamically loaded Sanni-derived SNES core.** The user read Terranigma
+(Germany) Rev 1 through the installed, enabled `snes.so` with
+`build/migration/retrode3-cli --protocol ndjson-v1 --core snes
+--action read-rom --output /tmp/terranigma-plugin.sfc`.
+During the hardware read the **shared CLI**, not the core, emitted
+progress over NDJSON. The final event from actual Retrode3 hardware was:
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"result","request_id":"cli","ok":true,"system":"snes","bytes_written":4194304,"crc32":"6FB8A4DF","output":"/tmp/terranigma-plugin.sfc","verified":null}
+```
+
+The 4194304-byte output and CRC32 **match** the previously verified
+Terranigma reference `6FB8A4DF`. This validates the entire real physical
+standard HiROM ROM-reading chain: shared CLI/progress/file/CRC, dynamic
+core ABI, generated original OSCR bank routine, POSIX/HAL and kernel bus.
+`verified:null` still correctly indicates that the **automatic OSCR
+database lookup** is not integrated; the CRC was compared manually.
+No independent `cmp` with the reference file was reported for this new
+output, and no physical LoROM read through the new shared module was
+reported yet.
+
+**Scope limitation remains unchanged:** this is stage-1 standard SNES
+LoROM/HiROM up to 4 MiB. Full original Sanni `readROM()`,
+special/enhancement-chip dispatch (e.g. SuperFX, SA-1, CX4, S-DD1,
+SPC7110), cartridge SRAM backup/restore and save-writing functions
+are **not implemented or enabled** in the dynamic plugin. The core must
+not advertise those capabilities. Next priority is hardening/packaging
+the common host and converting the existing verified MD stage-1 reader
+to the same ABI; expanded SNES special-chip/SRAM operations follow via
+reviewed typed HAL and physical save-safety tests.
+
 ## Actual MIPS dynamic SNES physical probe accepted (2026-11-19)
 
 Using the installed, enabled `snes.so` via the **single new shared
