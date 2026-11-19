@@ -92,11 +92,11 @@ class TestRealNesAdapter(unittest.TestCase):
     def test_nrom_16_and_32_kib_prg_with_optional_chr(self):
         self.enable()
         for variant, prg_kib, chr_kib, expected_crc, title, header_hex in (
-            ("16-0", 16, 0, "A219C94F", "MOCK NES NROM 16-0",
+            ("16-0", 16, 0, "716A9A25", "MOCK NES NROM 16-0",
              "4E45531A010001080000000000000001"),
-            ("32-0", 32, 0, "D1DF4327", "MOCK NES NROM 32-0",
+            ("32-0", 32, 0, "9A4D4BA5", "MOCK NES NROM 32-0",
              "4E45531A020001080000000000000001"),
-            ("32-8", 32, 8, "27635BAE", "MOCK NES NROM 32-8",
+            ("32-8", 32, 8, "3F59F616", "MOCK NES NROM 32-8",
              "4E45531A020101080000000000000001"),
         ):
             output = os.path.join(self.temp.name, variant + ".nes")
@@ -116,7 +116,10 @@ class TestRealNesAdapter(unittest.TestCase):
             with io.open(output, "rb") as handle:
                 actual = handle.read()
             header = bytes(bytearray.fromhex(header_hex))
-            prg = bytes(bytearray((i * 7 + (i >> 8)) & 255
+            multiplier, bias = {
+                "16-0": (9, 1), "32-0": (17, 3), "32-8": (13, 2)
+            }[variant]
+            prg = bytes(bytearray((i * multiplier + (i >> 8) + bias) & 255
                                   for i in range(prg_kib * 1024)))
             chr_data = bytes(bytearray((i * 11 + 3) & 255
                                        for i in range(chr_kib * 1024)))
