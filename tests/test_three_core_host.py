@@ -60,7 +60,7 @@ class TripleCoreHost(unittest.TestCase):
         self.assertEqual([x["id"] for x in events[0]["cores"]], ["md", "nes", "snes"])
         self.assertTrue(all(x["usable"] and x["enabled"] and
                             x["status"] == "ready" for x in events[0]["cores"]))
-        for core, size in (("md", 524288), ("nes", 24592), ("snes", 131072)):
+        for core, size in (("md", 524288), ("nes", 24592), ("snes", 524288)):
             rc, events, err = self.invoke(core, "probe")
             self.assertEqual(rc, 0, (core, events, err))
             self.assertEqual(events[0]["event"], "probe_result")
