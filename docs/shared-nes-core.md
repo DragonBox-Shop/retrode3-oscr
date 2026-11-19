@@ -80,39 +80,54 @@ The second creates the production `build/migration/nes.so` and copies
 `build/migration/stage/usr/lib/retrode3/cores-available/`.
 This does **not** install or enable a module on the live Retrode3.
 
-## Live Retrode3 2.9.5 NROM probe acceptance (2026-11-19)
+## Live Retrode3 2.9.5 full NROM ROM read: PASSED (2026-11-19)
 
-**PASSED on actual MIPS hardware:** compiled stage-1 `nes.so` is
-installed/enabled and the shared host lists **md, nes, snes** as
-`ready`. A real **Excitebike (Europe)** cartridge was correctly
-identified via the read-only NES kernel/HAL and pinned OSCR catalog:
+**Hardware acceptance achieved** on the actual MIPS Retrode3
+2.9.5 with the installed, enabled original-Sanni-derived `nes.so`.
+The shared CLI reports **md, nes and snes** `ready`.
 
-```json
-{"protocol":"retrode3-ndjson","version":1,"event":"probe_result","request_id":"cli","system":"nes","mapping":"nrom","size_bytes":24592,"title":"Excitebike (Europe)","checksum":"8A0C7337","candidates":[],"candidate_lookup":"not_integrated"}
-```
+Physical probe of genuine **Excitebike (Europe)** correctly returned
+`mapping:nrom`, `title:Excitebike (Europe)`, `size_bytes:24592`,
+`checksum:8A0C7337` (raw 24576-byte PRG+CHR).
 
-The ROM payload CRC32 in the probe is the Sanni reference, so this
-confirms genuine physical cartridge identification. The full dump path
-is **not yet verified physically**. The next test uses:
+The **complete physical ROM dump** was then executed through the same
+shared host:
 
 ```sh
 build/migration/retrode3-cli --protocol ndjson-v1 --core nes --action read-rom --output /tmp/excitebike-nes-plugin.nes
-python3 -c 'import zlib; d=open("/tmp/excitebike-nes-plugin.nes","rb").read(); print("Bytes:",len(d),"ROM-CRC32: %08X" % (zlib.crc32(d[16:]) & 0xffffffff))'
 ```
 
-Expect 24592 bytes total and raw payload CRC32 `8A0C7337`.
-The host-reported full .nes CRC will differ as it also includes the
-16-byte iNES header. The shared host's `candidate_lookup:not_integrated`
-refers to generic host candidate discovery, separate from the pinned
-internal NES identification algorithm.
+Central CLI (not plugin) produced NDJSON `progress` events at 0,
+4112, 8208, 12304, 16400, 20496 and 24592 bytes, ending in:
 
-## Physical Retrode3 2.9.5 ROM-dump acceptance pending
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"result","request_id":"cli","ok":true,"system":"nes","bytes_written":24592,"crc32":"F749E780","output":"/tmp/excitebike-nes-plugin.nes","verified":null}
+```
 
-1. Wait for the separate MegaDrive hardware acceptance to complete.
-   Avoid switching branches in the active MD test working directory.
-   Create a separate checkout or switch only when the user is done.
-2. Run the two build/test commands above on Retrode3 2.9.5 (GCC 4.9,
-   C++11, Python 3.4) and resolve any target-compiler differences.
+The original OSCR catalog supplies the 16-byte header
+`4E45531A010101080000000001000020`. Its isolated CRC32 is
+`43EABD6C`, and the payload database CRC32 is `8A0C7337`.
+Independently combining the two CRC32s over the known 16 + 24576
+bytes with `zlib.crc32_combine` gives **`F749E780`**, exactly
+matching the read output. This validates the entire header+PRG+CHR
+stream, shared host progress/output, and read-only bank-loop path.
+No independent archival file `cmp` was submitted.
+
+The host's `verified:null` and `candidate_lookup:not_integrated`
+refer only to host-wide generic database integration: original OSCR
+NES NROM catalog matching **is functioning** in the core.
+
+This is standard **mapper-0 NROM only**. Special mappers and save
+operations are not implemented; release packaging and a restricted
+web enable/disable privileged bridge are separate work.
+
+## Reproduction checklist for the now-passed physical stage-1 test
+
+1. The independent MegaDrive stage-1 hardware acceptance has completed.
+   Use separate worktrees for concurrent development to avoid overwriting
+   uncommitted changes.
+2. The production module built successfully on real Retrode3 2.9.5
+   (GCC 4.9, C++11, Python 3.4). Rerun after any future code changes.
 3. With an authentic **Excitebike (Europe)** cartridge in the NES slot
    and no legacy tool using the bus, controlled-install the packaged
    module (and matching descriptor), then activate with
@@ -133,9 +148,10 @@ internal NES identification algorithm.
    build/migration/retrode3-cli --protocol ndjson-v1 --core nes --action read-rom --output /tmp/excitebike-nes-plugin.nes
    ```
    Then compare with an independently verified .nes reference file
-   **byte-for-byte** and check that the file's bytes after the
-   first 16 have CRC32 `8A0C7337`. The host-reported full-file
-   CRC will differ because it includes the 16-byte header.
+   **byte-for-byte** where an independent reference is available.
+   The physically tested output is 24592 bytes and full-file CRC32
+   `F749E780`, which is precisely the expected concatenation CRC
+   from the original 16-byte header and payload CRC `8A0C7337`.
 
 Do not claim MIPS hardware validation of this new `nes.so` until
 the physical proof above has succeeded. Physical NES 2.9.5 timing and
