@@ -49,3 +49,8 @@ build/
 *.so
 all-ino.cpp
 all-ino.h
+
+# Python runtime cache, generated on the Retrode3 by its test runners
+__pycache__/
+*.pyc
+*.pyo
