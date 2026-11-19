@@ -1,0 +1,64 @@
+name: Native MegaDrive OSCR migration
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+      - develop
+    paths:
+      - 'Makefile.migration'
+      - 'src/retrode3/oscr_md_*.cpp'
+      - 'src/retrode3/read_bus.cpp'
+      - 'src/retrode3/retrode3_cli.cpp'
+      - 'src/retrode3/ndjson_protocol.cpp'
+      - 'include/retrode3/oscr_md_*.h'
+      - 'include/retrode3/read_bus.h'
+      - 'include/retrode3/core_operations_v1.h'
+      - 'include/retrode3/ndjson_protocol.h'
+      - 'tests/test_native_md.py'
+      - 'tests/test_real_md_adapter.py'
+      - 'tests/test_shared_core_host.py'
+      - 'tests/mock_md_kernel.cpp'
+      - 'retrode3-lib.c'
+      - 'retrode3-lib.h'
+      - 'packaging/cores/md.core'
+      - 'tools/build-linux-md-core.py'
+      - 'third_party/oscr-firmware'
+      - '.github/workflows/native-md-migration.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-md:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize exact pinned OSCR firmware
+        run: git submodule update --init third_party/oscr-firmware
+      - name: Verify clean pinned upstream checkout
+        run: git -C third_party/oscr-firmware diff --exit-code
+      - name: Test generated upstream-derived C++ and mock Linux kernel
+        run: make -f Makefile.migration test-native-md
+      - name: Compile native Linux executable against existing C driver ABI
+        run: make -f Makefile.migration native-md
+      - name: Build actual upstream-derived shared-host MegaDrive module
+        run: make -f Makefile.migration native-md-module
+      - name: Compare real MegaDrive adapter against accepted mock reader
+        run: make -f Makefile.migration test-native-md-module
+      - name: Stage MegaDrive package offline without activating the module
+        run: |
+          make -f Makefile.migration stage-md-module
+          test -f build/migration/stage/usr/lib/retrode3/cores-available/md.so
+          cmp packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
+      - name: Verify pinned upstream remains unmodified
+        run: |
+          git -C third_party/oscr-firmware diff --exit-code
+          test -z "$(git status --porcelain -- third_party/oscr-firmware)"

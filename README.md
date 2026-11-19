@@ -1,3 +1,35 @@
+# Retrode3: Gemeinsamer Linux-Cartridge-Host (Hauptentwicklung)
+
+Die Retrode3 verwendet jetzt einen **gemeinsamen NDJSON-v1-Host**
+(`src/retrode3/retrode3_cli.cpp`) mit aktivierbaren original-OSCR-basierten
+`snes.so`, `md.so` und `nes.so`. Dateiausgabe, Fortschritt, CRC32,
+Abbruch und Bus-Lock gehören dem gemeinsamen CLI, nicht den Modulen.
+
+Die drei Stage-1-Systeme sind auf Retrode3 2.9.5 mit echten ROMs
+verifiziert: Terranigma (SNES) CRC32 `6FB8A4DF`, Snake Rattle n Roll
+(MegaDrive) `543BED30`, Excitebike (NES) ganze .nes-Datei `F749E780`.
+**Noch nicht unterstützt**: Spezialchips, zusätzliche NES-Mapper und SRAM.
+
+```sh
+git submodule update --init third_party/oscr-firmware
+make -f Makefile.migration test-all-shared-cores
+make -f Makefile.migration stage-all-shared-cores
+```
+
+Alte Quellcodepfade bleiben **vollständig erhalten**: `Cart_Reader/`,
+`tools/retrode3-readtest.py` und die `oscr-*-native`-Testreader.
+Es erfolgt kein automatischer Austausch der laufenden OS-Installation.
+Die späteren Legacy-Binaries werden im OS-Paket in einem getrennten
+Verzeichnis aufbewahrt, anstatt überschrieben zu werden.
+
+Weiteres: [Branching, Debian-Pakete und SD-Images](docs/branching-and-builds.md),
+[Master-Integration und Rollback](docs/master-integration.md),
+[Projektstatus](docs/PROJECT-STATUS.md).
+
+---
+
+## Ursprüngliche Beschreibung des OSCR-Forks (historisch)
+
 # This is part of the Retrode3 project and is a command line wrapper of the OSCR software
 
 This repository is a clone of the https://github.com/sanni/cartreader and adds these components:

@@ -1,0 +1,47 @@
+name: Retrode3 migration (read-only)
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'tools/retrode3-readtest.py'
+      - 'tests/test_*readtest.py'
+      - 'src/retrode3/read_bus.cpp'
+      - 'Makefile.migration'
+      - '.github/workflows/retrode3-migration.yml'
+  pull_request:
+    branches:
+      - master
+      - develop
+    paths:
+      - 'tools/retrode3-readtest.py'
+      - 'tests/test_*readtest.py'
+      - 'src/retrode3/read_bus.cpp'
+      - 'Makefile.migration'
+      - '.github/workflows/retrode3-migration.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Existing readtest tests use imp; keep the CI interpreter explicit.
+          python-version: '3.11'
+      - name: Initialize pinned pristine upstream OSCR firmware
+        run: git submodule update --init third_party/oscr-firmware
+      - name: Verify Python syntax
+        run: python -m py_compile tools/retrode3-readtest.py tests/test_readtest.py tests/test_snes_readtest.py
+      - name: Test Python ROM readers (mocked bus)
+        run: python -m unittest discover -s tests -p 'test_*readtest.py' -v
+      - name: Test C++ Retrode3 bus adapter
+        run: make -f Makefile.migration test-read-bus
+      - name: Test extracted original OSCR C++ SNES bank readers
+        run: make -f Makefile.migration test-native-snes
+      - name: Compile native Linux SNES C++ reader with actual Retrode3 C library
+        run: make -f Makefile.migration native-snes

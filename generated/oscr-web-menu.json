@@ -1,0 +1,5278 @@
+{
+  "schema_version": 1,
+  "source": {
+    "firmware": "oscartreader/oscr-firmware",
+    "language": "en",
+    "mapper_database": "oscartreader/oscr-databases/data/nes-mappers.json"
+  },
+  "usage": {
+    "default_mode": "auto-detect",
+    "manual_override_optional": true,
+    "auto_detection": "Use the OSCR cartridge DB for cartridge identification",
+    "status": "schema-only; no menu action is executable yet"
+  },
+  "menus": [
+    {
+      "id": "nes.menu-options",
+      "system": "NES",
+      "source_array": "menuOptions",
+      "source_enum": "MenuOption",
+      "control": "actions",
+      "entries": [
+        {
+          "id": "read-rom",
+          "label": "Read iNES ROM",
+          "source_symbol": "menuOption01",
+          "enum_member": "ReadROM",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "read-prgchr",
+          "label": "Read PRG/CHR",
+          "source_symbol": "menuOption02",
+          "enum_member": "ReadPRGCHR",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "read-save",
+          "label": "Read Save",
+          "source_symbol": "OSCR::Strings::MenuOptions::ReadSave",
+          "enum_member": "ReadSave",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "write-save",
+          "label": "Write Save",
+          "source_symbol": "OSCR::Strings::MenuOptions::WriteSave",
+          "enum_member": "WriteSave",
+          "requires": [],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "set-mapper",
+          "label": "Change Mapper",
+          "source_symbol": "menuOption05",
+          "enum_member": "SetMapper",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "write-flash",
+          "label": "Flash Repro",
+          "source_symbol": "menuOption06",
+          "enum_member": "WriteFlash",
+          "requires": [
+            "HAS_FLASH"
+          ],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "browse-database",
+          "label": "Select Cart",
+          "source_symbol": "OSCR::Strings::MenuOptions::SelectCart",
+          "enum_member": "BrowseDatabase",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "refresh-cart",
+          "label": "Refresh Cart",
+          "source_symbol": "OSCR::Strings::MenuOptions::RefreshCart",
+          "enum_member": "RefreshCart",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": "Back",
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "nes.menu-options-nes-chips",
+      "system": "NES",
+      "source_array": "menuOptionsNESChips",
+      "source_enum": null,
+      "control": "actions",
+      "entries": [
+        {
+          "id": "nes-chips-menu-item1",
+          "label": "Combined PRG+CHR",
+          "source_symbol": "nesChipsMenuItem1",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "nes-chips-menu-item2",
+          "label": "Read PRG",
+          "source_symbol": "nesChipsMenuItem2",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "nes-chips-menu-item3",
+          "label": "Read CHR",
+          "source_symbol": "nesChipsMenuItem3",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": null,
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "nes.menu-options-nes-flash",
+      "system": "NES",
+      "source_array": "menuOptionsNESFlash",
+      "source_enum": null,
+      "control": "actions",
+      "entries": [
+        {
+          "id": "nes-flash-menu-item1",
+          "label": "Flash NesMaker",
+          "source_symbol": "nesFlashMenuItem1",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "nes-flash-menu-item2",
+          "label": "Flash A29040B-MAPPER0",
+          "source_symbol": "nesFlashMenuItem2",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": null,
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "mega-drive.menu-options-md",
+      "system": "MegaDrive",
+      "source_array": "menuOptionsMD",
+      "source_enum": "MDMenuOption",
+      "control": "actions",
+      "entries": [
+        {
+          "id": "cart",
+          "label": "Game Cartridge",
+          "source_symbol": "MDMenuItem1",
+          "enum_member": "Cart",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "sega-cdram",
+          "label": "Sega CD RAM",
+          "source_symbol": "MDMenuItem2",
+          "enum_member": "SegaCDRAM",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "flash-cart",
+          "label": "Flash Repro",
+          "source_symbol": "MDMenuItem3",
+          "enum_member": "FlashCart",
+          "requires": [
+            "HAS_FLASH"
+          ],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": "Back",
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "mega-drive.menu-options-md-cart",
+      "system": "MegaDrive",
+      "source_array": "menuOptionsMDCart",
+      "source_enum": "MDCartMenuOption",
+      "control": "actions",
+      "entries": [
+        {
+          "id": "read-rom",
+          "label": "Read ROM",
+          "source_symbol": "OSCR::Strings::MenuOptions::ReadROM",
+          "enum_member": "ReadROM",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "read-save",
+          "label": "Read Save",
+          "source_symbol": "OSCR::Strings::MenuOptions::ReadSave",
+          "enum_member": "ReadSave",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "write-save",
+          "label": "Write Save",
+          "source_symbol": "OSCR::Strings::MenuOptions::WriteSave",
+          "enum_member": "WriteSave",
+          "requires": [],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "force-size",
+          "label": "Force ROM size",
+          "source_symbol": "MDCartMenuItem4",
+          "enum_member": "ForceSize",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "refresh-cart",
+          "label": "Refresh Cart",
+          "source_symbol": "OSCR::Strings::MenuOptions::RefreshCart",
+          "enum_member": "RefreshCart",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": "Back",
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "mega-drive.menu-options-scd",
+      "system": "MegaDrive",
+      "source_array": "menuOptionsSCD",
+      "source_enum": "MDRAMMenuOption",
+      "control": "actions",
+      "entries": [
+        {
+          "id": "read-ram",
+          "label": "Read Save",
+          "source_symbol": "OSCR::Strings::MenuOptions::ReadSave",
+          "enum_member": "ReadRAM",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "write-ram",
+          "label": "Write Save",
+          "source_symbol": "OSCR::Strings::MenuOptions::WriteSave",
+          "enum_member": "WriteRAM",
+          "requires": [],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": "Back",
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "snes.menu-options",
+      "system": "SNES",
+      "source_array": "menuOptions",
+      "source_enum": "MenuOption",
+      "control": "actions",
+      "entries": [
+        {
+          "id": "cart",
+          "label": "SNES/SFC cartridge",
+          "source_symbol": "menuOption01",
+          "enum_member": "Cart",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "sfm",
+          "label": "SF Memory Cassette",
+          "source_symbol": "menuOption02",
+          "enum_member": "SFM",
+          "requires": [
+            "defined(ENABLE_SFM)"
+          ],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "sv",
+          "label": "Satellaview BS-X",
+          "source_symbol": "menuOption03",
+          "enum_member": "SV",
+          "requires": [
+            "defined(ENABLE_SATELLAVIEW)"
+          ],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "st",
+          "label": "Sufami Turbo",
+          "source_symbol": "menuOption04",
+          "enum_member": "ST",
+          "requires": [
+            "defined(ENABLE_ST)"
+          ],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "gpc",
+          "label": "Game Processor RAM",
+          "source_symbol": "menuOption05",
+          "enum_member": "GPC",
+          "requires": [
+            "defined(ENABLE_GPC)"
+          ],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "flash",
+          "label": "Flash repro",
+          "source_symbol": "menuOption06",
+          "enum_member": "Flash",
+          "requires": [
+            "HAS_FLASH8"
+          ],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "calibration",
+          "label": "Calibrate Clock",
+          "source_symbol": "menuOption07",
+          "enum_member": "Calibration",
+          "requires": [
+            "defined(OPTION_CLOCKGEN_CALIBRATION)"
+          ],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": "Back",
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "snes.menu-options-snes",
+      "system": "SNES",
+      "source_array": "menuOptionsSNES",
+      "source_enum": "SNESMenuOption",
+      "control": "actions",
+      "entries": [
+        {
+          "id": "read-rom",
+          "label": "Read ROM",
+          "source_symbol": "OSCR::Strings::MenuOptions::ReadROM",
+          "enum_member": "ReadROM",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "read-save",
+          "label": "Read Save",
+          "source_symbol": "OSCR::Strings::MenuOptions::ReadSave",
+          "enum_member": "ReadSave",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "write-save",
+          "label": "Write Save",
+          "source_symbol": "OSCR::Strings::MenuOptions::WriteSave",
+          "enum_member": "WriteSave",
+          "requires": [],
+          "kind": "action",
+          "risk": "write",
+          "implemented": false
+        },
+        {
+          "id": "test-ram",
+          "label": "Test RAM",
+          "source_symbol": "snesMenuOption04",
+          "enum_member": "TestRAM",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh Cart",
+          "source_symbol": "OSCR::Strings::MenuOptions::RefreshCart",
+          "enum_member": "Refresh",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "browser",
+          "label": "Set Cart Type",
+          "source_symbol": "OSCR::Strings::MenuOptions::SetCartType",
+          "enum_member": "Browser",
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": "Back",
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "snes.menu-options-conf-manual",
+      "system": "SNES",
+      "source_array": "menuOptionsConfManual",
+      "source_enum": null,
+      "control": "actions",
+      "entries": [
+        {
+          "id": "conf-menu-item1",
+          "label": "Use Header Info",
+          "source_symbol": "confMenuItem1",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "conf-menu-item2",
+          "label": "4MB LoROM 256K SRAM",
+          "source_symbol": "confMenuItem2",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "conf-menu-item3",
+          "label": "4MB HiROM 64K SRAM",
+          "source_symbol": "confMenuItem3",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "conf-menu-item4",
+          "label": "6MB ExROM 256K SRAM",
+          "source_symbol": "confMenuItem4",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": null,
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "snes.menu-options-repro",
+      "system": "SNES",
+      "source_array": "menuOptionsRepro",
+      "source_enum": null,
+      "control": "actions",
+      "entries": [
+        {
+          "id": "repro-menu-item1",
+          "label": "CFI LoROM",
+          "source_symbol": "reproMenuItem1",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-menu-item2",
+          "label": "CFI HiROM",
+          "source_symbol": "reproMenuItem2",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-menu-item3",
+          "label": "LoROM (P0)",
+          "source_symbol": "reproMenuItem3",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-menu-item4",
+          "label": "HiROM (P0)",
+          "source_symbol": "reproMenuItem4",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-menu-item5",
+          "label": "ExLoROM (P1)",
+          "source_symbol": "reproMenuItem5",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-menu-item6",
+          "label": "ExHiROM (P1)",
+          "source_symbol": "reproMenuItem6",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": null,
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "id": "snes.menu-options-repro-cfi",
+      "system": "SNES",
+      "source_array": "menuOptionsReproCFI",
+      "source_enum": null,
+      "control": "actions",
+      "entries": [
+        {
+          "id": "repro-cfi-item1",
+          "label": "1x 2MB",
+          "source_symbol": "reproCFIItem1",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-cfi-item2",
+          "label": "2x 2MB",
+          "source_symbol": "reproCFIItem2",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-cfi-item3",
+          "label": "1x 4MB",
+          "source_symbol": "reproCFIItem3",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-cfi-item4",
+          "label": "2x 4MB",
+          "source_symbol": "reproCFIItem4",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-cfi-item5",
+          "label": "4x 2MB",
+          "source_symbol": "reproCFIItem5",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "repro-cfi-item6",
+          "label": "1x 8MB",
+          "source_symbol": "reproCFIItem6",
+          "enum_member": null,
+          "requires": [],
+          "kind": "action",
+          "risk": "read",
+          "implemented": false
+        },
+        {
+          "id": "back",
+          "label": "Back",
+          "source_symbol": "OSCR::Strings::MenuOptions::Back",
+          "enum_member": null,
+          "requires": [],
+          "kind": "navigation",
+          "risk": "read",
+          "implemented": false
+        }
+      ]
+    }
+  ],
+  "fields": {
+    "nes_mapper": {
+      "type": "select",
+      "default": "auto",
+      "values": [
+        {
+          "id": "auto",
+          "label": "Automatic detection",
+          "mapper": null,
+          "submapper": null
+        },
+        {
+          "id": "0:0",
+          "label": "Mapper 0",
+          "mapper": 0,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              32
+            ],
+            "chr": [
+              0,
+              8
+            ],
+            "ram": [
+              0,
+              16
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32
+            ],
+            "chr_kib": [
+              0,
+              8
+            ],
+            "ram_kib": [
+              0,
+              8,
+              16
+            ]
+          }
+        },
+        {
+          "id": "1:0",
+          "label": "Mapper 1",
+          "mapper": 1,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              512
+            ],
+            "chr": [
+              0,
+              128
+            ],
+            "ram": [
+              0,
+              32
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0,
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        {
+          "id": "2:0",
+          "label": "Mapper 2",
+          "mapper": 2,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              64,
+              256
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              64,
+              128,
+              256
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "3:0",
+          "label": "Mapper 3",
+          "mapper": 3,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              32
+            ],
+            "chr": [
+              0,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "4:0",
+          "label": "Mapper 4",
+          "mapper": 4,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              512
+            ],
+            "chr": [
+              0,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "5:0",
+          "label": "Mapper 5",
+          "mapper": 5,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              512
+            ],
+            "chr": [
+              128,
+              512
+            ],
+            "ram": [
+              0,
+              32
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              128,
+              256,
+              512
+            ],
+            "ram_kib": [
+              0,
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        {
+          "id": "7:0",
+          "label": "Mapper 7",
+          "mapper": 7,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              64,
+              256
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              64,
+              128,
+              256
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "9:0",
+          "label": "Mapper 9",
+          "mapper": 9,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "10:0",
+          "label": "Mapper 10",
+          "mapper": 10,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              64,
+              128
+            ],
+            "ram": [
+              8,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              64,
+              128
+            ],
+            "ram_kib": [
+              8
+            ]
+          }
+        },
+        {
+          "id": "11:0",
+          "label": "Mapper 11",
+          "mapper": 11,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              128
+            ],
+            "chr": [
+              8,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "13:0",
+          "label": "Mapper 13",
+          "mapper": 13,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              32
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "15:0",
+          "label": "Mapper 15",
+          "mapper": 15,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              1024,
+              1024
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              1024
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "16:0",
+          "label": "Mapper 16",
+          "mapper": 16,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "18:0",
+          "label": "Mapper 18",
+          "mapper": 18,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "19:0",
+          "label": "Mapper 19",
+          "mapper": 19,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "21:0",
+          "label": "Mapper 21",
+          "mapper": 21,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "22:0",
+          "label": "Mapper 22",
+          "mapper": 22,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "23:0",
+          "label": "Mapper 23",
+          "mapper": 23,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "24:0",
+          "label": "Mapper 24",
+          "mapper": 24,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "25:0",
+          "label": "Mapper 25",
+          "mapper": 25,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "26:0",
+          "label": "Mapper 26",
+          "mapper": 26,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              8,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              8
+            ]
+          }
+        },
+        {
+          "id": "28:0",
+          "label": "Mapper 28",
+          "mapper": 28,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              512,
+              2048
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "30:0",
+          "label": "Mapper 30",
+          "mapper": 30,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              512
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256,
+              512
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "31:0",
+          "label": "Mapper 31",
+          "mapper": 31,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              1024,
+              1024
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              1024
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "32:0",
+          "label": "Mapper 32",
+          "mapper": 32,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "33:0",
+          "label": "Mapper 33",
+          "mapper": 33,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "34:0",
+          "label": "Mapper 34",
+          "mapper": 34,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              4096
+            ],
+            "chr": [
+              0,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "35:0",
+          "label": "Mapper 35",
+          "mapper": 35,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              2048
+            ],
+            "chr": [
+              8,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "36:0",
+          "label": "Mapper 36",
+          "mapper": 36,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              128
+            ],
+            "chr": [
+              8,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "37:0",
+          "label": "Mapper 37",
+          "mapper": 37,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              256,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "38:0",
+          "label": "Mapper 38",
+          "mapper": 38,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              128
+            ],
+            "chr": [
+              0,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "42:0",
+          "label": "Mapper 42",
+          "mapper": 42,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              128
+            ],
+            "chr": [
+              0,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "45:0",
+          "label": "Mapper 45",
+          "mapper": 45,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              1024
+            ],
+            "chr": [
+              0,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256,
+              512,
+              1024
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "46:0",
+          "label": "Mapper 46",
+          "mapper": 46,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              1024
+            ],
+            "chr": [
+              0,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "47:0",
+          "label": "Mapper 47",
+          "mapper": 47,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              256,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "48:0",
+          "label": "Mapper 48",
+          "mapper": 48,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              256,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "52:0",
+          "label": "Mapper 52",
+          "mapper": 52,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              128
+            ],
+            "chr": [
+              0,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "56:0",
+          "label": "Mapper 56",
+          "mapper": 56,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              2048
+            ],
+            "chr": [
+              0,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "57:0",
+          "label": "Mapper 57",
+          "mapper": 57,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              128
+            ],
+            "chr": [
+              0,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "58:0",
+          "label": "Mapper 58",
+          "mapper": 58,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              1024
+            ],
+            "chr": [
+              8,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "59:0",
+          "label": "Mapper 59",
+          "mapper": 59,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              128
+            ],
+            "chr": [
+              0,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "60:0",
+          "label": "Mapper 60",
+          "mapper": 60,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              64,
+              64
+            ],
+            "chr": [
+              32,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              64
+            ],
+            "chr_kib": [
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "62:0",
+          "label": "Mapper 62",
+          "mapper": 62,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              2048,
+              2048
+            ],
+            "chr": [
+              1024,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              2048
+            ],
+            "chr_kib": [
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "63:0",
+          "label": "Mapper 63",
+          "mapper": 63,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              4096,
+              4096
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              4096
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "64:0",
+          "label": "Mapper 64",
+          "mapper": 64,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              64,
+              128
+            ],
+            "chr": [
+              64,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              64,
+              128
+            ],
+            "chr_kib": [
+              64,
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "65:0",
+          "label": "Mapper 65",
+          "mapper": 65,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "66:0",
+          "label": "Mapper 66",
+          "mapper": 66,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              64,
+              128
+            ],
+            "chr": [
+              16,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              64,
+              128
+            ],
+            "chr_kib": [
+              16,
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "67:0",
+          "label": "Mapper 67",
+          "mapper": 67,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "68:0",
+          "label": "Mapper 68",
+          "mapper": 68,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "69:0",
+          "label": "Mapper 69",
+          "mapper": 69,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "70:0",
+          "label": "Mapper 70",
+          "mapper": 70,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "71:0",
+          "label": "Mapper 71",
+          "mapper": 71,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              64,
+              256
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              64,
+              128,
+              256
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "72:0",
+          "label": "Mapper 72",
+          "mapper": 72,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "73:0",
+          "label": "Mapper 73",
+          "mapper": 73,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "75:0",
+          "label": "Mapper 75",
+          "mapper": 75,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "76:0",
+          "label": "Mapper 76",
+          "mapper": 76,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "77:0",
+          "label": "Mapper 77",
+          "mapper": 77,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              32,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "78:0",
+          "label": "Mapper 78",
+          "mapper": 78,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "79:0",
+          "label": "Mapper 79",
+          "mapper": 79,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              64
+            ],
+            "chr": [
+              16,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64
+            ],
+            "chr_kib": [
+              16,
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "80:0",
+          "label": "Mapper 80",
+          "mapper": 80,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "82:0",
+          "label": "Mapper 82",
+          "mapper": 82,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "85:0",
+          "label": "Mapper 85",
+          "mapper": 85,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              512
+            ],
+            "chr": [
+              0,
+              128
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "86:0",
+          "label": "Mapper 86",
+          "mapper": 86,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              64,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "87:0",
+          "label": "Mapper 87",
+          "mapper": 87,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              32
+            ],
+            "chr": [
+              16,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32
+            ],
+            "chr_kib": [
+              16,
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "88:0",
+          "label": "Mapper 88",
+          "mapper": 88,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "89:0",
+          "label": "Mapper 89",
+          "mapper": 89,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "90:0",
+          "label": "Mapper 90",
+          "mapper": 90,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              2048
+            ],
+            "chr": [
+              8,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "91:0",
+          "label": "Mapper 91",
+          "mapper": 91,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              512
+            ],
+            "chr": [
+              512,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "92:0",
+          "label": "Mapper 92",
+          "mapper": 92,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "93:0",
+          "label": "Mapper 93",
+          "mapper": 93,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "94:0",
+          "label": "Mapper 94",
+          "mapper": 94,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "95:0",
+          "label": "Mapper 95",
+          "mapper": 95,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              32,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "96:0",
+          "label": "Mapper 96",
+          "mapper": 96,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "97:0",
+          "label": "Mapper 97",
+          "mapper": 97,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "105:0",
+          "label": "Mapper 105",
+          "mapper": 105,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "111:0",
+          "label": "Mapper 111",
+          "mapper": 111,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              512,
+              512
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              512
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "113:0",
+          "label": "Mapper 113",
+          "mapper": 113,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              256
+            ],
+            "chr": [
+              0,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "114:0",
+          "label": "Mapper 114",
+          "mapper": 114,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "118:0",
+          "label": "Mapper 118",
+          "mapper": 118,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "119:0",
+          "label": "Mapper 119",
+          "mapper": 119,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              64,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "126:0",
+          "label": "Mapper 126",
+          "mapper": 126,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              4096
+            ],
+            "chr": [
+              0,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "134:0",
+          "label": "Mapper 134",
+          "mapper": 134,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              4096
+            ],
+            "chr": [
+              0,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "140:0",
+          "label": "Mapper 140",
+          "mapper": 140,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              32,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "142:0",
+          "label": "Mapper 142",
+          "mapper": 142,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              128
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "146:0",
+          "label": "Mapper 146",
+          "mapper": 146,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              64
+            ],
+            "chr": [
+              16,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64
+            ],
+            "chr_kib": [
+              16,
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "148:0",
+          "label": "Mapper 148",
+          "mapper": 148,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              64
+            ],
+            "chr": [
+              0,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "152:0",
+          "label": "Mapper 152",
+          "mapper": 152,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              64,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              64,
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "153:0",
+          "label": "Mapper 153",
+          "mapper": 153,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              512,
+              512
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              8,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              512
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              8
+            ]
+          }
+        },
+        {
+          "id": "154:0",
+          "label": "Mapper 154",
+          "mapper": 154,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "155:0",
+          "label": "Mapper 155",
+          "mapper": 155,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              32,
+              128
+            ],
+            "ram": [
+              0,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0,
+              8
+            ]
+          }
+        },
+        {
+          "id": "157:0",
+          "label": "Mapper 157",
+          "mapper": 157,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "158:0",
+          "label": "Mapper 158",
+          "mapper": 158,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "159:0",
+          "label": "Mapper 159",
+          "mapper": 159,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              256
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              8,
+              8
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              8
+            ]
+          }
+        },
+        {
+          "id": "162:0",
+          "label": "Mapper 162",
+          "mapper": 162,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              1024,
+              2048
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "163:0",
+          "label": "Mapper 163",
+          "mapper": 163,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              1024,
+              2048
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "174:0",
+          "label": "Mapper 174",
+          "mapper": 174,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              64,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "176:0",
+          "label": "Mapper 176",
+          "mapper": 176,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "177:0",
+          "label": "Mapper 177",
+          "mapper": 177,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              2048
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "178:0",
+          "label": "Mapper 178",
+          "mapper": 178,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              512,
+              512
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              512
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "180:0",
+          "label": "Mapper 180",
+          "mapper": 180,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              128
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "184:0",
+          "label": "Mapper 184",
+          "mapper": 184,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              32
+            ],
+            "chr": [
+              16,
+              32
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32
+            ],
+            "chr_kib": [
+              16,
+              32
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "185:0",
+          "label": "Mapper 185",
+          "mapper": 185,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              32
+            ],
+            "chr": [
+              8,
+              8
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32
+            ],
+            "chr_kib": [
+              8
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "200:0",
+          "label": "Mapper 200",
+          "mapper": 200,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              256
+            ],
+            "chr": [
+              8,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "201:0",
+          "label": "Mapper 201",
+          "mapper": 201,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              4096
+            ],
+            "chr": [
+              8,
+              2048
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "202:0",
+          "label": "Mapper 202",
+          "mapper": 202,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              128
+            ],
+            "chr": [
+              8,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "203:0",
+          "label": "Mapper 203",
+          "mapper": 203,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              256
+            ],
+            "chr": [
+              8,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "206:0",
+          "label": "Mapper 206",
+          "mapper": 206,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              128
+            ],
+            "chr": [
+              16,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "207:0",
+          "label": "Mapper 207",
+          "mapper": 207,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              128,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "209:0",
+          "label": "Mapper 209",
+          "mapper": 209,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              2048
+            ],
+            "chr": [
+              8,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "210:0",
+          "label": "Mapper 210",
+          "mapper": 210,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              512
+            ],
+            "chr": [
+              128,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "211:0",
+          "label": "Mapper 211",
+          "mapper": 211,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              2048
+            ],
+            "chr": [
+              8,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "212:0",
+          "label": "Mapper 212",
+          "mapper": 212,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              128
+            ],
+            "chr": [
+              0,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "213:0",
+          "label": "Mapper 213",
+          "mapper": 213,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              1024
+            ],
+            "chr": [
+              8,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "214:0",
+          "label": "Mapper 214",
+          "mapper": 214,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              128
+            ],
+            "chr": [
+              0,
+              64
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "225:0",
+          "label": "Mapper 225",
+          "mapper": 225,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              2048
+            ],
+            "chr": [
+              128,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "226:0",
+          "label": "Mapper 226",
+          "mapper": 226,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              1024,
+              2048
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "227:0",
+          "label": "Mapper 227",
+          "mapper": 227,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              512
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "228:0",
+          "label": "Mapper 228",
+          "mapper": 228,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              2048
+            ],
+            "chr": [
+              128,
+              512
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              128,
+              256,
+              512
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "229:0",
+          "label": "Mapper 229",
+          "mapper": 229,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              512,
+              512
+            ],
+            "chr": [
+              256,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              512
+            ],
+            "chr_kib": [
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "232:0",
+          "label": "Mapper 232",
+          "mapper": 232,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              256
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "235:0",
+          "label": "Mapper 235",
+          "mapper": 235,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              1024,
+              4096
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              1024,
+              2048,
+              4096
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "236:0",
+          "label": "Mapper 236",
+          "mapper": 236,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              1024
+            ],
+            "chr": [
+              0,
+              128
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "240:0",
+          "label": "Mapper 240",
+          "mapper": 240,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              32,
+              512
+            ],
+            "chr": [
+              8,
+              128
+            ],
+            "ram": [
+              0,
+              32
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              32,
+              64,
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              8,
+              16,
+              32,
+              64,
+              128
+            ],
+            "ram_kib": [
+              0,
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        {
+          "id": "241:0",
+          "label": "Mapper 241",
+          "mapper": 241,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              128,
+              512
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "242:0",
+          "label": "Mapper 242",
+          "mapper": 242,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              512,
+              512
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              512
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "246:0",
+          "label": "Mapper 246",
+          "mapper": 246,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              512,
+              512
+            ],
+            "chr": [
+              512,
+              512
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              512
+            ],
+            "chr_kib": [
+              512
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "255:0",
+          "label": "Mapper 255",
+          "mapper": 255,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              256,
+              2048
+            ],
+            "chr": [
+              128,
+              1024
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "chr_kib": [
+              128,
+              256,
+              512,
+              1024
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "446:0",
+          "label": "Mapper 446",
+          "mapper": 446,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              4096
+            ],
+            "chr": [
+              0,
+              0
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048,
+              4096
+            ],
+            "chr_kib": [
+              0
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        },
+        {
+          "id": "552:0",
+          "label": "Mapper 552",
+          "mapper": 552,
+          "submapper": 0,
+          "limits_kib": {
+            "prg": [
+              16,
+              512
+            ],
+            "chr": [
+              0,
+              256
+            ],
+            "ram": [
+              0,
+              0
+            ]
+          },
+          "allowed_kib": {
+            "prg_kib": [
+              16,
+              32,
+              64,
+              128,
+              256,
+              512
+            ],
+            "chr_kib": [
+              0,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256
+            ],
+            "ram_kib": [
+              0
+            ]
+          }
+        }
+      ]
+    },
+    "nes_sizes": {
+      "source": "src/cores/NES.cpp",
+      "unit": "KiB",
+      "values": {
+        "prg": [
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096,
+          8192,
+          16384,
+          32768
+        ],
+        "chr": [
+          0,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096
+        ],
+        "ram": [
+          0,
+          8,
+          16,
+          32
+        ]
+      }
+    }
+  },
+  "warnings": [
+    "nes-mappers.json describes mapper capabilities, not cartridge identification.",
+    "Actions remain disabled until the kernel-backed CLI is implemented.",
+    "Write and flash actions are metadata for later implementation."
+  ]
+}
