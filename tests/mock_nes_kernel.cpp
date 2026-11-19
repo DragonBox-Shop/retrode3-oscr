@@ -13,16 +13,28 @@ void init()
     if (initialized) return;
     initialized = true;
     char const *geometry = std::getenv("RETRODE_MOCK_NES_SIZE");
-    if (geometry && std::strcmp(geometry, "16-0") == 0)
+    unsigned multiplier = 7u, bias = 0u;
+    // Each synthetic title must contain a DISTINCT PRG chip image.
+    // Reusing identical PRG with and without CHR produces genuine
+    // ambiguous OSCR records, which the production core rightly rejects.
+    if (geometry && std::strcmp(geometry, "16-0") == 0) {
         chr_size = 0;
+        multiplier = 9u;
+        bias = 1u;
+    }
     if (geometry && std::strcmp(geometry, "32-0") == 0) {
         prg_size = 32768;
         chr_size = 0;
+        multiplier = 17u;
+        bias = 3u;
     }
-    if (geometry && std::strcmp(geometry, "32-8") == 0)
+    if (geometry && std::strcmp(geometry, "32-8") == 0) {
         prg_size = 32768;
+        multiplier = 13u;
+        bias = 2u;
+    }
     for (unsigned i = 0; i < sizeof(prg); ++i)
-        prg[i] = static_cast<unsigned char>((i * 7u + (i >> 8)) & 255u);
+        prg[i] = static_cast<unsigned char>((i * multiplier + (i >> 8) + bias) & 255u);
     for (unsigned i = 0; i < sizeof(chr); ++i)
         chr[i] = static_cast<unsigned char>((i * 11u + 3u) & 255u);
     char const *bad = std::getenv("RETRODE_MOCK_NES_BAD");
