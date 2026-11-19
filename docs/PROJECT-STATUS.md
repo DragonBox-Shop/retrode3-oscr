@@ -304,7 +304,7 @@ is checked again before ROM streaming. No new kernel write operations.
 
 **Dedicated MegaDrive CI passed:** generated upstream source guard,
 legacy native mock regression (7 tests), real generated `md.so`
-mock-host integration (6 new tests) including byte-for-byte output
+mock-host integration (7 new tests) including byte-for-byte output
 comparison against the legacy reader, plus existing registry (11 tests)
 and common host (9 tests). Offline `stage-md-module` compiled a
 release `.so` and staged a `md.core` descriptor without installation.
