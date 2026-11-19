@@ -114,9 +114,7 @@ class TestRealMdAdapter(unittest.TestCase):
             {"command": "probe", "core": "md", "request_id": "md-probe"},
             {"command": "probe", "core": "snes", "request_id": "snes-probe"},
             {"command": "read_rom", "core": "md", "request_id": "md-read",
-             "output": md_output},
-            {"command": "read_rom", "core": "snes", "request_id": "snes-read",
-             "output": snes_output}
+             "output": md_output}
         ])
         self.assertEqual(rc, 0, errors)
         self.assertEqual([x["id"] for x in events[1]["cores"]],
@@ -127,8 +125,21 @@ class TestRealMdAdapter(unittest.TestCase):
                          [("md", 524288), ("snes", 131072)])
         results = [x for x in events if x["event"] == "result"]
         self.assertEqual([(x["request_id"], x["bytes_written"]) for x in results],
-                         [("md-read", 524288), ("snes-read", 131072)])
+                         [("md-read", 524288)])
         self.assertEqual(os.stat(md_output).st_size, 524288)
+
+        # Interactive jobs are serialized. A second read command pipelined
+        # while the first is running is correctly rejected as "busy" by the
+        # host's cancellation polling. Send the second job only after the
+        # previous read has completed (a fresh session is sufficient here).
+        rc, snes_events, errors = self.host([
+            {"command": "read_rom", "core": "snes", "request_id": "snes-read",
+             "output": snes_output}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertEqual(snes_events[-1]["event"], "result")
+        self.assertEqual(snes_events[-1]["request_id"], "snes-read")
+        self.assertEqual(snes_events[-1]["bytes_written"], 131072)
         self.assertEqual(os.stat(snes_output).st_size, 131072)
 
     def test_md_one_shot_probe_and_host_crc(self):
