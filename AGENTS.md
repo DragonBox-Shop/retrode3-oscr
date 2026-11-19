@@ -19,11 +19,12 @@ Retrode3 CLI/web UI -> OSCR (and custom) cartridge core libraries ->
 typed Linux bus/HAL -> Retrode3 kernel driver -> cartridge.
 
 Static `.a` archives remain known-good hardware acceptance references.
-On `feature/shared-core-host`, an experimental **real SNES `.so` adapter**
-is now generated from the original pinned C++ read routines and loaded via
-a versioned Retrode3 C operation ABI. This is not yet a released or
-hardware-reverified dynamic module. Dynamic adapters use the same generated
-upstream C++ library and POSIX/HAL shim, not a fork of Sanni's algorithms.
+On `feature/shared-core-host`, a real SNES `.so` adapter is loaded via
+the shared versioned operation ABI. Its standard HiROM read path was
+**physically verified** on Retrode3 2.9.5 with Terranigma Germany Rev 1,
+4 MiB, CRC32 `6FB8A4DF`. Dynamic adapters reuse original generated
+Sanni C++ code and the typed Linux POSIX/HAL shim, not a fork of Sanni's
+algorithms. This is not yet a released shipping OS image.
 A core compiled into a library is not automatically a supported production
 feature.
 
@@ -125,6 +126,32 @@ create `/run/lock/retrode3` and grant the service account appropriate
 access. **Legacy acceptance binaries do not yet participate**, so this is
 not a guarantee of exclusivity while those binaries run independently.
 Keep the original SNES/MD hardware paths available for regression checks.
+
+## Parallel NES mapper-0 dynamic core (2026-11-19)
+
+The independent `feature/shared-nes-core` branch (draft PR #7,
+stacked on PR #5 but **not** on in-progress MD PR #6) adds a
+genuine original Sanni NES bank-loop adapter `nes.so` for the same
+shared CLI. A strict original-source guard checks `dumpPRG/dumpCHR`
+and `dumpBankPRG/dumpBankCHR`; **Sanni's exact PRG/CHR bank loops
+remain unchanged** and the AVR per-byte reads are replaced with safe
+512-byte Linux `ReadBus::nes_block` transactions. Do not copy NDJSON,
+progress, output or CRC into this module.
+
+**NES carts have no header.** Probe only explicitly supported mapper-0
+NROM via pinned OSCR first/last 512-byte fingerprint lookup followed
+by a complete raw PRG+CHR CRC check against the frozen 226-record
+NES NROM catalog. If missing or ambiguous, **refuse to dump**, never
+guess mapper/geometry. Output begins with exact trusted 16-byte header
+from the matched catalog; host `result.crc32` includes header, but
+the NES probe `checksum` is raw PRG+CHR CRC excluding header.
+No NES mapper, SRAM, save or flash writes in this stage.
+
+CI fake-kernel testing is distinct from **physical** MIPS verification,
+which is pending. Do not interrupt ongoing MegaDrive tests by changing
+that checkout. See [docs/shared-nes-core.md](docs/shared-nes-core.md).
+NES higher mapper support requires separately reviewed controlled
+kernel writes and safety gates.
 
 ## Safe engineering workflow
 
