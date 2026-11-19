@@ -5,12 +5,22 @@
 #include <cstring>
 
 namespace {
-unsigned char prg[16384], chr[8192];
+unsigned char prg[32768], chr[8192];
+unsigned prg_size = 16384, chr_size = 8192;
 bool initialized = false;
 void init()
 {
     if (initialized) return;
     initialized = true;
+    char const *geometry = std::getenv("RETRODE_MOCK_NES_SIZE");
+    if (geometry && std::strcmp(geometry, "16-0") == 0)
+        chr_size = 0;
+    if (geometry && std::strcmp(geometry, "32-0") == 0) {
+        prg_size = 32768;
+        chr_size = 0;
+    }
+    if (geometry && std::strcmp(geometry, "32-8") == 0)
+        prg_size = 32768;
     for (unsigned i = 0; i < sizeof(prg); ++i)
         prg[i] = static_cast<unsigned char>((i * 7u + (i >> 8)) & 255u);
     for (unsigned i = 0; i < sizeof(chr); ++i)
@@ -33,11 +43,11 @@ extern "C" int nes_read(std::uint16_t address, void *buf,
             return -1;
         for (unsigned n = 0; n < size; ++n)
             static_cast<unsigned char *>(buf)[n] =
-                prg[(static_cast<unsigned>(address) - 0x8000u + n) % sizeof(prg)];
+                prg[(static_cast<unsigned>(address) - 0x8000u + n) % prg_size];
         return size;
     }
     if (mode == NES_MODE_CHR) {
-        if (static_cast<unsigned>(address) + size > sizeof(chr)) return -1;
+        if (static_cast<unsigned>(address) + size > chr_size) return -1;
         std::memcpy(buf, chr + address, size);
         return size;
     }
