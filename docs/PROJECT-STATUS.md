@@ -309,11 +309,19 @@ Sanni PRG/CHR bank ordering. **Probe's `checksum` is CRC32 of raw
 PRG+CHR, while host `result.crc32` covers the final .nes file
 including the 16-byte header.**
 
-Dedicated native NES CI already **passed** real dynamically loaded
-original-derived adapter compilation with mocked Linux NES kernel,
-generated-source guard, full ROM byte comparisons, NROM identification,
+Dedicated native NES CI **passed all 10 module tests** using a
+genuine original-Sanni-derived `.so` against a mocked Linux NES kernel:
+original-source guard, NROM-128/NROM-256 (16/32 KiB PRG with 0/8 KiB CHR),
+full `.nes` byte comparisons, fingerprint and payload CRC identification,
 bad/empty cart refusal, cancellation, no-overwrite and offline staging.
-The shared core registry CI and existing SNES/MD tests also run.
+The extra cross-core test registers both NES and SNES through the SAME
+central host. Separate general CI, MegaDrive legacy CI, native NES CI,
+and shared core-registry CI all passed at tested commit
+`721487bcd1b86fc1997db15f2af845768042f16c`.
+The four separately labeled NROM mock cartridges use distinct PRG
+fingerprints: deliberately using identical PRG data with and without
+CHR created a real ambiguity, which the fail-closed check correctly
+rejected and we preserved.
 Python 3.4 compatibility is checked by the existing static test guard.
 See [shared-nes-core.md](shared-nes-core.md).
 
