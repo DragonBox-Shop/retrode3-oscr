@@ -57,11 +57,41 @@ $(MD_CORE_ARCHIVE): build/migration/oscr_md_core.o
 .PHONY: native-md test-native-md
 native-md: $(MD_CORE_ARCHIVE)
 	$(CC) -std=gnu11 -O2 -I. -c retrode3-lib.c -o build/migration/retrode3-lib.o
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/read_bus.cpp src/retrode3/oscr_md_native.cpp build/migration/retrode3-lib.o $(MD_CORE_ARCHIVE) -o build/migration/oscr-md-native
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp src/retrode3/oscr_md_native.cpp build/migration/retrode3-lib.o $(MD_CORE_ARCHIVE) -o build/migration/oscr-md-native
 
 test-native-md: $(MD_CORE_ARCHIVE)
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/read_bus.cpp src/retrode3/oscr_md_native.cpp tests/mock_md_kernel.cpp $(MD_CORE_ARCHIVE) -o build/migration/oscr-md-native-mock
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp src/retrode3/oscr_md_native.cpp tests/mock_md_kernel.cpp $(MD_CORE_ARCHIVE) -o build/migration/oscr-md-native-mock
 	python3 -m unittest discover -s tests -p 'test_native_md.py' -v
+
+# Shared-host MegaDrive adapter: generated original OSCR readWord/name C++,
+# same physically verified MD_MODE_ROM bulk reader, shared host owns NDJSON,
+# progress, CRC32, output and cancel. Only standard <= 4 MiB linear ROMs.
+build/migration/oscr_md_core.pic.o: build/migration/oscr_md_core.cpp include/retrode3/oscr_md_compat.h
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC $(NATIVE_INCLUDES) -c $< -o $@
+
+.PHONY: native-md-module test-native-md-module stage-md-module
+native-md-module: build/migration/oscr_md_core.pic.o
+	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/retrode3-lib.pic.o
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp \
+		src/retrode3/oscr_md_adapter.cpp build/migration/retrode3-lib.pic.o \
+		build/migration/oscr_md_core.pic.o -o build/migration/md.so
+
+# Run real original-OSCR adapter against a mocked MD kernel and compare its
+# bytes to the prior hardware-proven standalone acceptance reader.
+test-native-md-module: build/migration/oscr_md_core.pic.o test-native-md test-core-registry
+	mkdir -p build/migration/real-md-fixture
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp \
+		src/retrode3/oscr_md_adapter.cpp tests/mock_md_kernel.cpp \
+		build/migration/oscr_md_core.pic.o -o build/migration/real-md-fixture/md.so
+	python3 -m unittest discover -s tests -p 'test_real_md_adapter.py' -v
+
+# Image staging never installs or enables a core on the live Retrode3.
+stage-md-module: native-md-module
+	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
+	cp build/migration/md.so build/migration/stage/usr/lib/retrode3/cores-available/md.so
+	cp packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
 
 # Core discovery is in the COMMON host, not individual OSCR core libraries.
 # Static .a acceptance libraries are NOT listed as installable modules here.
