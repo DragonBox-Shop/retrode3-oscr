@@ -278,6 +278,42 @@ participate in the shared bus lock. If probe succeeds, read a fresh ROM file
 and confirm full CRC32 `6FB8A4DF` against the previously proven reference.
 Special chips and saves remain outside stage-1 capability.
 
+## MegaDrive shared-host dynamic core physical ROM acceptance PASSED (2026-11-19)
+
+**Confirmed by output from the real Retrode3 2.9.5 target:** after the
+user compiled, installed and enabled the new original-OSCR-derived
+`md.so` from `feature/shared-md-core`, the central shared
+`retrode3-cli` ran a complete read-only ROM dump of
+**Snake Rattle n Roll (Europe)** through the genuine MegaDrive module.
+
+```json
+{"protocol":"retrode3-ndjson","version":1,"event":"result","request_id":"cli","ok":true,"system":"md","bytes_written":524288,"crc32":"543BED30","output":"/tmp/snake-rattle-n-roll-md-plugin.bin","verified":null}
+```
+
+The complete ROM's **524288-byte size and CRC32 `543BED30` match
+the independently verified earlier standalone OSCR-derived MegaDrive
+hardware reader**. This confirms the common NDJSON host, real dynamic
+MegaDrive core ABI, HAL/kernel and ROM data path work together on
+physical hardware. Note that `verified:null` is expected: the
+generic host's automatic full-ROM database verification is not yet
+integrated; the CRC comparison was made against the prior known-good
+reference. An independent `cmp` of this newest file against the
+archived file was not reported, and detailed fresh probe JSON was not
+supplied.
+
+**Physical shared-host acceptance status:**
+- **SNES HiROM** Terranigma D: 4194304 bytes, CRC32 `6FB8A4DF`.
+- **MegaDrive linear ROM** Snake Rattle n Roll: 524288 bytes, CRC32
+  `543BED30`.
+- NES NROM remains CI/mock proven only, physical target acceptance
+  pending on separate `feature/shared-nes-core` draft PR #7.
+
+Stage-1 MD still deliberately excludes 32X, SVP, lock-on, mappers,
+ROMs over 4 MiB, SRAM/FRAM, EEPROM, flash and save writes. The core
+is physically accepted only for the tested standard linear read path.
+Image packaging, safe web enable/disable privilege bridge and release
+hardening remain separate work.
+
 ## MegaDrive dynamic adapter implemented, CI/mock passed (2026-11-19)
 
 Working branch: **`feature/shared-md-core`**, stacked draft
