@@ -91,8 +91,8 @@ test-native-md-module: build/migration/oscr_md_core.pic.o test-native-md test-co
 # Image staging never installs or enables a core on the live Retrode3.
 stage-md-module: native-md-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
-	cp build/migration/md.so build/migration/stage/usr/lib/retrode3/cores-available/md.so
-	cp packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
+	install -m 644 build/migration/md.so build/migration/stage/usr/lib/retrode3/cores-available/md.so
+	install -m 644 packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
 
 # Stage-1 NES NROM: original pinned Sanni dumpBankPRG/CHR loops only,
 # with reviewed 512-byte read-only HAL substitution for per-byte AVR calls.
@@ -126,8 +126,8 @@ test-native-nes-module: build/migration/oscr_nes_nrom.pic.o test-core-registry
 # Offline image staging, never a live install or default enablement.
 stage-nes-module: native-nes-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
-	cp build/migration/nes.so build/migration/stage/usr/lib/retrode3/cores-available/nes.so
-	cp packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
+	install -m 644 build/migration/nes.so build/migration/stage/usr/lib/retrode3/cores-available/nes.so
+	install -m 644 packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
 
 # Core discovery is in the COMMON host, not individual OSCR core libraries.
 # Static .a acceptance libraries are NOT listed as installable modules here.
@@ -178,8 +178,8 @@ test-native-snes-module: build/migration/oscr_snes_banks.pic.o test-native-snes 
 .PHONY: stage-snes-module
 stage-snes-module: native-snes-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
-	cp build/migration/snes.so build/migration/stage/usr/lib/retrode3/cores-available/snes.so
-	cp packaging/cores/snes.core build/migration/stage/usr/lib/retrode3/cores-available/snes.core
+	install -m 644 build/migration/snes.so build/migration/stage/usr/lib/retrode3/cores-available/snes.so
+	install -m 644 packaging/cores/snes.core build/migration/stage/usr/lib/retrode3/cores-available/snes.core
 
 # Combined offline acceptance; retains all original standalone readers.
 .PHONY: test-three-core-host test-all-shared-cores stage-all-shared-cores
@@ -188,3 +188,16 @@ test-three-core-host:
 
 test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
+
+# Stable Debian staging paths shared with the retrode3 OS/package repository.
+# No automatic install, root actions, activation, postinst or SD writes.
+.PHONY: stage-shared-host stage-retrode3-runtime test-release-stage
+stage-shared-host: native-core-registry
+	install -d -m 755 build/migration/stage/usr/bin build/migration/stage/usr/sbin
+	install -m 755 build/migration/retrode3-cli build/migration/stage/usr/bin/retrode3-cli
+	install -m 755 build/migration/retrode3-corectl build/migration/stage/usr/sbin/retrode3-corectl
+
+stage-retrode3-runtime: stage-shared-host stage-all-shared-cores
+
+test-release-stage: stage-retrode3-runtime
+	python3 -m unittest discover -s tests -p 'test_release_stage.py' -v
