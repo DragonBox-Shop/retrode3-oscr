@@ -1,5 +1,59 @@
 # Retrode3 project status and next-step contract
 
+> **Current snapshot, 2026-11-19.** New assistants should read this
+> section and [AGENTS.md](../AGENTS.md) first. The very long sections
+> below are **historical development logs**. Statements there about
+> `migration/oscr-firmware`, unfinished MD/NES shared cores, old paths
+> or pending physical tests have been superseded.
+
+## Current authoritative state: three shared cores ready
+
+- Stable `master` contains the shared CLI and physical SNES/MD/NES
+  Stage-1 cores (one squash integration commit, `8b7d0f2`).
+  Shared working branch is `develop`; changes are tested before
+  another reviewed/squash promotion to `master`.
+- Physical MIPS Retrode3 2.9.5 ROM CRC32s through the dynamic shared
+  host: SNES Terranigma `6FB8A4DF` (4 MiB), MegaDrive
+  Snake Rattle n Roll `543BED30` (524288 bytes), NES Excitebike
+  `F749E780` (24592 bytes including iNES header).
+- The developer device has exactly one installed CLI
+  `/usr/bin/retrode3-cli`, toggler `/usr/sbin/retrode3-corectl`
+  and root-owned `snes/md/nes` modules under
+  `/usr/lib/retrode3/cores-available`; all list as ready.
+  Previous `/usr/local/bin/oscr` and `retrode3-read/dump/info`
+  programs were reported removed from that device. The *source*
+  remains in Git for historical reference; do not reinstall legacy
+  binaries.
+- `retrode3-oscr/develop` adds the validated combined production
+  staging target `make -f Makefile.migration test-release-stage`.
+  This is not a released Debian package or flashable image.
+- The **OS** repo (not this repo) now uses **SysV init** for
+  `/run/lock/retrode3`, with tested init script
+  `retrode3-core-runtime/etc/init.d/retrode3-core-runtime` and
+  `root:www-data` lock at `0660`. The CLI creates/locks its
+  `bus.lock` inode but not its parent. The incorrect systemd
+  boot experiment was removed from OS master and develop, which were
+  aligned again at `111f61a6`. Device reboot validation remains
+  a separate check.
+- Web v2 remains in OS branch `feature/web-control-v2`, not
+  promoted. Existing backend default points to
+  `/usr/local/bin/retrode3-cli` and installer can copy old binaries;
+  new integration must use only `/usr/bin/retrode3-cli`, its
+  dynamic plugin registry and limited `/usr/sbin/retrode3-corectl`.
+  The web feature branch has diverged from OS `develop`, so
+  reconcile it **without losing the SysV-init fix**.
+- **Immediate work:** finish tested Web v2 path/privilege and
+  cartridge-presence handling in OS `develop`, verify against
+  real Retrode3 and only then squash-merge to OS `master`.
+  Packaging, kernel pinning and SD-image automation follow separately.
+  No special mapper/save/flash writes are approved.
+
+---
+
+## Historical development log (superseded when conflicting with snapshot)
+
+# Retrode3 project status and next-step contract
+
 Updated: 2026-11-19
 Main development line: master (subject to integration CI); OS/web deployment is separate.
 Purpose: durable, source-controlled project memory for contributors and assistants.
