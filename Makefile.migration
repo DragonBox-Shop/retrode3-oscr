@@ -61,6 +61,7 @@ native-md: $(MD_CORE_ARCHIVE)
 
 test-native-md: $(MD_CORE_ARCHIVE)
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp src/retrode3/oscr_md_native.cpp tests/mock_md_kernel.cpp $(MD_CORE_ARCHIVE) -o build/migration/oscr-md-native-mock
+	python3 -m unittest discover -s tests -p 'test_python34_compat.py' -v
 	python3 -m unittest discover -s tests -p 'test_native_md.py' -v
 
 # Shared-host MegaDrive adapter: generated original OSCR readWord/name C++,
