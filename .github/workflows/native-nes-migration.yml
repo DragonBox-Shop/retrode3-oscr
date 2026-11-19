@@ -1,9 +1,6 @@
 name: Native NES Sanni OSCR migration
 
 on:
-  push:
-    branches:
-      - feature/shared-nes-core
   pull_request:
     paths:
       - 'Makefile.migration'
@@ -15,6 +12,10 @@ on:
       - 'packaging/cores/nes.core'
       - '.github/workflows/native-nes-migration.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   native-nes:

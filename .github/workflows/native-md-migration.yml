@@ -4,17 +4,32 @@ on:
   push:
     branches:
       - migration/oscr-firmware
-      - feature/native-md-stage1
   pull_request:
     paths:
       - 'Makefile.migration'
-      - 'src/retrode3/**'
-      - 'include/retrode3/**'
-      - 'tests/**'
+      - 'src/retrode3/oscr_md_*.cpp'
+      - 'src/retrode3/read_bus.cpp'
+      - 'src/retrode3/retrode3_cli.cpp'
+      - 'src/retrode3/ndjson_protocol.cpp'
+      - 'include/retrode3/oscr_md_*.h'
+      - 'include/retrode3/read_bus.h'
+      - 'include/retrode3/core_operations_v1.h'
+      - 'include/retrode3/ndjson_protocol.h'
+      - 'tests/test_native_md.py'
+      - 'tests/test_real_md_adapter.py'
+      - 'tests/test_shared_core_host.py'
+      - 'tests/mock_md_kernel.cpp'
+      - 'retrode3-lib.c'
+      - 'retrode3-lib.h'
+      - 'packaging/cores/md.core'
       - 'tools/build-linux-md-core.py'
       - 'third_party/oscr-firmware'
       - '.github/workflows/native-md-migration.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   native-md:

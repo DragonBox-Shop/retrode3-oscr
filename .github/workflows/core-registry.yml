@@ -3,8 +3,6 @@ name: Native Retrode3 core registry
 on:
   push:
     branches:
-      - feature/core-registry
-      - feature/shared-nes-core
       - migration/oscr-firmware
   pull_request:
     paths:
@@ -32,6 +30,10 @@ on:
       - 'Makefile.migration'
       - '.github/workflows/core-registry.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   core-registry:
