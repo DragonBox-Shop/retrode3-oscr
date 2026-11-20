@@ -10,7 +10,7 @@ This is **not** a claim of electrical acceptance or production support.
 | Mapper | PRG/CHR strategy ported | Mock | Default production | Why |
 | --- | --- | --- | --- | --- |
 | 0 NROM | Linear 16/32K PRG, 0/8K CHR | Yes | Read-only enabled | Previous physical CRC; new v2 needs regression |
-| 1 MMC1 | Isolated abstract bank plan + separate RAM-less SGROM lab reader (128K PRG/CHR-RAM only) | C++11 plan tested locally; full mocked suite pending | Blocked (lab build explicit opt-in only) | Generic PRG write unsafe for WRAM; the NES_REG fast edge is unverified |
+| 1 MMC1 | Abstract bank plan + separate RAM-less SGROM lab reader (128K PRG/CHR-RAM only) | C++11 plan previously tested; full CI log pending | **Rad Racer PAL SGROM one physical CRC match**; production blocked (lab opt-in only) | Generic PRG write unsafe for WRAM; the NES_REG fast edge is unverified |
 | 2 UxROM | Switch 16K PRG at $8000, last 16K fixed | Yes | Blocked | Bus-conflict checks and CPU register-write timing await physical review |
 | 3 CNROM | Fixed PRG, switch 8K CHR | Yes | Blocked | Bus-conflict checks and CPU register-write timing await physical review |
 | 4 MMC3 | Switch 8K PRG using R6; 1K CHR using R2 | Yes | Blocked | Bank-write timing and MMC3 variants await hardware verification |
@@ -46,15 +46,19 @@ into $6000-$7FFF PRG-WRAM. The Retrode3 kernel's `NES_REG`
 mode does NOT provide a verified fast pulse on the required M2/ROMSEL
 lines. The lab route instead invokes the normal PRG write pulse
 only on a known board with **no PRG-WRAM**. Do NOT use on other MMC1
-variants or promote it to general support. No electrically verified
-MMC1 physical CRC exists yet. The expected Rad Racer PRG CRC is
-`654F4E90` (PAL) or `8B9D3E9C` (US), depending on the version.
+variants or promote it to general support. **One physical PAL Rad Racer SGROM ROM read succeeded on 2026-11-20**:
+131088 bytes including the iNES header, PRG CRC32 `654F4E90` equal
+its reference, complete-file CRC32 `B78FDA39`; the old core was
+restored by the lab script. This validates one ROM dump, **not** the
+M2/ROMSEL electrical waveform or any PRG-WRAM safety. Other reference
+(PRG) CRC: `8B9D3E9C` for US Rad Racer, not physically tested here.
 
 `test-native-nes-module` includes mock tests for no-ack refusal,
 battery-layout refusal, exact serial write order, complete
 128 KiB PRG CRC and failed-write cleanup. CI is set up on
-`develop`; the full target-device compilation and physical testing
-are **still pending**. The separately reviewed safe kernel
+`develop`; a real **single-cartridge** physical dump has succeeded,
+while full CI log verification, repeatability and broader platform
+regressions remain pending. The separately reviewed safe kernel
 register-write implementation remains required for PRG-WRAM support.
 
 **Never** use the general `RETRODE3_NES_MAPPER_WRITE_EXPERIMENTAL`
