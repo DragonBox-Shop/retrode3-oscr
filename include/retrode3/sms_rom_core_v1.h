@@ -1,8 +1,8 @@
 #ifndef RETRODE3_SMS_ROM_CORE_V1_H
 #define RETRODE3_SMS_ROM_CORE_V1_H
 
-// Hardware-agnostic adaptation of the SMS/Retrode branch in Sanni's
-// Cart_Reader/SMS.ino. This is NOT a raw GPIO or automatic write interface.
+// Thin core API around ORIGINAL pinned OSCR src/cores/SMS.cpp algorithms.
+// Build-generated headers supply ROM-size and bank-reading loops, not this file.
 #include "retrode3/sms_header_v1.h"
 #include <cstddef>
 #include <cstdint>
@@ -22,9 +22,9 @@ struct Probe {
     Header header;
 };
 
-// An implementation is responsible for approved electrical control,
-// serialization, stable power and register-write safety. No platform
-// implementation is shipped for the unverified Retrode2 adapter.
+// Each platform implementation owns electrical control, serialization,
+// power checks and register-write safety. Current POSIX bus is experimental
+// and deliberately refuses all physical bank/mapper register writes.
 struct Bus {
     virtual ~Bus() {}
     virtual bool approved() const = 0;

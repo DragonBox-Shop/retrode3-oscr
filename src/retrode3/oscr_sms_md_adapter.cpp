@@ -206,7 +206,7 @@ extern "C" const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void)
 {
     static const retrode3_core_descriptor_v1 d = {
         RETRODE3_CORE_DISCOVERY_ABI_V1, sizeof(d),
-        "sms-md", "Master System (SMS-0007 adapter)", "0.2.0-readonly-lab", "md"
+        "sms-md", "Master System (SMS-0007 adapter)", "0.3.0-oscr-generated-lab", "md"
     };
     return &d;
 }
