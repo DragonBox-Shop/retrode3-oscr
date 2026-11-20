@@ -30,7 +30,7 @@
 | Mapper | Auf `develop` | Mock-Tests | Physisch validiert | Normaler Build |
 | --- | --- | --- | --- | --- |
 | **0 NROM** | Linear: PRG 16/32 KiB, CHR 0/8 KiB | Vorhanden | **Stage 1 ja; v2 noch nicht** | Read-only freigegeben |
-| **1 MMC1** | Bankplan + abgeschotteter SGROM-Labortest mit echten Registerwrites (128 KiB PRG / CHR-RAM) | Isolierter C++11-Test zuvor bestanden; neue CI-Ausgabe nicht dokumentiert | **Ja: Rad Racer PAL, 128 KiB SGROM per Laborbuild, CRC-Treffer 2026-11-20** | Gesperrt (Laborbuild getrennt) |
+| **1 MMC1** | 695 Sanni-Datensaetze, Fingerprints/CRC, 32-512KiB PRG / 0-128KiB CHR, Lab-Bankleser | **GitHub Actions NES erfolgreich fuer 32/32,128/32, 512/0 und DB-Erkennung** | **Ja: nur Rad Racer PAL 128/0, CRC-Treffer**; neue Layouts offen | Gesperrt (Laborbuild getrennt) |
 | **2 UxROM** | 16-KiB-PRG-Bankswitch, letzte Bank fix | Vorhanden | Nein | Registerwrites gesperrt |
 | **3 CNROM** | CHR-Bankswitch je 8 KiB | Vorhanden | Nein | Registerwrites gesperrt |
 | **4 MMC3** | 8-KiB-PRG (R6), 1-KiB-CHR (R2) | Vorhanden | Nein | Registerwrites gesperrt |
@@ -44,25 +44,42 @@
   `RETRODE3_NES_MAPPER_WRITE_EXPERIMENTAL` aktiv;
   dieses Flag ist im normalen Build **nicht gesetzt**.
   `get_capabilities` muss dort `read_supported:false` melden.
-- MMC1 ist nun in einer **separaten, manuell bestaetigten
-  Labor-.so** fuer echte PRG-Registerwrites verdrahtet:
-  `make -f Makefile.migration native-nes-mmc1-lab`.
-  Nur Mapper 1/Submapper 0, PRG 128 KiB, CHR 0 KiB, Batterie 0
-  und eine **nachweislich PRG-WRAM-freie Rad-Racer-NES-SGROM-Platine**
-  sind als erstes Testziel vorgesehen.
-- Das separate `RETRODE3_NES_MMC1_LAB`-Build braucht zusaetzlich
-  `RETRODE3_MMC1_NO_PRG_RAM_ACK=RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM`.
-  `get_capabilities` bleibt fuer Mapper 1 `read_supported:false`;
-  es gibt keine Web-/Auto-Freigabe.
-- Der normale NES-Core und `stage-retrode3-runtime` bleiben ohne
-  ausfuehrbare MMC1-Schreibfreigabe. `master` ist unberuehrt.
-- Sannis spezielle `NES_REG`-/M2-/ROMSEL-Pulsfolge ist im Kernel
-  noch **nicht sicher implementiert**. Das Labor verwendet deshalb
-  nur den allgemeinen PRG-Write auf einer Cartridge **ohne PRG-WRAM**.
-  Keine anderen MMC1-Platinen ausprobieren; vor allgemeiner Freigabe
-  braucht der Kernel weiterhin einen elektrisch sicheren Registerpfad.
-- Testanleitung mit temporaerem `.so`-Swap, automatischer
-  Ruecksicherung und CRCs: [MMC1-SGROM-Labor](nes-mmc1-sgrom-lab.md).
+- MMC1 besitzt nun einen **vollstaendigen** eingebundenen gepinnten
+  Sanni-OSCR-Datenbankkatalog mit **695 Mapper-1-Eintraegen**,
+  darunter Fingerprints aus zwei 512-Byte-PRG-Probes und originale
+  Titel, Header, Submapper und Payload-CRCs. Sanni `iprg` ist
+  16KiB- und `ichr` **4KiB**-Einheit. Eintraege ohne Fingerprint
+  koennen nach dem vollen Dump anhand der CRC verifiziert werden.
+- Auf `develop`: MMC1-PRG 32/64/128/256/512 KiB,
+  CHR 0/8/16/32/64/128 KiB; Untermapper 0 und 5 (nur 32KiB PRG)
+  im separat gesperrten `native-nes-mmc1-lab`-Build.
+  CHR-ROM wird in 8KiB-Banks per explizitem Control-Register
+  geschaltet; CHR-RAM (CHR=0) wird nicht als ROM ausgelesen.
+- `fast_probe` bleibt **immer read-only** und liest genau 1024 Bytes.
+  Eindeutige, als lesbar gemeldete Layouts koennen vom gemeinsamen
+  CLI per `layout_id` gewaehlt werden; Ambiguitaeten erhalten
+  Kandidaten-/Layout-Dropdown-Auswahl und manuelles Override.
+  Die Weboberflaeche muss diese v2-Felder noch implementieren.
+- **Physisch bisher nur Rad Racer PAL 128/0 bestanden**.
+  Fuer die beiden anderen vorhandenen MMC1-Cartridges wurden
+  128KiB PRG + 32KiB CHR beziehungsweise 32KiB PRG + 32KiB CHR
+  mitgeteilt. Die alten CRCs `F378619E`/`9FB32DEA` wurden
+  mit falscher 128/0-Geometrie erzeugt und sind nicht beweiskraeftig.
+  Die korrekten neuen Dumps stehen aus.
+- Laborstart: `tools/nes-mmc1-lab.sh` (read-only DB-Probe und
+  optionales manuelles Layout, `.so`-Swap mit automatischer
+  Ruecksicherung). Nur nach Bestätigung **keine Batterie**,
+  kein wertvoller fluechtiger RAM-Inhalt. Opt-in:
+  `RETRODE3_MMC1_TEST_ACK=NO_BATTERY_TEST_ONLY`.
+  Alte `nes-mmc1-sgrom-lab.sh` bleibt fuer Rad-Racer-Regression.
+  Ausfuehrliche Testanleitung:
+  [MMC1 allgemeiner Laborpfad](nes-mmc1-general-lab.md).
+- Die REG-/M2-/ROMSEL-Signalsequenz fuer PRG-WRAM ist weiterhin
+  nicht save-sicher verifiziert. Batteriegepufferte MMC1-Boards
+  bleiben trotz Benutzerwunsch gesperrt, solange SRAM-Backup,
+  Restore und Kernel-Timing fehlen. Normale `nes.so` bleibt
+  MMC1-gesperrt und `get_capabilities` meldet weiterhin false;
+  `master`, OS-Pakete und Kernel bleiben unberuehrt.
 - UxROM/CNROM pruefen zunaechst buskonfliktfreie Adressen;
   fehlt eine sichere Adresse, wird vor jedem Registerwrite abgebrochen.
   Beim MMC3-ROM-Dump wird kein PRG-RAM-Write-Enable benutzt.
@@ -282,31 +299,41 @@ zuletzt FF1/FF2 (nur mit geprueftem Adapter).
 
 ### Letzte Aenderung (2026-11-20)
 
-- C++11-MMC1-Bankplan im getrennten Labor-Build an den gemeinsamen
-  NES-Core und CLI angeschlossen; SGROM-128-KiB-PRG-Layout freigegeben
-  **nur nach manuellem Runtime-Opt-in**. Kein Web-/Auto-Auslesen.
-- Vollstaendigen Mock fuer MMC1-5-Bit-Schieberegister, 8 PRG-Banks und
-  Fehler-/Schutzfaelle hinzugefuegt. Tests in
-  `tests/test_nes_mapper_banks.py` stehen auf `develop`.
-- `native-nes-mmc1-lab` erzeugt eine separate, nicht paketierte
-  `build/migration/mmc1-lab/nes.so`. Die normale `nes.so` bleibt
-  MMC1-gesperrt. Automatischer Restore nach Test ueber
-  `tools/nes-mmc1-sgrom-lab.sh`.
-- GitHub Actions fuer NES laeuft nun auch auf Push nach `develop`
-  und baut die Labor-`.so` zur Compiler-Pruefung.
-- **Nachgewiesen:** isolierter C++11-Bankplan-Test zuvor lokal erfolgreich;
-  **echter MMC1-SGROM-Rad-Racer-PAL-Dump am 2026-11-20 erfolgreich**
-  (PRG `654F4E90`, Dateiversion `B78FDA39`). Das Laborskript
-  meldete Wiederherstellung des regulaeren NES-Cores.
-  **Weiter offen:** vollstaendige GitHub-CI-/Mock-Logausgabe, getrennte
-  reproduzierbare Build-Abnahme und elektrische Timing-Pruefung.
-- `master`, regulare Core-Capabilities, Pakete und Kernel nicht geaendert.
+- **MMC1 fuer PRG+CHR-ROMs implementiert**: 32/32 und 128/32,
+  plus die konservative PRG-/CHR-Geometriematrix aus Sanni NES.cpp.
+  CHR-Modus wird vor Bankwechsel explizit auf 8KiB gesetzt.
+- Alle **695 MMC1-Datensaetze** aus gepinntem Sanni-DB-Blob
+  `b07cfd2943b986f8ffc85e61722dbb2e440cec37` als generierter
+  C++-Katalog. Reproduzierbares Skript:
+  `tools/gen-nes-mmc1-catalog.py`. Keine ROM-Bytes importiert.
+- Fast-Probe weiter nur 1024 Bytes, kein Mapper-Write; manuelle und
+  DB-basierte Layoutwahl; Full-Payload-CRC fuer eindeutige Verifikation.
+  Der CLI-Host wurde fuer `m1s5-32-32`-NES2-Untermapper-Layoutnamen
+  angepasst.
+- Mock-Kernel emuliert MMC1-PRG-/CHR-Banks und volle ROMs;
+  Dr. Mario Europe/Mapper1/Submapper5-Datenbank-Fingerprint wird
+  mit synthetischem, copyrightfreiem 512-Byte-Testblock geprüft.
+  GitHub NES Workflow auf `develop` **erfolgreich am Commit
+  `31d9ab02`**, inklusive Mock-Tests, Lab-Modul und normalem Build.
+  Weitere Commits fuer Dokumentation und den Labor-Testhelfer wurden
+  danach eingespielt; CI-Status des finalen Commits separat pruefen.
+- Neues `tools/nes-mmc1-lab.sh`: gesperrtes Testmodul einlegen,
+  no-battery-Bestaetigung, automatische DB-Erkennung oder manuelle
+  PRG/CHR-Werte, temporäre `nes.so`, automatische Restore-Falle.
+- **Echtgeraet bisher**: Rad Racer PAL 128/0, Payload `654F4E90`,
+  Gesamt `B78FDA39`, temporaere `.so` wiederhergestellt.
+  **Echtgeraet ausstehend**: PRG 128+CHR 32, PRG 32+CHR 32.
+  Batterie-Saves, PRG-WRAM-Timing, Kernel-SRAM-Backup/Restore offen.
+- `master`, reguliere Cores und Debian-Pakete nicht modifiziert.
 
 ### Aktueller naechster Schritt
 
-Nach dem **erfolgreichen MMC1-SGROM-Rad-Racer-PAL-Labor-Dump**:
-MMC1-Resultat/Referenz dokumentiert lassen, fehlende CI-Protokolle
-pruefen und Mapper-0-v2- sowie SNES/MD-Regression nachholen.
-Vor weitergehenden Mapper-1-Tests PRG-WRAM-sichere Kernel-Timing-Loesung
-und echte PCB-/Signalmessung klaeren. Standard-`nes.so` und
-`get_capabilities` bleiben unveraendert; **keine allgemeine MMC1-Freigabe**.
+`develop` auf der Retrode3 aktualisieren,
+`test-native-nes-module`, `native-core-registry` und
+`native-nes-mmc1-lab` bauen, dann mit **den beiden vorhandenen
+MMC1-Modulen OHNE Batterie** per `tools/nes-mmc1-lab.sh`
+erst `probe` automatisch, danach bei unbekanntem/mehrdeutigem
+Layout `128 32` beziehungsweise `32 32` manuell testen.
+Vollstaendige NDJSON-Ausgabe/Dateigroesse/Payload-CRC dokumentieren,
+danach sichere SRAM-Routinen und andere Mapper.
+**Keine allgemeine MMC1-Freigabe.**
