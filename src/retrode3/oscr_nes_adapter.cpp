@@ -359,15 +359,19 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             !io->write || !io->cancelled ||
             !result || result->struct_size != sizeof(*result))
             return fail(error, cap, "invalid NES v2 read ABI");
-        unsigned prg = 0, chr = 0, mapper = 0;
+        unsigned prg = 0, chr = 0, mapper = 0, submapper = 0;
         const retrode3_candidate_v2 *selected = NULL;
         if (request->manual) {
-            if (request->submapper != 0 ||
-                !(request->mapper == 0 ?
+            if (!(request->mapper == 0 ?
+                  request->submapper == 0 &&
                   valid_geometry(request->prg_kib, request->chr_kib) :
                   retrode3::nesmapper::geometry(request->mapper, request->submapper,
                         request->prg_kib, request->chr_kib) &&
-                  retrode3::nesmapper::runtime_mapper_enabled(request->mapper)) ||
+                  (request->mapper == 1 ?
+                   retrode3::nesmapper::mmc1_layout_enabled(
+                       request->submapper, request->prg_kib,
+                       request->chr_kib, request->battery != 0) :
+                   retrode3::nesmapper::runtime_mapper_enabled(request->mapper))) ||
                 request->mirroring > 2 || request->battery > 1 ||
                 request->candidate_id[0] || request->layout_id[0])
                 return fail(error, cap, "unsupported or incomplete manual NES layout");
@@ -379,6 +383,7 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             prg = request->prg_kib;
             chr = request->chr_kib;
             mapper = request->mapper;
+            submapper = request->submapper;
         } else {
             if (request->candidate_id[0]) {
                 for (unsigned i = 0; i < probe->candidate_count; ++i)
@@ -400,14 +405,19 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
                 layout = &entry;
             }
             if (!layout || !layout->read_supported ||
-                layout->mapper != 0 || layout->submapper != 0)
+                (selected && !selected->read_supported))
                 return fail(error, cap, "unsupported NES read layout");
             prg = layout->prg_kib;
             chr = layout->chr_kib;
+            mapper = layout->mapper;
+            submapper = layout->submapper;
         }
-        if (!(mapper == 0 && valid_geometry(prg, chr)) &&
-            !(request->manual && retrode3::nesmapper::geometry(mapper, 0, prg, chr) &&
-              retrode3::nesmapper::runtime_mapper_enabled(mapper)))
+        if (!(mapper == 0 && submapper == 0 && valid_geometry(prg, chr)) &&
+            !(retrode3::nesmapper::geometry(mapper, submapper, prg, chr) &&
+              (mapper == 1 ?
+                  retrode3::nesmapper::mmc1_layout_enabled(
+                      submapper, prg, chr, request->battery != 0) :
+                  retrode3::nesmapper::runtime_mapper_enabled(mapper))))
             return fail(error, cap, "unsupported NES mapper PRG/CHR sizes");
         if (io->cancelled(io->context))
             return fail(error, cap, "cancelled");
@@ -419,7 +429,7 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             OSCR::Cores::NES::dumpBankPRG(0, prg * 1024u, 0x8000);
             if (chr) OSCR::Cores::NES::dumpBankCHR(0, chr * 1024u);
         } else {
-            retrode3::nesmapper::dump(mapper, 0, prg, chr, io);
+            retrode3::nesmapper::dump(mapper, submapper, prg, chr, io);
         }
         result->payload_crc32 = ~sink.crc;
 
