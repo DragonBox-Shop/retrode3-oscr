@@ -549,7 +549,7 @@ void emit_capabilities(retrode3::NdjsonProtocol &stream, std::string const &id,
         + (core.has_v2
            ? ",\"fast_probe\":true,\"manual_layout\":true,"
              "\"supported_mappers\":[{\"mapper\":0,\"submapper\":0,"
-             "\"prg_kib\":[16,32],\"chr_kib\":[0,8],\"read_supported\":true}]"
+             "\"prg_kib\":[16,32],\"chr_kib\":[0,8],\"read_supported\":true},"\n             "{\"mapper\":1,\"submapper\":0,\"read_supported\":false},"\n             "{\"mapper\":2,\"submapper\":0,\"read_supported\":false},"\n             "{\"mapper\":3,\"submapper\":0,\"read_supported\":false},"\n             "{\"mapper\":4,\"submapper\":0,\"read_supported\":false},"\n             "{\"mapper\":7,\"submapper\":0,\"read_supported\":false}]"
            : "") + "}");
 }
 
@@ -704,6 +704,22 @@ void read_rom(retrode3::NdjsonProtocol &stream,
 }
 
 
+bool nes_power_two(unsigned n) { return n != 0 && !(n & (n-1)); }
+bool nes_manual_geometry(unsigned m, unsigned sub, unsigned p, unsigned c)
+{
+    if (sub != 0) return false;
+    switch (m) {
+    case 0: return (p == 16 || p == 32) && (c == 0 || c == 8);
+    case 2: return nes_power_two(p) && p >= 64 && p <= 256 && c == 0;
+    case 3: return (p == 16 || p == 32) &&
+                   nes_power_two(c) && c >= 8 && c <= 32;
+    case 4: return nes_power_two(p) && p >= 32 && p <= 512 &&
+                   (c == 0 || (nes_power_two(c) && c >= 8 && c <= 256));
+    case 7: return nes_power_two(p) && p >= 64 && p <= 256 && c == 0;
+    default: return false; // MMC1 unsafe with current kernel REG timing
+    }
+}
+
 /* v2 output path: reserve header, stream payload ONCE from cartridge,
  * patch the chosen header in the private file, verify file CRC locally,
  * and publish atomically. This is intentionally not an NES-specific host
@@ -723,7 +739,7 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
                   command.candidate_id.c_str());
     std::snprintf(request.layout_id, sizeof(request.layout_id), "%s",
                   command.layout_id.c_str());
-    unsigned prg = 0, chr = 0;
+    unsigned prg = 0, chr = 0, mapper = 0;
     if (command.has_manual) {
         request.manual = 1;
         request.mapper = command.mapper;
@@ -734,12 +750,12 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
         request.mirroring = static_cast<std::uint8_t>(
             command.mirroring == "vertical" ? 1u :
             command.mirroring == "four_screen" ? 2u : 0u);
-        if (request.mapper != 0 || request.submapper != 0 ||
-            (request.prg_kib != 16 && request.prg_kib != 32) ||
-            (request.chr_kib != 0 && request.chr_kib != 8))
+        if (!nes_manual_geometry(request.mapper, request.submapper,
+                                 request.prg_kib, request.chr_kib))
             throw std::runtime_error("unsupported manual NES mapper or size");
         prg = request.prg_kib;
         chr = request.chr_kib;
+        mapper = request.mapper;
     } else {
         const retrode3_layout_v2 *layout = NULL;
         for (unsigned i = 0; i < probe_info.layout_count; ++i) {
@@ -814,15 +830,20 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
         if (result.struct_size != sizeof(result) || ctx.done != total ||
             result.payload_crc32 != ~ctx.crc ||
             std::memcmp(result.header, "NES\x1a", 4) != 0 ||
-            result.header[4] != prg / 16u || result.header[5] != chr / 8u)
+            result.header[4] != prg / 16u || result.header[5] != chr / 8u ||
+            (result.header[6] >> 4 | (result.header[7] & 0xf0u)) != mapper)
             throw std::runtime_error("invalid NES v2 output/header/checksum");
         const std::string title = safe_cstr(result.title, sizeof(result.title));
         const std::string matched = safe_cstr(result.matched_candidate_id,
                                              sizeof(result.matched_candidate_id));
         const std::string layout = safe_cstr(result.layout_id, sizeof(result.layout_id));
         char expected_layout[32];
-        std::snprintf(expected_layout, sizeof(expected_layout),
-                      "nrom-%u-%u", prg, chr);
+        if (mapper == 0)
+            std::snprintf(expected_layout, sizeof(expected_layout),
+                          "nrom-%u-%u", prg, chr);
+        else
+            std::snprintf(expected_layout, sizeof(expected_layout),
+                          "m%u-%u-%u", mapper, prg, chr);
         if (title.empty() || layout != expected_layout ||
             result.verified > 1 || (result.verified && matched.empty()))
             throw std::runtime_error("invalid NES result metadata");

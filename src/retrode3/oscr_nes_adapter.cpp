@@ -302,7 +302,7 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
 
         const retrode3::nesstage1::NromRecord *match = NULL;
         char match_id[32] = {};
-        for (unsigned i = 0; i < probe->candidate_count; ++i) {
+        for (unsigned i = 0; mapper == 0 && i < probe->candidate_count; ++i) {
             const retrode3_candidate_v2 &candidate = probe->candidates[i];
             if (candidate.prg_kib != prg || candidate.chr_kib != chr ||
                 candidate.payload_crc32 != result->payload_crc32) continue;

@@ -110,6 +110,7 @@ native-nes-module: build/migration/oscr_nes_nrom.pic.o
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
 		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_mapper.cpp \
 		src/retrode3/oscr_nes_adapter.cpp build/migration/retrode3-lib.pic.o \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/nes.so
 
@@ -118,10 +119,12 @@ test-native-nes-module: build/migration/oscr_nes_nrom.pic.o test-core-registry
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs -DRETRODE3_TESTING $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
 		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_mapper.cpp \
 		src/retrode3/oscr_nes_adapter.cpp tests/mock_nes_kernel.cpp \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/real-nes-fixture/nes.so
 	python3 -m unittest discover -s tests -p 'test_python34_compat.py' -v
 	python3 -m unittest discover -s tests -p 'test_real_nes_adapter.py' -v
+	python3 -m unittest discover -s tests -p 'test_nes_mapper_banks.py' -v
 
 # Offline image staging, never a live install or default enablement.
 stage-nes-module: native-nes-module
