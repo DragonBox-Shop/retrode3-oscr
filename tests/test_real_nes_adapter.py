@@ -338,7 +338,7 @@ class TestRealNesAdapter(unittest.TestCase):
             {"command": "read_rom", "core": "nes", "request_id": "read",
              "output": output, "selection": {
                  "version": 1, "schema_id": "nes-layout-v1", "mode": "candidate",
-                 "candidate_id": "nrom-0000"}}
+                 "candidate_id": "nrom-0226"}}
         ])
         self.assertEqual(rc, 0, errors)
         cap = [x for x in events if x["event"] == "capabilities"][0]
