@@ -184,6 +184,58 @@ Region/Revision/PCB koennen Unterschiede bewirken. Vor Tests die
 konkrete Cartridge identifizieren und ein nachweislich passendes
 Leselayout bestimmen. Kein riskanter Versuch nur anhand des Spieletitels.
 
+## Naechste Entwicklungsstufe: NES-SRAM-Schutztests
+
+**Ziel:** Vor allgemeinen MMC1-Dumps an Save-Cartridges eine reproduzierbare
+Vorher/Nachher-Pruefung und einen separat erprobten Restore-Pfad.
+
+### Gepruefter Kernel-Iststand (2026-11-20)
+
+- `retrode3-kernel/drivers/misc/retrode3/retrode3_cart.c` behandelt
+  `NES_RAM` und `NES_WRAM` im **read**-Switch derzeit als
+  `mode not supported`. Der Modus ist im `retrode3-lib.h` zwar
+  definiert, aber nicht als Lesezugriff implementiert.
+- `NES_PRG` ist ein vorhandener lesender CPU-Bus-Modus. Ein Zugriff
+  auf `$6000-$7FFF` koennte auf manchen MMC1-Boards PRG-RAM
+  ausgeben. Ob die Chip-Select-/M2-/ROMSEL-Signale am echten
+  Retrode3 in diesem Bereich passen, ist **noch nicht verifiziert**.
+  Diesen Pfad zunaechst nur mit nachweislich *read-only* Testcode
+  und nicht-sensibler Cartridge pruefen; keinen Erfolg behaupten.
+- Manche MMC1-Varianten sperren PRG-RAM per Register. **Keine**
+  generischen Mapperwrites fuer den ersten Backup-Versuch aktivieren.
+
+### Freigabereihenfolge
+
+1. **Read-only SRAM-Prototyp:** Bestehende Kernel-`NES_PRG`-Leseoperation
+   bei `$6000-$7FFF` mit Testcartridge/Bus-Lock pruefen;
+   keine Register- oder RAM-Schreibzugriffe. Bei fehlendem
+   oder instabilem RAM-Signal stattdessen einen klar getrennten
+   Kernel-Patch fuer *nur* den `NES_WRAM`-Leseweg untersuchen.
+2. **Sichern:** Gemeinsames `retrode3-cli` um einen typisierten
+   `read_save`-Pfad erweitern (kein permanenter zweiter Reader).
+   Datei atomar/no-overwrite, 8192 Bytes nur wo korrekt,
+   mit CRC32, Stromausfall-/Abbruch-/Fehlerbehandlung und Bus-Lock.
+   Zwei identische Dumps reichen **nicht** als Beweis fuer echtes
+   RAM: auch Open-Bus-/ROM-Mirroring, Save-Format und Power-Cycle
+   muessen kontrolliert werden.
+3. **Vergleichen:** Gesichertes Original vor dem ROM-Dump, danach
+   und nach Aus-/Einschalten erneut lesen. Byte-fuer-Byte-Diff,
+   CRC und Game-/Emulator-Plausibilitaet pruefen.
+4. **Wiederherstellen:** Erst getrennten Restore-Modus entwickeln,
+   **nur** auf entbehrlicher Testcartridge mit eigenen Testdaten
+   erproben, danach Readback + Power-Cycle verifizieren.
+   Eine Backup-Datei ohne getesteten Restore rettet einen
+   bereits beschaedigten Save nicht automatisch.
+5. **Mapper-Freigabe:** Erst nach wirksamer Save-Sicherung/Restore,
+   korrekter Register-Timing-Pruefung und wiederholten erfolgreichen
+   Hardwaretests die MMC1-Unterstuetzung fuer PRG-WRAM-Boards
+   ausweiten. Rad Racer SGROM bleibt der bekannte PRG-CRC-Test.
+
+**Testmodul:** Ein *konkret verifiziertes* MMC1-Spiel mit Batterie und
+entbehrlichem Spielstand ist fuer diesen Schritt noch erforderlich;
+StarTropics (MMC6) ist keine MMC1-SRAM-Referenz.
+`master` und alle regulaeren NES-Capabilities bleiben unberuehrt.
+
 ## Handoff bei neuem Chat
 
 1. `retrode3-oscr/develop/AGENTS.md` und **diese Datei** lesen;
