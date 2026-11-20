@@ -176,21 +176,57 @@ stage-nes-module: native-nes-module
 # Static .a acceptance libraries are NOT listed as installable modules here.
 # The real CLI uses root-owned cores-available / cores-enabled directories, while the
 # TEST-only binary allows a fixture directory to exercise installation.
-.PHONY: native-core-registry test-core-registry
-native-core-registry:
-	mkdir -p build/migration
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli
-	$(CXX) $(NATIVE_CXXFLAGS) src/retrode3/retrode3_corectl.cpp -o build/migration/retrode3-corectl
+# Compile the shared CLI and corectl only if their real inputs changed.
+# Convenience/test targets remain PHONY, but do not contain compiler recipes.
+# In particular, running each of 30 core test targets must not rebuild the CLI.
+REGISTRY_CLI_SOURCES = src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp
+REGISTRY_CLI_HEADERS = include/retrode3/core_descriptor_v1.h \
+	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v2.h \
+	include/retrode3/core_operations_v3.h include/retrode3/json_v3.h \
+	include/retrode3/ndjson_protocol.h
 
-test-core-registry: native-core-registry
+build/migration/retrode3-cli: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) $(REGISTRY_CLI_SOURCES) -ldl -o $@
+
+build/migration/retrode3-corectl: src/retrode3/retrode3_corectl.cpp
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $< -o $@
+
+build/migration/retrode3-cli-mock: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING $(REGISTRY_CLI_SOURCES) -ldl -o $@
+
+build/migration/retrode3-corectl-mock: src/retrode3/retrode3_corectl.cpp
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING $< -o $@
+
+build/migration/registry-fixtures/snes.so: tests/mock_core_module.cpp \
+	include/retrode3/core_descriptor_v1.h include/retrode3/core_operations_v1.h
 	mkdir -p build/migration/registry-fixtures
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli-mock
-	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING src/retrode3/retrode3_corectl.cpp -o build/migration/retrode3-corectl-mock
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_OPERATIONS tests/mock_core_module.cpp -o build/migration/registry-fixtures/snes.so
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"md"' -DRETRODE3_MOCK_NAME='"Mega Drive"' -DRETRODE3_MOCK_SLOT='"md"' tests/mock_core_module.cpp -o build/migration/registry-fixtures/md.so
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"bad"' -DRETRODE3_MOCK_ABI=99 tests/mock_core_module.cpp -o build/migration/registry-fixtures/bad.so
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_OPERATIONS $< -o $@
+
+build/migration/registry-fixtures/md.so: tests/mock_core_module.cpp \
+	include/retrode3/core_descriptor_v1.h include/retrode3/core_operations_v1.h
+	mkdir -p build/migration/registry-fixtures
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"md"' -DRETRODE3_MOCK_NAME='"Mega Drive"' -DRETRODE3_MOCK_SLOT='"md"' $< -o $@
+
+build/migration/registry-fixtures/bad.so: tests/mock_core_module.cpp \
+	include/retrode3/core_descriptor_v1.h
+	mkdir -p build/migration/registry-fixtures
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"bad"' -DRETRODE3_MOCK_ABI=99 $< -o $@
+
+.PHONY: native-core-registry test-core-registry
+native-core-registry: build/migration/retrode3-cli build/migration/retrode3-corectl
+
+test-core-registry: native-core-registry \
+	build/migration/retrode3-cli-mock build/migration/retrode3-corectl-mock \
+	build/migration/registry-fixtures/snes.so \
+	build/migration/registry-fixtures/md.so \
+	build/migration/registry-fixtures/bad.so
 	python3 -m unittest discover -s tests -p 'test_core_registry.py' -v
 	python3 -m unittest discover -s tests -p 'test_shared_core_host.py' -v
+	python3 -m unittest discover -s tests -p 'test_core_registry_incremental.py' -v
 
 
 # Stage-1 real, dynamically loadable SNES adapter from the original pinned
