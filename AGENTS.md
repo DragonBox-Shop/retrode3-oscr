@@ -182,15 +182,24 @@ Siehe [docs/NES-MAPPER-STATUS.md](docs/NES-MAPPER-STATUS.md).
 128 KiB PRG/0 KiB CHR, 131088 Bytes einschliesslich iNES,
 PRG-Payload CRC32 `654F4E90` (PAL-Referenztreffer),
 volle Datei-CRC32 `B78FDA39`; regulaere NES-`.so` wiederhergestellt.
-Die **neuen** 32/32- und 128/32-KiB PRG/CHR-Routinen sind
-**nur mock-/CI-getestet, nicht physisch abgenommen**. Beide vom
-Benutzer gemeldeten alten CRCs `F378619E`/`9FB32DEA` basierten
-auf dem falschen 128/0-Layout und sind keine Referenzen.
-Andere Mapper sind noch
-nicht implementiert. Die automatischen Fast-Probe-DB-Treffer sind weiterhin
-Mapper-0-only; für experimentelle Bankmapper braucht es ein bestätigtes
-manuelles Layout. `get_capabilities` darf die neuen Mapper bis zur
-Hardwarefreigabe nur als `read_supported:false` melden.
+**Physisch ebenfalls bestanden 2026-11-20:** Mario & Yoshi PAL,
+NES-SFROM MMC1 mit 128 KiB PRG + 32 KiB CHR (163856 Bytes iNES).
+**Beide ROM-Teile separat verifiziert:** PRG `1406783D`,
+CHR `FC0BBA23`, zusammen `836685C4`. Fuenf stabile reale
+v3-Fast-Probes am selben Modul lieferten
+`$8000:29D1D575` und `$E000:9A78A49D`.
+Beide Fingerprints stehen nun in der regionalen NES-DB-Erweiterung
+auf `develop`; automatisches Erkennen nach Core-Update noch
+auf echter Hardware zu pruefen. Der alte 128/0-Fehl-Dump
+(`F378619E`/`9FB32DEA`) war keine Referenz.
+
+**MMC1-Mapper-1-Fingerprints werden automatisch erkannt und ihr
+Layout zum Auslesen angeboten** (gemeinsames CLI-v3-Protokoll).
+Das Plugin gibt bei unterschiedlichen Layouts eine Auswahl vor.
+Ob ein Spiel wirklich identisch ist, entscheidet erst die vollstaendige
+ROM-CRC nach dem Dump. Andere experimentelle Mapper 2/3/4/7
+bleiben gesperrt, und MMC1-Layouts mit Batterie bleiben wegen
+fehlender Save-RAM-sicherer Kernel-Timings gesperrt.
 
 Siehe [docs/nes-mapper-stage2.md](docs/nes-mapper-stage2.md) für die
 Sequenzen, Buskonflikt-Schutzmaßnahmen, CI-Tests und Hardware-Gates.
