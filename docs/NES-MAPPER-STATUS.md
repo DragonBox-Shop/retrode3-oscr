@@ -9,6 +9,39 @@
 > Der aktuelle Quellcode hat bei Widerspruechen Vorrang vor historischen
 > Abschnitten. **Implementiert != physisch verifiziert != freigegeben.**
 
+## Jetzt tatsaechlich im normalen Core / Web v2 (2026-11-20)
+
+**Neue Entwicklungsimplementierung, noch NICHT auf echter Retrode3 physisch
+abgenommen:** Mapper 1 MMC1 wird durch das regulaere
+`make -f Makefile.migration native-nes-module` gebaut und ist in
+`build/migration/nes.so` fuer die unterstuetzten, nicht
+batteriegepufferten Layouts lesbar. Kein `native-nes-mmc1-lab`,
+kein Umstecken einer Labor-`.so` und kein Runtime-Acknowledgement
+mehr notwendig. Die CLI meldet Mapper 1 in `get_capabilities`
+als `read_supported:true`. Die 695 gepinnten Sanni-Datenbankeintraege
+werden beim schreibfreien 1024-Byte-Fast-Probe ausgewertet, die
+`read_layouts` und `candidates` an den Web-v2-Jobmanager
+gegeben. Das Web zeigt bei verschiedenen Layouts die Auswahl
+(Mapper/PRG/CHR) und bietet bei unbekannten Modulen einen manuellen
+Override in den regulaeren **Read ROM**-Optionen an.
+Nach dem Auslesen erfolgt der komplette Payload-CRC-Abgleich.
+32/32 und 128/32 KiB PRG/CHR sind mit C++-Mock und Web-/Backend-
+Tests abgedeckt. Das installierte `/usr/bin/retrode3-cli` und
+die installierte `nes.so` sowie Web v2 muessen auf dem Testgeraet
+tatsaechlich aktualisiert werden; ein `git pull` allein reicht nicht.
+
+**Bewusste Grenze:** Ein MMC1-Layout mit Batterie wird wegen
+noch nicht SRAM-sicher verifizierter Kernel-M2/ROMSEL-Schreibpulse
+als nicht lesbar gemeldet. Andere Mapper 2/3/4/7 bleiben
+experimentell und in regulaeren Binaries gesperrt.
+Beim Einlegen erfolgen keinerlei Mapper-Registerwrites.
+
+**CI:** NES <https://github.com/DragonBox-Shop/retrode3-oscr/actions/workflows/native-nes-migration.yml>
+und Web v2 <https://github.com/DragonBox-Shop/retrode3/actions/workflows/web-v2-checks.yml>.
+Die folgenden Abschnitte ueber den getrennten MMC1-Labor-Core sind
+**historische Zwischenstaende** und werden durch diesen Abschnitt
+ersetzt. Das Rad-Racer-128/0-Hardwareergebnis bleibt gueltig.
+
 ## Arbeitsregeln
 
 - Entwicklung nur auf **`develop`**, `master` bleibt bis zu Review und
@@ -30,7 +63,7 @@
 | Mapper | Auf `develop` | Mock-Tests | Physisch validiert | Normaler Build |
 | --- | --- | --- | --- | --- |
 | **0 NROM** | Linear: PRG 16/32 KiB, CHR 0/8 KiB | Vorhanden | **Stage 1 ja; v2 noch nicht** | Read-only freigegeben |
-| **1 MMC1** | 695 Sanni-Datensaetze, Fingerprints/CRC, 32-512KiB PRG / 0-128KiB CHR, Lab-Bankleser | **GitHub Actions NES erfolgreich fuer 32/32,128/32, 512/0 und DB-Erkennung** | **Ja: nur Rad Racer PAL 128/0, CRC-Treffer**; neue Layouts offen | Gesperrt (Laborbuild getrennt) |
+| **1 MMC1** | 695 Sanni-DB-Datensaetze; 32-512KiB PRG, 0-128KiB CHR; CLI- und Web-v2-Mapperauswahl | Native C++11- und Web-Mocks gruen | Rad Racer PAL 128/0 zuvor verifiziert; neue 32/32 & 128/32 offen | **Normaler `nes.so`-Build**, ohne Lab-Opt-in; Batterie-Layouts gesperrt |
 | **2 UxROM** | 16-KiB-PRG-Bankswitch, letzte Bank fix | Vorhanden | Nein | Registerwrites gesperrt |
 | **3 CNROM** | CHR-Bankswitch je 8 KiB | Vorhanden | Nein | Registerwrites gesperrt |
 | **4 MMC3** | 8-KiB-PRG (R6), 1-KiB-CHR (R2) | Vorhanden | Nein | Registerwrites gesperrt |
