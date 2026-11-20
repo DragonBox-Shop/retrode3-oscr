@@ -116,37 +116,37 @@ class TestNesMapperBanks(unittest.TestCase):
             self.assertEqual(events[-1]["event"], "probe_result", events)
             self.assertFalse(os.path.exists(log))
 
-    def test_mmc1_pinned_db_probe_and_selected_tetris_layout(self):
-        # The mock's 512-byte PRG prefix has CRC32 96D6696B, matching
-        # the pinned Sanni metadata for Tetris (Europe) MMC1 submapper 5.
+    def test_mmc1_pinned_db_probe_and_selected_dr_mario_layout(self):
+        # The mock's 512-byte PRG prefix has CRC32 6607DBDA, matching
+        # the pinned Sanni metadata for Dr. Mario (Europe) MMC1 submapper 5.
         # No copyrighted PRG/CHR bytes are shipped in the fixture.
         base = {"RETRODE_MOCK_NES_PRG_KIB": "32",
                 "RETRODE_MOCK_NES_CHR_KIB": "32",
-                "RETRODE_MOCK_NES_TETRIS_PROBE": "1"}
-        log = os.path.join(self.temp.name, "tetris-probe-writes")
+                "RETRODE_MOCK_NES_DRMARIO_PROBE": "1"}
+        log = os.path.join(self.temp.name, "drmario-probe-writes")
         probe = {"command": "probe", "core": "nes", "request_id": "probe"}
         events = self.run_cli(1, [probe],
                               dict(base, RETRODE_MOCK_NES_WRITELOG=log))
         self.assertEqual(events[-1]["event"], "probe_result", events)
         candidates = events[-1]["candidates"]
-        tetris = [c for c in candidates if c["title"] == "Tetris (Europe)"]
-        self.assertEqual(len(tetris), 1, events)
-        self.assertEqual(tetris[0]["mapper"], 1)
-        self.assertEqual(tetris[0]["submapper"], 5)
-        self.assertEqual(tetris[0]["prg_kib"], 32)
-        self.assertEqual(tetris[0]["chr_kib"], 32)
-        self.assertFalse(tetris[0]["read_supported"])
+        drmario = [c for c in candidates if c["title"] == "Dr. Mario (Europe)"]
+        self.assertEqual(len(drmario), 1, events)
+        self.assertEqual(drmario[0]["mapper"], 1)
+        self.assertEqual(drmario[0]["submapper"], 5)
+        self.assertEqual(drmario[0]["prg_kib"], 32)
+        self.assertEqual(drmario[0]["chr_kib"], 32)
+        self.assertFalse(drmario[0]["read_supported"])
         self.assertFalse(os.path.exists(log))
 
         opted = dict(base, RETRODE3_MMC1_TEST_ACK="NO_BATTERY_TEST_ONLY")
         events = self.run_cli(1, [probe], opted)
-        tetris = [c for c in events[-1]["candidates"]
-                  if c["title"] == "Tetris (Europe)"]
-        self.assertEqual(len(tetris), 1)
-        self.assertTrue(tetris[0]["read_supported"])
+        drmario = [c for c in events[-1]["candidates"]
+                  if c["title"] == "Dr. Mario (Europe)"]
+        self.assertEqual(len(drmario), 1)
+        self.assertTrue(drmario[0]["read_supported"])
         job = {"command": "read_rom", "core": "nes",
-               "request_id": "tetris-db", "layout_id": "m1s5-32-32",
-               "output": os.path.join(self.temp.name, "tetris-db.nes")}
+               "request_id": "drmario-db", "layout_id": "m1s5-32-32",
+               "output": os.path.join(self.temp.name, "drmario-db.nes")}
         events = self.run_cli(1, [job], opted)
         self.assertEqual(events[-1]["event"], "result", events)
         self.assertFalse(events[-1]["verified"])
@@ -154,8 +154,9 @@ class TestNesMapperBanks(unittest.TestCase):
         with io.open(job["output"], "rb") as handle:
             data = handle.read()
         self.assertEqual(len(data), 16 + 64 * 1024)
-        self.assertEqual(data[:4], b"NES\\x1a")
+        self.assertEqual(data[:3], b"NES")
         self.assertEqual(data[4:7], bytes(bytearray([2, 4, 0x10])))
+        self.assertEqual(data[3], 0x1a)
         self.assertEqual(data[8], 0x50)  # pinned NES2 submapper 5 header
 
     def test_mmc1_chr_rom_and_prg_size_matrix(self):
