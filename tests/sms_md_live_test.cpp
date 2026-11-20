@@ -28,12 +28,12 @@ int main()
     char vcc[] = "/tmp/sms-md-live-vcc-XXXXXX";
     int fd = ::mkstemp(device), vf = ::mkstemp(vcc);
     assert(fd >= 0 && vf >= 0);
-    const char voltage[] = "5000mV\n";
+    const char voltage[] = "3300mV\n";
     assert(::write(vf, voltage, sizeof(voltage) - 1) == static_cast<ssize_t>(sizeof(voltage)-1));
     ::close(vf);
     assert(::setenv("RETRODE3_SMS_MD_TEST_DEVICE", device, 1) == 0);
     assert(::setenv("RETRODE3_SMS_MD_TEST_VCC", vcc, 1) == 0);
-    assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT", "enable-readonly-v1", 1) == 0);
+    assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
     std::vector<unsigned char> expected(32768);
     for (unsigned i=0; i<expected.size(); ++i)
         expected[i] = static_cast<unsigned char>((i/256u) ^ (i%256u));
@@ -52,6 +52,7 @@ int main()
     assert(!ops->fast_probe_json(response, sizeof(response), error, sizeof(error)));
     assert(std::strstr(response, "linear-32") != NULL);
     assert(std::strstr(response, "header_found\":true") != NULL);
+    assert(std::strstr(response, "system_detected\":true") != NULL);
 
     retrode3_selection_v3 s = retrode3_selection_v3();
     s.struct_size = sizeof(s); s.protocol_version = 1;
@@ -60,6 +61,16 @@ int main()
     std::strcpy(s.layout_id,"linear-32");
     retrode3_read_plan_v3 p = retrode3_read_plan_v3();
     p.struct_size = sizeof(p);
+    // Probe identifies SMS at 3.3V, but read planning stays blocked.
+    assert(ops->plan_read(&s, &p, error, sizeof(error)) != 0);
+    assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT", "enable-readonly-v1", 1) == 0);
+    assert(ops->plan_read(&s, &p, error, sizeof(error)) != 0);
+    int voltage_fd = ::open(vcc, O_WRONLY | O_TRUNC);
+    assert(voltage_fd >= 0);
+    const char voltage5[] = "5000mV\n";
+    assert(::write(voltage_fd, voltage5, sizeof(voltage5)-1) ==
+           static_cast<ssize_t>(sizeof(voltage5)-1));
+    ::close(voltage_fd);
     assert(!ops->plan_read(&s, &p, error, sizeof(error)));
     assert(p.payload_bytes == 32768 && p.prefix_bytes == 0);
 
@@ -88,10 +99,10 @@ int main()
     assert(sink.bytes.empty());
     assert(std::strstr(error, "bank-switch writes") != NULL);
 
-    // Opt-in removed must deny both metadata probe and live read.
+    // Removing opt-in blocks ROM reads but NOT the header probe.
     assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
     assert(!ops->fast_probe_json(response, sizeof(response), error, sizeof(error)));
-    assert(std::strstr(response, "hardware_disabled") != NULL);
+    assert(std::strstr(response, "header_found\":true") != NULL);
     s.mode = RETRODE3_SELECT_LAYOUT_V3; s.parameter_count = 0;
     std::strcpy(s.layout_id, "linear-32");
     assert(ops->plan_read(&s, &p, error, sizeof(error)) != 0);

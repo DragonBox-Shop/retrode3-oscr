@@ -43,18 +43,25 @@ bool sms_experiment_enabled()
     return s && std::strcmp(s, kOptIn) == 0;
 }
 
-bool sms_voltage_is_5v()
+namespace {
+bool voltage_matches(bool allow_3v3)
 {
     FILE *file = std::fopen(vcc_path(), "r");
     if (!file) return false;
     char line[32] = {};
     const bool ok = std::fgets(line, sizeof(line), file) != NULL;
     std::fclose(file);
-    return ok && std::strcmp(line, "5000mV\n") == 0;
+    return ok && (std::strcmp(line, "5000mV\n") == 0 ||
+                  (allow_3v3 && std::strcmp(line, "3300mV\n") == 0));
 }
+} // namespace
 
-SmsMdPosixBus::SmsMdPosixBus(CancelFn cancel, void *context)
-    : fd_(-1), cancel_(cancel), context_(context)
+bool sms_voltage_is_5v() { return voltage_matches(false); }
+bool sms_voltage_allows_probe() { return voltage_matches(true); }
+
+SmsMdPosixBus::SmsMdPosixBus(CancelFn cancel, void *context,
+                             SmsMdAccess access)
+    : fd_(-1), cancel_(cancel), context_(context), access_(access)
 {
 }
 SmsMdPosixBus::~SmsMdPosixBus()
@@ -64,6 +71,7 @@ SmsMdPosixBus::~SmsMdPosixBus()
 
 bool SmsMdPosixBus::approved() const
 {
+    if (access_ == SmsMdHeaderProbe) return sms_voltage_allows_probe();
     return sms_experiment_enabled() && sms_voltage_is_5v();
 }
 bool SmsMdPosixBus::cancelled() const

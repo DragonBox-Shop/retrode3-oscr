@@ -52,11 +52,12 @@ class SmsCoreAbi(unittest.TestCase):
 
     def test_probe_never_claims_authorized_hardware(self):
         info = self.get_json(self.ops.fast_probe_json)
-        self.assertEqual(info['candidate_lookup'], 'hardware_disabled')
+        self.assertEqual(info['candidate_lookup'], 'hardware_unavailable')
         self.assertTrue(info['selection_required'])
         self.assertFalse(info['read_supported'])
         self.assertEqual(info['read_layouts'], [])
         self.assertEqual(info['candidates'], [])
+        self.assertFalse(info['system_detected'])
 
 
 if __name__ == '__main__':

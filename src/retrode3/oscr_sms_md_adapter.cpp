@@ -1,6 +1,6 @@
 // SMS-0007 passive Retrode2 adapter for the shared Retrode3 v3 host.
 // Explicit experimental ROM-only path via kernel adapter lane mode 20.
-// No mapper writes, no SRAM, no power switching, no implicit adapter detection.
+// No mapper writes, SRAM or power switching. Header probe needs no opt-in.
 #include "retrode3/core_descriptor_v1.h"
 #include "retrode3/core_operations_v1.h"
 #include "retrode3/core_operations_v3.h"
@@ -48,7 +48,8 @@ int capabilities(char *out, size_t cap, char *err, size_t ec)
           "reason":"Requires explicit operator opt-in, 5V and SMS-0007 hardware acceptance"},
          {"when":{"mapping":"sega16k"},"read_supported":false,
           "reason":"SMS mapper-register write cycles are disabled"}],
-"hardware_mode":"experimental-read-only","write_operations":false
+"hardware_mode":"experimental-read-only","probe_voltage_mv":3300,
+"read_voltage_mv":5000,"write_operations":false
 })SMS";
     return copy_json(json, out, cap, err, ec);
 }
@@ -113,18 +114,15 @@ retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
 
 int fast_probe(char *out, size_t cap, char *err, size_t ec)
 {
-    if (!retrode3::sms::sms_experiment_enabled())
-        return copy_json(R"SMS({"identification_status":"unknown", "ambiguity":"none",
-"candidate_lookup":"hardware_disabled", "selection_required":true,
-"candidates":[],"read_layouts":[],"adapter_status":"explicit_opt_in_required",
-"read_supported":false})SMS", out, cap, err, ec);
-    if (!retrode3::sms::sms_voltage_is_5v())
+    // The initial system-identification probe is read-only at 3.3 V.
+    // Full ROM dumping still requires explicit opt-in and confirmed 5 V.
+    if (!retrode3::sms::sms_voltage_allows_probe())
         return copy_json(R"SMS({"identification_status":"unknown", "ambiguity":"none",
 "candidate_lookup":"hardware_unavailable", "selection_required":true,
-"candidates":[],"read_layouts":[],"adapter_status":"5v_required",
-"read_supported":false})SMS", out, cap, err, ec);
+"candidates":[],"read_layouts":[],"adapter_status":"probe_voltage_unavailable",
+"read_supported":false,"system_detected":false})SMS", out, cap, err, ec);
     try {
-        retrode3::sms::SmsMdPosixBus bus;
+        retrode3::sms::SmsMdPosixBus bus(NULL, NULL, retrode3::sms::SmsMdHeaderProbe);
         const retrode3::sms::Probe p = retrode3::sms::bounded_probe(bus);
         std::string layouts = "[]";
         if (p.header_found && !p.conflicting_headers) {
@@ -138,7 +136,9 @@ int fast_probe(char *out, size_t cap, char *err, size_t ec)
             "\"ambiguity\":\"none\",\"candidate_lookup\":\"header_only\","
             "\"selection_required\":true,\"candidates\":[],\"read_layouts\":" +
             layouts + ",\"adapter_status\":\"experimental\","
-            "\"header_found\":" + (p.header_found ? "true" : "false") +
+            "\"system_detected\":" +
+            ((p.header_found && !p.conflicting_headers) ? "true" : "false") +
+            ",\"header_found\":" + (p.header_found ? "true" : "false") +
             ",\"conflicting_headers\":" + (p.conflicting_headers ? "true" : "false") +
             ",\"header_rom_bytes\":" +
             std::to_string(p.header_found ? p.header.declared_rom_bytes : 0u) + "}";
@@ -206,7 +206,7 @@ extern "C" const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void)
 {
     static const retrode3_core_descriptor_v1 d = {
         RETRODE3_CORE_DISCOVERY_ABI_V1, sizeof(d),
-        "sms-md", "Master System (SMS-0007 adapter)", "0.3.0-oscr-generated-lab", "md"
+        "sms-md", "Master System (SMS-0007 adapter)", "0.3.1-oscr-generated-lab", "md"
     };
     return &d;
 }
