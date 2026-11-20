@@ -4,8 +4,13 @@ on:
   push:
     branches:
       - master
+      - develop
     paths:
       - 'src/retrode3/oscr_nes_*.cpp'
+      - 'src/retrode3/nes_mmc1_*.cpp'
+      - 'src/retrode3/retrode3_cli.cpp'
+      - 'include/retrode3/nes_mmc1_*.h'
+      - 'tests/test_nes_mapper_banks.py'
       - 'tools/build-linux-nes-core.py'
       - 'third_party/oscr-firmware'
       - 'Makefile.migration'
@@ -17,6 +22,10 @@ on:
     paths:
       - 'Makefile.migration'
       - 'src/retrode3/oscr_nes_*.cpp'
+      - 'src/retrode3/nes_mmc1_*.cpp'
+      - 'src/retrode3/retrode3_cli.cpp'
+      - 'include/retrode3/nes_mmc1_*.h'
+      - 'tests/test_nes_mapper_banks.py'
       - 'include/retrode3/oscr_nes_*.h'
       - 'tests/test_real_nes_adapter.py'
       - 'tests/mock_nes_kernel.cpp'
@@ -42,6 +51,8 @@ jobs:
         run: make -f Makefile.migration test-native-nes-module
       - name: Compile the production read-only NES dynamic core
         run: make -f Makefile.migration native-nes-module
+      - name: Compile isolated MMC1 SGROM lab core (never stage or enable)
+        run: make -f Makefile.migration native-nes-mmc1-lab
       - name: Offline stage no-auto-enable NES module
         run: |
           make -f Makefile.migration stage-nes-module
