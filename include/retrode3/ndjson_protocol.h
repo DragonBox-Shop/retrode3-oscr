@@ -8,6 +8,7 @@ namespace retrode3 {
 struct WebCommand {
     std::string action;
     std::string core;
+    std::string slot;
     std::string request_id;
     std::string output;
     std::string mapping;
