@@ -1,4 +1,4 @@
 id=nes
 name=Nintendo Entertainment System
-version=0.1.0-nrom-stage1
+version=0.2.0-nrom-mmc1
 slot=nes

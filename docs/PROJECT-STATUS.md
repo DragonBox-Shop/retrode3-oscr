@@ -1,5 +1,120 @@
 # Retrode3 project status and next-step contract
 
+> **Current snapshot, 2026-11-19.** New assistants should read this
+> section and [AGENTS.md](../AGENTS.md) first. The very long sections
+> below are **historical development logs**. Statements there about
+> `migration/oscr-firmware`, unfinished MD/NES shared cores, old paths
+> or pending physical tests have been superseded.
+
+## 2026-11-20: MMC1 in the normal NES core and Web v2 (develop only)
+
+**This section overrides the earlier historical SGROM-lab notes below.**
+`retrode3-oscr/develop` now compiles 695 pinned Sanni MMC1 database
+metadata records and the PRG/CHR mapper-1 ROM read implementation into
+the **ordinary** `native-nes-module` `nes.so` (version
+`0.2.0-nrom-mmc1`). No separate lab binary and no environment variable
+are required. Read-only first/last 512-byte fingerprints provide NES
+game/layout candidates; full CRC after dump confirms a unique title.
+Supported geometries: 32–512 KiB PRG-ROM, 0–128 KiB CHR-ROM (supported
+power-of-two sizes), mapper 1/submapper 0 or 5 (only 32 KiB PRG). The
+32/32 and 128/32 KiB examples have native C++11/mock test coverage.
+
+`retrode3/develop` Web v2 displays the CLI's cached
+`candidates`/`read_layouts` from automatic read-only cartridge
+insertion probing, provides a layout selector when ambiguous and
+manual mapper/PRG/CHR/NT mirroring overrides when unknown, and
+forwards that selection through the existing `POST /api/jobs`
+and the common CLI's `read_rom`. The backend does not attempt
+a ROM dump during insertion; it only schedules the existing 1024-byte
+fingerprint probe. ROM files, CRC and cancellation remain owned by
+the shared CLI. Web backend/JavaScript mock tests pass on develop.
+
+**Battery-backed MMC1 carts are blocked** until NES_REG/M2/ROMSEL
+write pulse timing is shown safe for PRG-RAM. The core additionally
+rejects manual `battery=0` overrides when a pinned MMC1
+fingerprint reveals battery-backed metadata. Unknown carts must be
+tested with appropriate PCB knowledge; no safe SRAM-restore exists.
+Mappers 2/3/4/7 retain their experimental write gates. Only
+Rad Racer PAL 128/0 has prior real-device MMC1 CRC acceptance;
+32/32 and 128/32 still need physical CRC validation.
+
+Neither repository's `master` nor the actual Retrode3 installation
+were updated by these source commits. The installed CLI, NES
+`nes.so`, matching `nes.core` manifest, and Web v2 deployment
+need coordinated upgrade/testing on the real device.
+See [NES mapper status](NES-MAPPER-STATUS.md) and the
+[OS Web v2 CLI integration document](https://github.com/DragonBox-Shop/retrode3/blob/develop/retrode3-web-control/v2/docs/cli-integration.md).
+
+## Current authoritative state: three shared cores ready
+
+- Stable `master` contains the shared CLI and physical SNES/MD/NES
+  Stage-1 cores (one squash integration commit, `8b7d0f2`).
+  Shared working branch is `develop`; changes are tested before
+  another reviewed/squash promotion to `master`.
+- Physical MIPS Retrode3 2.9.5 ROM CRC32s through the dynamic shared
+  host: SNES Terranigma `6FB8A4DF` (4 MiB), MegaDrive
+  Snake Rattle n Roll `543BED30` (524288 bytes), NES Excitebike
+  `F749E780` (24592 bytes including iNES header).
+- The developer device has exactly one installed CLI
+  `/usr/bin/retrode3-cli`, toggler `/usr/sbin/retrode3-corectl`
+  and root-owned `snes/md/nes` modules under
+  `/usr/lib/retrode3/cores-available`; all list as ready.
+  Previous `/usr/local/bin/oscr` and `retrode3-read/dump/info`
+  programs were reported removed from that device. The *source*
+  remains in Git for historical reference; do not reinstall legacy
+  binaries.
+- `retrode3-oscr/develop` adds the validated combined production
+  staging target `make -f Makefile.migration test-release-stage`.
+  This is not a released Debian package or flashable image.
+- The **OS** repo (not this repo) now uses **SysV init** for
+  `/run/lock/retrode3`, with tested init script
+  `retrode3-core-runtime/etc/init.d/retrode3-core-runtime` and
+  `root:www-data` lock at `0660`. The CLI creates/locks its
+  `bus.lock` inode but not its parent. The incorrect systemd
+  boot experiment was removed from OS master and develop, which were
+  aligned again at `111f61a6`. Device reboot validation remains
+  a separate check.
+- Web v2 remains in OS branch `feature/web-control-v2`, not
+  promoted. Existing backend default points to
+  `/usr/local/bin/retrode3-cli` and installer can copy old binaries;
+  new integration must use only `/usr/bin/retrode3-cli`, its
+  dynamic plugin registry and limited `/usr/sbin/retrode3-corectl`.
+  The web feature branch has diverged from OS `develop`, so
+  reconcile it **without losing the SysV-init fix**.
+- **NES Mapper 1 lab acceptance (2026-11-20):** Rad Racer PAL
+  with manually confirmed SGROM/no-PRG-WRAM test setting produced
+  131088 bytes (128 KiB PRG + 16-byte iNES header), PRG CRC32
+  `654F4E90` matching the PAL reference and full-file CRC32
+  `B78FDA39`. The temporary lab `nes.so` was restored afterward.
+  This does **not** authorize Mapper 1 in production, other MMC1
+  boards, PRG-WRAM writes, or automated Web activation.
+  See [NES mapper handoff](NES-MAPPER-STATUS.md) and
+  [MMC1 lab acceptance](nes-mmc1-sgrom-lab.md).
+- **NES Mapper 1 DB/CHR lab expansion (2026-11-20, develop-only):**
+  The new `native-nes-mmc1-lab` now supports PRG-ROM
+  32/64/128/256/512 KiB and CHR-ROM 0/8/16/32/64/128 KiB
+  (CHR=0 means CHR-RAM). All 695 pinned Sanni MMC1 metadata
+  records are compiled in; the 1024-byte fast probe never
+  performs register writes, and post-dump payload CRC can verify
+  game titles. `tools/nes-mmc1-lab.sh` supports auto-detection
+  or explicit manual PRG/CHR layouts, only with no-battery test
+  acknowledgement; the existing NES core is restored afterward.
+  The **32+32 KiB and 128+32 KiB test cartridges remain physically
+  unverified** pending new user CRCs. Battery-backed FF1/FF2 must
+  wait for tested SRAM backup/restore and kernel timing.
+  See [MMC1 full lab](nes-mmc1-general-lab.md).
+- **Immediate work:** finish tested Web v2 path/privilege and
+  cartridge-presence handling in OS `develop`, verify against
+  real Retrode3 and only then squash-merge to OS `master`.
+  Packaging, kernel pinning and SD-image automation follow separately.
+  No special mapper/save/flash writes are approved.
+
+---
+
+## Historical development log (superseded when conflicting with snapshot)
+
+# Retrode3 project status and next-step contract
+
 Updated: 2026-11-19
 Main development line: master (subject to integration CI); OS/web deployment is separate.
 Purpose: durable, source-controlled project memory for contributors and assistants.

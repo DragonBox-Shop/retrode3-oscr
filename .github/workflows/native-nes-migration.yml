@@ -4,8 +4,15 @@ on:
   push:
     branches:
       - master
+      - develop
     paths:
       - 'src/retrode3/oscr_nes_*.cpp'
+      - 'src/retrode3/nes_mmc1_*.cpp'
+      - 'src/retrode3/retrode3_cli.cpp'
+      - 'include/retrode3/nes_mmc1_*.h'
+      - 'tests/test_nes_mapper_banks.py'
+      - 'tools/nes-mmc1-lab.sh'
+      - 'tools/gen-nes-mmc1-catalog.py'
       - 'tools/build-linux-nes-core.py'
       - 'third_party/oscr-firmware'
       - 'Makefile.migration'
@@ -17,6 +24,12 @@ on:
     paths:
       - 'Makefile.migration'
       - 'src/retrode3/oscr_nes_*.cpp'
+      - 'src/retrode3/nes_mmc1_*.cpp'
+      - 'src/retrode3/retrode3_cli.cpp'
+      - 'include/retrode3/nes_mmc1_*.h'
+      - 'tests/test_nes_mapper_banks.py'
+      - 'tools/nes-mmc1-lab.sh'
+      - 'tools/gen-nes-mmc1-catalog.py'
       - 'include/retrode3/oscr_nes_*.h'
       - 'tests/test_real_nes_adapter.py'
       - 'tests/mock_nes_kernel.cpp'
@@ -38,10 +51,16 @@ jobs:
           submodules: false
       - name: Initialize exact pinned Sanni OSCR C++ source
         run: git submodule update --init third_party/oscr-firmware
+      - name: Validate isolated MMC1 lab script and pinned DB generator syntax
+        run: |
+          sh -n tools/nes-mmc1-lab.sh
+          python3 -m py_compile tools/gen-nes-mmc1-catalog.py
       - name: Validate genuine NES bank-reader extraction and shared CLI integration
         run: make -f Makefile.migration test-native-nes-module
       - name: Compile the production read-only NES dynamic core
         run: make -f Makefile.migration native-nes-module
+      - name: Compile standalone MMC1 PRG and CHR lab core (never stage or enable)
+        run: make -f Makefile.migration native-nes-mmc1-lab
       - name: Offline stage no-auto-enable NES module
         run: |
           make -f Makefile.migration stage-nes-module

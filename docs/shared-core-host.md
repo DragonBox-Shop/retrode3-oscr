@@ -251,3 +251,35 @@ implementation is needed.
 
 Do not change the pinned upstream firmware or merge draft work to master
 without physical acceptance.
+
+## Generic SNES v3 read selection (develop, 2026-11-20)
+
+The same original Sanni-derived LoROM/HiROM dynamic core now exposes
+the optional `retrode3_core_get_operations_v3()` API. Its mandatory v1
+ABI stays available. The descriptor and core manifest are both versioned
+`0.2.0-v3` with the physical `slot=snes`.
+
+The self-describing schema `snes-standard-v1` offers `auto`, `layout`,
+and explicit `override` with only `mapping` (`lo` or `hi`) and
+`rom_size_bytes` (128 KiB..4 MiB). In an override, size is bounded by
+the currently validated standard cartridge header, aligned to the
+selected mapping's 32 KiB (LoROM) / 64 KiB (HiROM) bank size, and constrained
+to the existing approved bank address range. The override may correct
+LoROM/HiROM selection on an otherwise known standard cartridge, but
+cannot bypass checkcart, unlock special chips, or authorize any SRAM/
+save/flash or voltage/bus write actions.
+
+The bounded read-only header probe offers a single read layout, no game
+candidates, and an unverified header title. With no catalogue-backed
+CRC match, `identification_status=unknown`, `selection_required=false`
+and `verification.status=not_checked` are intentional. The central
+CLI remains responsible for output publication, CRC32, and cancellation.
+
+Both plan and read repeat the original core's standard chip/header
+checks. The read callback rejects changed cartridge metadata or a
+changed selection relative to the previously vetted plan, then calls
+the original v1 ROM bank reader. The pinned Sanni upstream code is
+unchanged. The v3 integration and rejection tests run on a fake kernel,
+not on hardware. Before master promotion, re-read physically verified
+HiROM Terranigma D, 4 MiB CRC32 `6FB8A4DF`, then physically test a
+standard LoROM and the explicitly selected v3 override path.

@@ -1,6 +1,8 @@
 #pragma once
 #include <cstddef>
 #include <string>
+#include <map>
+#include "retrode3/json_v3.h"
 
 namespace retrode3 {
 struct WebCommand {
@@ -9,9 +11,20 @@ struct WebCommand {
     std::string request_id;
     std::string output;
     std::string mapping;
+    std::string candidate_id;
+    std::string layout_id;
+    std::string mirroring;
+    unsigned mapper, submapper, prg_kib, chr_kib, battery;
+    bool has_manual;
+    bool has_selection;
+    std::string selection_schema;
+    std::string selection_mode;
+    std::string selection_candidate;
+    std::string selection_layout;
+    std::map<std::string, JsonV3> selection_parameters;
     std::size_t size_bytes;
     bool has_size;
-    WebCommand() : size_bytes(0), has_size(false) {}
+    WebCommand() : mapper(0), submapper(0), prg_kib(0), chr_kib(0), battery(0), has_manual(false), has_selection(false), size_bytes(0), has_size(false) {}
 };
 
 class NdjsonProtocol {

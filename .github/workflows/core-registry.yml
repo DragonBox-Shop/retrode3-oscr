@@ -4,6 +4,21 @@ on:
   push:
     branches:
       - master
+      - develop
+    paths:
+      - 'Makefile.migration'
+      - 'include/retrode3/**'
+      - 'src/retrode3/**'
+      - 'packaging/cores/**'
+      - 'tools/build-linux-*-core.py'
+      - 'tests/test_release_stage.py'
+      - 'tests/test_three_core_host.py'
+      - 'tests/test_nes_mapper_banks.py'
+      - 'tests/mock_nes_kernel.cpp'
+      - 'tools/verify-nes-mapper-sequences.py'
+      - 'third_party/oscr-firmware'
+      - 'tools/preflight-ci.sh'
+      - '.github/workflows/core-registry.yml'
   pull_request:
     branches:
       - master
@@ -28,7 +43,10 @@ on:
       - 'include/retrode3/oscr_nes_*.h'
       - 'tools/build-linux-nes-core.py'
       - 'tests/test_real_nes_adapter.py'
+      - 'tests/test_nes_mapper_banks.py'
+      - 'tools/verify-nes-mapper-sequences.py'
       - 'tests/test_three_core_host.py'
+      - 'tests/test_release_stage.py'
       - 'tests/mock_nes_kernel.cpp'
       - 'packaging/cores/nes.core'
       - 'tests/test_real_snes_adapter.py'
@@ -42,6 +60,7 @@ on:
       - 'retrode3-lib.h'
       - 'tools/build-linux-snes-core.py'
       - 'tools/build-linux-md-core.py'
+      - 'tools/preflight-ci.sh'
       - '.github/workflows/core-registry.yml'
   workflow_dispatch:
 
@@ -58,6 +77,8 @@ jobs:
           submodules: false
       - name: Initialize pinned original OSCR source
         run: git submodule update --init third_party/oscr-firmware
+      - name: Validate pre-push smoke-test script syntax
+        run: sh -n tools/preflight-ci.sh
       - name: Build genuine upstream SNES dynamic module
         run: make -f Makefile.migration native-snes-module
       - name: Build real native registry CLI
@@ -72,6 +93,8 @@ jobs:
         run: make -f Makefile.migration test-native-nes-module
       - name: Validate all three original-derived Cores share one host
         run: make -f Makefile.migration test-three-core-host
+      - name: Exercise generic v3 selection and override contract
+        run: make -f Makefile.migration test-generic-selection-v3
       - name: Prepare offline core image staging without installing or enabling
         run: |
           make -f Makefile.migration stage-snes-module
@@ -83,6 +106,8 @@ jobs:
           make -f Makefile.migration stage-nes-module
           test -f build/migration/stage/usr/lib/retrode3/cores-available/nes.so
           cmp packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
+      - name: Verify stable Debian staging filesystem layout
+        run: make -f Makefile.migration test-release-stage
       - name: Verify pinned upstream checkout untouched
         run: |
           git -C third_party/oscr-firmware diff --exit-code

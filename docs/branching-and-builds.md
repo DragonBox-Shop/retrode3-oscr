@@ -5,8 +5,8 @@
 | Branch | Zweck | Freigabe |
 | --- | --- | --- |
 | `master` | stabiler, auf Hardware verifizierter Hauptstand, Quelle für *freigegebene* Builds | nur überprüfter PR aus `develop` (bei der ersten Umstellung: Integrations-PR) |
-| `develop` | laufende getestete Integration für Entwickler und Vorabversionen | PRs aus kurzen `feature/*`- oder `fix/*`-Branches |
-| `feature/*`, `fix/*` | Experimente, neue Cores/Mapper, Sicherheitskorrekturen | CI gegen `develop`, ggf. echte Cartridge-Tests |
+| `develop` | gemeinsamer Entwicklungszweig für **alle** Cores, Konverter und Release-Build-Vorbereitung | fortlaufende CI, Hardwareprüfungen vor `master` |
+| `feature/*`, `fix/*` | **nur bei Bedarf** isolierte riskante oder größere Änderungen, keine dauerhaften Core-Branches | PR gegen `develop`, ggf. echte Cartridge-Tests |
 | `upstream/*` | Vorschläge für neue gepinnte OSCR-Versionen | niemals automatisch in `master` übernehmen |
 | `release/*` | optionaler Kandidat für Debian-Pakete und SD-Images | nur mit vollständigem Release-Test |
 
@@ -27,7 +27,7 @@ und aktiviert werden.
 
 ## Tests und Freigabestufen
 
-1. **Entwickler-PR zu `develop`:** Quellgeneratoren und gepinnte
+1. **Gemeinsames `develop` (oder optionaler Entwickler-PR):** Quellgeneratoren und gepinnte
    Upstream-Revision prüfen, ABI und Build, Tests mit Mock-Kernel,
    Registry/Host, Abbruch, Dateisicherheit und alle betroffenen Cores.
 2. **Hardware-Freigabe:** Wenn neue Bus-Kommandos, Mapper, Chips,
@@ -96,3 +96,35 @@ werden Legacy-Binaries in einem eigenen Verzeichnis installiert, ohne
 die primären Programme zu überschreiben. Für den tatsächlichen
 Paket-/SD-Image-Rollback werden die letzten freigegebenen
 Versionen und ein testbarer Rückweg dokumentiert.
+
+## Verbindliches Laufzeit-Staging (seit 2026-11-19 in `develop`)
+
+Mit `make -f Makefile.migration stage-retrode3-runtime` werden der
+Host, der Root-Core-Schalter und **alle drei Stage-1-Cores** in genau
+diesen Debian-Filesystembaum gebaut:
+
+```text
+build/migration/stage/
+  usr/bin/retrode3-cli
+  usr/sbin/retrode3-corectl
+  usr/lib/retrode3/cores-available/
+    snes.so  snes.core
+    md.so    md.core
+    nes.so   nes.core
+```
+
+`make -f Makefile.migration test-release-stage` prüft die acht
+Dateien, Rechte und Core-IDs. Das Staging aktiviert keinen Core und
+fasst die vorhandenen Legacy-Reader nicht an. Diese **exakten Pfade**
+sind der Übergabevertrag an `DragonBox-Shop/retrode3` für die späteren
+separaten Debian-Pakete. Dabei ist `/etc/retrode3/cores-enabled/`
+**Konfiguration/Laufzeitstatus**, kein von diesem Build automatisch
+gefülltes Aktivierungsverzeichnis. `/run/lock/retrode3/` wird beim
+Boot über die OS-Integration verwaltet, nicht im Debian-Payload.
+
+Der Host ist `/usr/bin/retrode3-cli` (kein per-Plugin-CLI), der nur
+privilegiert zu startende Schalter heißt
+`/usr/sbin/retrode3-corectl`. Die bisherige
+`/usr/local/bin/oscr`-Installation bleibt bis zum Paket-Upgrade als
+Legacy-System unangetastet. Nach dem MIPS-Build muss das OS-Repo die
+Dateien unter getrennten Paketstaging-Wurzeln verarbeiten.

@@ -113,3 +113,28 @@ The global cartridge bus lock protects only the new host. Legacy SNES,
 MD, NES test readers are not lock participants: never run them at the
 same time. The shipping OS still needs boot-time lock-directory
 creation and output-root policies before general deployment.
+
+## Generic V3 MegaDrive adapter on develop (2026-11-20)
+
+The MD shared module now exports the optional generic v3 callback table
+alongside its original v1 operations. Its descriptor and manifest both use
+version 0.2.0-v3, physical slot md. Original pinned Sanni code and the
+physically accepted read-only kernel bus path are unchanged.
+
+The md-linear-v1 capability schema advertises auto, layout and override.
+The only safe mapping is linear. An explicit override may choose an even
+ROM byte count from 512 to 4194304, never larger than the validated
+cartridge header's declared size. The header-only bounded probe offers
+a single md-linear layout and no game candidates: its displayed title and
+checksum are not CRC-catalogue verification. Therefore it deliberately
+reports identification_status unknown and allows automatic layout reading.
+The result reports verification status not_checked, verified false; the
+host still supplies the complete file CRC32.
+
+The v3 adapter rejects any unsupported layout, candidate, banked mapping,
+unknown override parameter, or attempt to use an override on a 32X, SVP,
+lock-on or otherwise invalid header. No SRAM/save/flash writes or arbitrary
+physical controls were added. Mock tests exercise the v3 selection and
+automatic and override dumps. Full physical v3 regression, particularly
+Snake Rattle n Roll 524288-byte ROM CRC32 543BED30, is still required
+before master promotion.

@@ -8,7 +8,16 @@ Abbruch und Bus-Lock gehören dem gemeinsamen CLI, nicht den Modulen.
 Die drei Stage-1-Systeme sind auf Retrode3 2.9.5 mit echten ROMs
 verifiziert: Terranigma (SNES) CRC32 `6FB8A4DF`, Snake Rattle n Roll
 (MegaDrive) `543BED30`, Excitebike (NES) ganze .nes-Datei `F749E780`.
-**Noch nicht unterstützt**: Spezialchips, zusätzliche NES-Mapper und SRAM.
+**Auf `master` nicht freigegeben:** Spezialchips, zusätzliche
+NES-Mapper und SRAM. Auf `develop` existiert inzwischen ein
+**explizit gesperrter NES-MMC1-Laborbuild** mit dem gepinnten
+Sanni-Datenbankkatalog (695 MMC1-Datensaetze), PRG-/CHR-Bankleser und
+manueller Layoutauswahl. Rad Racer PAL (128 KiB PRG/CHR-RAM) wurde
+auf echter Retrode3 per CRC verifiziert; 32-KiB-CHR-ROM-Cartridges
+sind bisher mock-/CI-getestet, aber nicht auf Hardware abgenommen.
+Das normale NES-`.so` ist weiterhin MMC1-schreibgesperrt.
+Siehe [MMC1 Testanleitung](docs/nes-mmc1-general-lab.md) und
+[NES Mapper Status](docs/NES-MAPPER-STATUS.md).
 
 ```sh
 git submodule update --init third_party/oscr-firmware

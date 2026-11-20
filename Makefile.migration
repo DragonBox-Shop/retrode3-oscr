@@ -91,8 +91,18 @@ test-native-md-module: build/migration/oscr_md_core.pic.o test-native-md test-co
 # Image staging never installs or enables a core on the live Retrode3.
 stage-md-module: native-md-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
-	cp build/migration/md.so build/migration/stage/usr/lib/retrode3/cores-available/md.so
-	cp packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
+	install -m 644 build/migration/md.so build/migration/stage/usr/lib/retrode3/cores-available/md.so
+	install -m 644 packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
+
+# Isolated MMC1 control-sequence planner: no kernel/GPIO linkage, no
+# executable MMC1 cartridge writes, and no production-core feature exposure.
+.PHONY: test-nes-mmc1-plan
+test-nes-mmc1-plan:
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) \
+		src/retrode3/nes_mmc1_plan.cpp tests/nes_mmc1_plan_test.cpp \
+		-o build/migration/nes_mmc1_plan_test
+	./build/migration/nes_mmc1_plan_test
 
 # Stage-1 NES NROM: original pinned Sanni dumpBankPRG/CHR loops only,
 # with reviewed 512-byte read-only HAL substitution for per-byte AVR calls.
@@ -104,50 +114,119 @@ build/migration/oscr_nes_nrom.cpp: tools/build-linux-nes-core.py third_party/osc
 build/migration/oscr_nes_nrom.pic.o: build/migration/oscr_nes_nrom.cpp include/retrode3/oscr_nes_compat.h
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC $(NATIVE_INCLUDES) -c $< -o $@
 
+.PHONY: verify-nes-mapper-sequences
+verify-nes-mapper-sequences:
+	python3 tools/verify-nes-mapper-sequences.py
+
 .PHONY: native-nes-module test-native-nes-module stage-nes-module
-native-nes-module: build/migration/oscr_nes_nrom.pic.o
+native-nes-module: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o
 	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/retrode3-lib.pic.o
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
 		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_mmc1_catalog.cpp \
+		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
 		src/retrode3/oscr_nes_adapter.cpp build/migration/retrode3-lib.pic.o \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/nes.so
 
-test-native-nes-module: build/migration/oscr_nes_nrom.pic.o test-core-registry
+test-native-nes-module: test-nes-mmc1-plan verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o test-core-registry
 	mkdir -p build/migration/real-nes-fixture
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs -DRETRODE3_TESTING $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
 		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_mmc1_catalog.cpp \
+		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
 		src/retrode3/oscr_nes_adapter.cpp tests/mock_nes_kernel.cpp \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/real-nes-fixture/nes.so
+	mkdir -p build/migration/real-nes-production-fixture
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
+		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_mmc1_catalog.cpp \
+		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
+		src/retrode3/oscr_nes_adapter.cpp tests/mock_nes_kernel.cpp \
+		build/migration/oscr_nes_nrom.pic.o -o build/migration/real-nes-production-fixture/nes.so
 	python3 -m unittest discover -s tests -p 'test_python34_compat.py' -v
 	python3 -m unittest discover -s tests -p 'test_real_nes_adapter.py' -v
+	python3 -m unittest discover -s tests -p 'test_nes_mapper_banks.py' -v
+
+# Deliberate operator-only MMC1 lab experiment. This is NEVER staged to
+# Debian packages or copied into the normal running installation.
+# Intended ONLY for manually confirmed Rad Racer SGROM (128K PRG / CHR-RAM /
+# NO PRG-WRAM). A separate runtime opt-in is required even with this build.
+.PHONY: native-nes-mmc1-lab
+native-nes-mmc1-lab: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o
+	mkdir -p build/migration/mmc1-lab
+	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/mmc1-lab/retrode3-lib.pic.o
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs -DRETRODE3_NES_MMC1_LAB $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
+		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_mmc1_catalog.cpp \
+		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
+		src/retrode3/oscr_nes_adapter.cpp build/migration/mmc1-lab/retrode3-lib.pic.o \
+		build/migration/oscr_nes_nrom.pic.o -o build/migration/mmc1-lab/nes.so
 
 # Offline image staging, never a live install or default enablement.
 stage-nes-module: native-nes-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
-	cp build/migration/nes.so build/migration/stage/usr/lib/retrode3/cores-available/nes.so
-	cp packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
+	install -m 644 build/migration/nes.so build/migration/stage/usr/lib/retrode3/cores-available/nes.so
+	install -m 644 packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
 
 # Core discovery is in the COMMON host, not individual OSCR core libraries.
 # Static .a acceptance libraries are NOT listed as installable modules here.
 # The real CLI uses root-owned cores-available / cores-enabled directories, while the
 # TEST-only binary allows a fixture directory to exercise installation.
-.PHONY: native-core-registry test-core-registry
-native-core-registry:
-	mkdir -p build/migration
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli
-	$(CXX) $(NATIVE_CXXFLAGS) src/retrode3/retrode3_corectl.cpp -o build/migration/retrode3-corectl
+# Compile the shared CLI and corectl only if their real inputs changed.
+# Convenience/test targets remain PHONY, but do not contain compiler recipes.
+# In particular, running each of 30 core test targets must not rebuild the CLI.
+REGISTRY_CLI_SOURCES = src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp
+REGISTRY_CLI_HEADERS = include/retrode3/core_descriptor_v1.h \
+	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v2.h \
+	include/retrode3/core_operations_v3.h include/retrode3/json_v3.h \
+	include/retrode3/ndjson_protocol.h
 
-test-core-registry: native-core-registry
+build/migration/retrode3-cli: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) $(REGISTRY_CLI_SOURCES) -ldl -o $@
+
+build/migration/retrode3-corectl: src/retrode3/retrode3_corectl.cpp
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $< -o $@
+
+build/migration/retrode3-cli-mock: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING $(REGISTRY_CLI_SOURCES) -ldl -o $@
+
+build/migration/retrode3-corectl-mock: src/retrode3/retrode3_corectl.cpp
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING $< -o $@
+
+build/migration/registry-fixtures/snes.so: tests/mock_core_module.cpp \
+	include/retrode3/core_descriptor_v1.h include/retrode3/core_operations_v1.h
 	mkdir -p build/migration/registry-fixtures
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp -ldl -o build/migration/retrode3-cli-mock
-	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING src/retrode3/retrode3_corectl.cpp -o build/migration/retrode3-corectl-mock
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_OPERATIONS tests/mock_core_module.cpp -o build/migration/registry-fixtures/snes.so
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"md"' -DRETRODE3_MOCK_NAME='"Mega Drive"' -DRETRODE3_MOCK_SLOT='"md"' tests/mock_core_module.cpp -o build/migration/registry-fixtures/md.so
-	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"bad"' -DRETRODE3_MOCK_ABI=99 tests/mock_core_module.cpp -o build/migration/registry-fixtures/bad.so
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_OPERATIONS $< -o $@
+
+build/migration/registry-fixtures/md.so: tests/mock_core_module.cpp \
+	include/retrode3/core_descriptor_v1.h include/retrode3/core_operations_v1.h
+	mkdir -p build/migration/registry-fixtures
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"md"' -DRETRODE3_MOCK_NAME='"Mega Drive"' -DRETRODE3_MOCK_SLOT='"md"' $< -o $@
+
+build/migration/registry-fixtures/bad.so: tests/mock_core_module.cpp \
+	include/retrode3/core_descriptor_v1.h
+	mkdir -p build/migration/registry-fixtures
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared -DRETRODE3_MOCK_ID='"bad"' -DRETRODE3_MOCK_ABI=99 $< -o $@
+
+.PHONY: native-core-registry test-core-registry
+native-core-registry: build/migration/retrode3-cli build/migration/retrode3-corectl
+
+test-core-registry: native-core-registry \
+	build/migration/retrode3-cli-mock build/migration/retrode3-corectl-mock \
+	build/migration/registry-fixtures/snes.so \
+	build/migration/registry-fixtures/md.so \
+	build/migration/registry-fixtures/bad.so
 	python3 -m unittest discover -s tests -p 'test_core_registry.py' -v
 	python3 -m unittest discover -s tests -p 'test_shared_core_host.py' -v
+	python3 -m unittest discover -s tests -p 'test_core_registry_incremental.py' -v
 
 
 # Stage-1 real, dynamically loadable SNES adapter from the original pinned
@@ -178,13 +257,34 @@ test-native-snes-module: build/migration/oscr_snes_banks.pic.o test-native-snes 
 .PHONY: stage-snes-module
 stage-snes-module: native-snes-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
-	cp build/migration/snes.so build/migration/stage/usr/lib/retrode3/cores-available/snes.so
-	cp packaging/cores/snes.core build/migration/stage/usr/lib/retrode3/cores-available/snes.core
+	install -m 644 build/migration/snes.so build/migration/stage/usr/lib/retrode3/cores-available/snes.so
+	install -m 644 packaging/cores/snes.core build/migration/stage/usr/lib/retrode3/cores-available/snes.core
 
 # Combined offline acceptance; retains all original standalone readers.
 .PHONY: test-three-core-host test-all-shared-cores stage-all-shared-cores
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
+
+# Stable Debian staging paths shared with the retrode3 OS/package repository.
+# No automatic install, root actions, activation, postinst or SD writes.
+.PHONY: stage-shared-host stage-retrode3-runtime test-release-stage
+stage-shared-host: native-core-registry
+	install -d -m 755 build/migration/stage/usr/bin build/migration/stage/usr/sbin
+	install -m 755 build/migration/retrode3-cli build/migration/stage/usr/bin/retrode3-cli
+	install -m 755 build/migration/retrode3-corectl build/migration/stage/usr/sbin/retrode3-corectl
+
+stage-retrode3-runtime: stage-shared-host stage-all-shared-cores
+
+test-release-stage: stage-retrode3-runtime
+	python3 -m unittest discover -s tests -p 'test_release_stage.py' -v
+
+# Generic hardware-free ABI v3: selection, title/layout ambiguity, safety.
+# Keep this test target in CI even when no real cartridge fixture is available.
+.PHONY: test-generic-selection-v3
+test-generic-selection-v3: native-core-registry
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
+	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
