@@ -361,7 +361,7 @@ class TestRealNesAdapter(unittest.TestCase):
         self.enable()
         output = os.path.join(self.temp.name, "unverified.nes")
         env = os.environ.copy()
-        env["RETRODE_MOCK_NES_UNKNOWN"] = "1"
+        env["RETRODE_MOCK_NES_BAD"] = "unknown"
         selection = {"version": 1, "schema_id": "nes-layout-v1",
                      "mode": "override", "parameters": {
                          "mapper": 0, "submapper": 0, "prg_kib": 16,
