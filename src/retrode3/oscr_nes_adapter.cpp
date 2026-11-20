@@ -183,7 +183,7 @@ int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap)
                 if (out->layout_count == RETRODE3_MAX_LAYOUTS_V2)
                     return fail(error, cap, "too many NES read layouts");
                 retrode3_layout_v2 &layout = out->layouts[out->layout_count++];
-                std::snprintf(layout.id, sizeof(layout.id), "%s", c.layout_id);
+                std::memcpy(layout.id, c.layout_id, sizeof(layout.id));
                 layout.mapper = layout.submapper = 0;
                 layout.prg_kib = c.prg_kib;
                 layout.chr_kib = c.chr_kib;

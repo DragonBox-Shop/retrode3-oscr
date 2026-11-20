@@ -43,7 +43,11 @@ void init()
         std::memset(prg, 0xff, sizeof(prg));
         std::memset(chr, 0xff, sizeof(chr));
     }
-    if (bad && std::strcmp(bad, "unknown") == 0) prg[0] ^= 0x5a;
+    if (bad && std::strcmp(bad, "unknown") == 0) {
+        // Corrupt BOTH fingerprint windows so the mock remains unidentified.
+        prg[0] ^= 0x5a;
+        prg[0x6000] ^= 0x5a;
+    }
 }
 }
 extern "C" int nes_read(std::uint16_t address, void *buf,
