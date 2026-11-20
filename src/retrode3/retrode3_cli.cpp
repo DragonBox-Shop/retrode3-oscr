@@ -549,7 +549,12 @@ void emit_capabilities(retrode3::NdjsonProtocol &stream, std::string const &id,
         + (core.has_v2
            ? ",\"fast_probe\":true,\"manual_layout\":true,"
              "\"supported_mappers\":[{\"mapper\":0,\"submapper\":0,"
-             "\"prg_kib\":[16,32],\"chr_kib\":[0,8],\"read_supported\":true},"\n             "{\"mapper\":1,\"submapper\":0,\"read_supported\":false},"\n             "{\"mapper\":2,\"submapper\":0,\"read_supported\":false},"\n             "{\"mapper\":3,\"submapper\":0,\"read_supported\":false},"\n             "{\"mapper\":4,\"submapper\":0,\"read_supported\":false},"\n             "{\"mapper\":7,\"submapper\":0,\"read_supported\":false}]"
+             "\"prg_kib\":[16,32],\"chr_kib\":[0,8],\"read_supported\":true},"
+             "{\"mapper\":1,\"submapper\":0,\"read_supported\":false},"
+             "{\"mapper\":2,\"submapper\":0,\"read_supported\":false},"
+             "{\"mapper\":3,\"submapper\":0,\"read_supported\":false},"
+             "{\"mapper\":4,\"submapper\":0,\"read_supported\":false},"
+             "{\"mapper\":7,\"submapper\":0,\"read_supported\":false}]"
            : "") + "}");
 }
 

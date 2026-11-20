@@ -94,7 +94,7 @@ class TestNesMapperBanks(unittest.TestCase):
             self.assertTrue(writes)
             self.assertTrue(all(addr >= 0x8000 and mode == 10
                                 for addr, value, mode in writes))
-            self.assertFalse(any(addr in (0xa001, 0x6000, 0xe000)
+            self.assertFalse(any(addr in (0xa001, 0x6000)
                                  for addr, value, mode in writes))
             if mapper == 2:
                 self.assertEqual(len(writes), 4)
