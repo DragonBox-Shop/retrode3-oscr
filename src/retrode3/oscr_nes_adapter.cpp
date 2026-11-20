@@ -248,6 +248,54 @@ int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap)
                 layout.read_supported = 1;
             }
         }
+        // Pinned Sanni Mapper-1 fingerprints: two constant-size, READ-ONLY
+        // CPU bus samples. No mapper writes or whole-ROM scans during probe.
+        for (std::size_t i = 0;
+             i < retrode3::nesstage1::mmc1_record_count; ++i) {
+            const retrode3::nesstage1::Mmc1Record &rec =
+                retrode3::nesstage1::mmc1_records[i];
+            if (!((rec.id32a && rec.id32a == a) ||
+                  (rec.id32b && rec.id32b == b))) continue;
+            if (out->candidate_count == RETRODE3_MAX_CANDIDATES_V2)
+                return fail(error, cap, "too many NES fingerprint candidates");
+            const bool battery = mmc1_battery(rec);
+            // Unsupported submapper/geometry and battery-backed layouts
+            // are still visible, but never auto-read in this lab.
+            const bool supported = retrode3::nesmapper::mmc1_layout_enabled(
+                rec.submapper, rec.prg_bytes_kib, rec.chr_bytes_kib, battery);
+            retrode3_candidate_v2 &c = out->candidates[out->candidate_count++];
+            mmc1_candidate_id(i, c.id, sizeof(c.id));
+            mmc1_layout_id(rec.submapper, rec.prg_bytes_kib, rec.chr_bytes_kib,
+                           c.layout_id, sizeof(c.layout_id));
+            std::snprintf(c.title, sizeof(c.title), "%s", rec.title);
+            c.mapper = 1;
+            c.submapper = rec.submapper;
+            c.prg_kib = rec.prg_bytes_kib;
+            c.chr_kib = rec.chr_bytes_kib;
+            c.payload_crc32 = rec.payload_crc32;
+            c.read_supported = supported ? 1 : 0;
+            bool found = false;
+            for (unsigned n = 0; n < out->layout_count; ++n) {
+                retrode3_layout_v2 &l = out->layouts[n];
+                if (std::strcmp(l.id, c.layout_id) != 0) continue;
+                // A layout with any battery-backed matching candidate
+                // needs manual confirmation; never infer absence of RAM.
+                l.read_supported = l.read_supported && c.read_supported;
+                found = true;
+                break;
+            }
+            if (!found) {
+                if (out->layout_count == RETRODE3_MAX_LAYOUTS_V2)
+                    return fail(error, cap, "too many NES read layouts");
+                retrode3_layout_v2 &l = out->layouts[out->layout_count++];
+                std::memcpy(l.id, c.layout_id, sizeof(l.id));
+                l.mapper = 1;
+                l.submapper = rec.submapper;
+                l.prg_kib = c.prg_kib;
+                l.chr_kib = c.chr_kib;
+                l.read_supported = c.read_supported;
+            }
+        }
         std::snprintf(out->identification_status,
                       sizeof(out->identification_status), "%s",
                       !out->candidate_count ? "unknown" :
