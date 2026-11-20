@@ -5,6 +5,8 @@
 #include "retrode3/core_descriptor_v1.h"
 #include "retrode3/core_operations_v1.h"
 #include "retrode3/core_operations_v2.h"
+#include "retrode3/core_operations_v3.h"
+#include "retrode3/json_v3.h"
 #include "retrode3/read_bus.h"
 #include "retrode3/oscr_nes_compat.h"
 #include "retrode3/oscr_nes_stage1.h"
@@ -14,6 +16,8 @@
 #include <cstring>
 #include <exception>
 #include <stdexcept>
+#include <string>
+#include <map>
 
 namespace {
 int fail(char *error, size_t capacity, char const *reason)
@@ -577,6 +581,285 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
     catch (...) { return fail(error, cap, "unknown NES v2 read error"); }
 }
 
+/* Retrofit v3 in this Retrode3-owned adapter. The pinned Sanni banks
+ * and v2 read/verification routines remain unchanged. */
+int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
+{
+    static const char schema[] = R"V3({
+"schema_version":1,"schema_id":"nes-layout-v1",
+"selection_modes":["auto","candidate","layout","override"],
+"fields":[
+{"id":"mapper","label":"Mapper","type":"enum","required":true,
+ "values":[{"value":0,"label":"NROM","read_supported":true},
+           {"value":1,"label":"MMC1","read_supported":true},
+           {"value":2,"label":"UxROM","read_supported":false},
+           {"value":3,"label":"CNROM","read_supported":false},
+           {"value":4,"label":"MMC3","read_supported":false},
+           {"value":7,"label":"AxROM","read_supported":false}]},
+{"id":"submapper","label":"Submapper","type":"integer","minimum":0,"maximum":15,"required":true,"default":0},
+{"id":"prg_kib","label":"PRG ROM (KiB)","type":"integer","minimum":16,"maximum":512,"required":true},
+{"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128]},
+{"id":"mirroring","label":"Mirroring","type":"enum","required":true,
+ "values":["horizontal","vertical","four_screen"]},
+{"id":"battery","label":"Battery","type":"boolean","required":true,"default":false}],
+"rules":[
+{"when":{"mapper":0},"allow":{"submapper":[0],"prg_kib":[16,32],"chr_kib":[0,8]},"read_supported":true},
+{"when":{"mapper":1,"submapper":0},"allow":{"prg_kib":[32,64,128,256,512],"chr_kib":[0,8,16,32,64,128]},"read_supported":true},
+{"when":{"mapper":1,"submapper":5},"allow":{"prg_kib":[32],"chr_kib":[8,16,32,64,128]},"read_supported":true},
+{"when":{"mapper":1,"battery":true},"read_supported":false,"reason":"SRAM-safe MMC1 pulses not approved"},
+{"when":{"mapper":2},"read_supported":false},
+{"when":{"mapper":3},"read_supported":false},
+{"when":{"mapper":4},"read_supported":false},
+{"when":{"mapper":7},"read_supported":false}]
+})V3";
+    if (std::strlen(schema) + 1 > len)
+        return fail(err, cap, "NES v3 capability buffer too small");
+    std::memcpy(out, schema, sizeof(schema));
+    return 0;
+}
+
+int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
+{
+    retrode3_probe_v2 result;
+    std::memset(&result, 0, sizeof(result));
+    result.struct_size = sizeof(result);
+    if (fast_probe(&result, err, cap)) return -1;
+    const bool unique_layout = result.layout_count == 1;
+    const std::string ambiguity = result.candidate_count < 2 ? "none" :
+        (unique_layout ? "titles_only" : "layouts");
+    const bool required = result.layout_count != 1 ||
+        !result.layouts[0].read_supported;
+    std::string json = std::string("{\"identification_status\":") +
+        retrode3::json_quote_v3(result.identification_status) +
+        ",\"ambiguity\":" + retrode3::json_quote_v3(ambiguity) +
+        ",\"selection_required\":" + (required ? "true" : "false") +
+        ",\"candidate_lookup\":\"fingerprint_only\",\"checksum\":null" +
+        ",\"mapping\":\"unknown\",\"title\":" +
+        retrode3::json_quote_v3(result.candidate_count == 1 ?
+                                     result.candidates[0].title : "NES cartridge") +
+        ",\"candidates\":[";
+    for (unsigned i = 0; i < result.candidate_count; ++i) {
+        const retrode3_candidate_v2 &c = result.candidates[i];
+        if (i) json += ",";
+        char crc[9];
+        std::snprintf(crc, sizeof(crc), "%08X", c.payload_crc32);
+        json += "{\"id\":" + retrode3::json_quote_v3(c.id)
+            + ",\"title\":" + retrode3::json_quote_v3(c.title)
+            + ",\"layout_id\":" + retrode3::json_quote_v3(c.layout_id)
+            + ",\"mapper\":" + std::to_string(c.mapper)
+            + ",\"submapper\":" + std::to_string(c.submapper)
+            + ",\"prg_kib\":" + std::to_string(c.prg_kib)
+            + ",\"chr_kib\":" + std::to_string(c.chr_kib)
+            + ",\"payload_crc32_expected\":" + retrode3::json_quote_v3(crc)
+            + ",\"read_supported\":" + (c.read_supported ? "true" : "false")
+            + (c.read_supported ? "" : ",\"reason\":\"Hardware read not approved\"")
+            + "}";
+    }
+    json += "],\"read_layouts\":[";
+    for (unsigned i = 0; i < result.layout_count; ++i) {
+        const retrode3_layout_v2 &l = result.layouts[i];
+        if (i) json += ",";
+        json += "{\"id\":" + retrode3::json_quote_v3(l.id)
+            + ",\"label\":" + retrode3::json_quote_v3(l.id)
+            + ",\"mapper\":" + std::to_string(l.mapper)
+            + ",\"submapper\":" + std::to_string(l.submapper)
+            + ",\"prg_kib\":" + std::to_string(l.prg_kib)
+            + ",\"chr_kib\":" + std::to_string(l.chr_kib)
+            + ",\"read_supported\":" + (l.read_supported ? "true" : "false")
+            + "}";
+    }
+    json += "]}";
+    if (json.size() + 1 > len)
+        return fail(err, cap, "NES v3 probe buffer too small");
+    std::memcpy(out, json.c_str(), json.size() + 1);
+    return 0;
+}
+
+bool v3_parameter(const retrode3_selection_v3 *choice, const char *key,
+                  uint32_t type, uint32_t &num, std::string &str)
+{
+    for (unsigned i = 0; i < choice->parameter_count; ++i) {
+        const retrode3_parameter_v3 &p = choice->parameters[i];
+        if (std::strcmp(p.id, key) != 0) continue;
+        if (p.type != type) throw std::runtime_error("invalid NES override parameter type");
+        num = p.integer_value;
+        if (type == RETRODE3_PARAMETER_STRING_V3) str = p.string_value;
+        return true;
+    }
+    return false;
+}
+
+void selection_to_nes_v3(const retrode3_selection_v3 *choice,
+                         const retrode3_probe_v2 &probe,
+                         retrode3_read_request_v2 &request,
+                         unsigned &prg, unsigned &chr)
+{
+    if (!choice || choice->struct_size != sizeof(*choice) ||
+        choice->protocol_version != 1 ||
+        std::strcmp(choice->schema_id, "nes-layout-v1") != 0 ||
+        choice->parameter_count > RETRODE3_MAX_PARAMETERS_V3)
+        throw std::runtime_error("invalid or stale NES selection");
+    std::memset(&request, 0, sizeof(request));
+    request.struct_size = sizeof(request);
+    const retrode3_layout_v2 *layout = NULL;
+    const retrode3_candidate_v2 *candidate = NULL;
+    if (choice->mode == RETRODE3_SELECT_OVERRIDE_V3) {
+        if (choice->candidate_id[0] || choice->layout_id[0] ||
+            choice->parameter_count != 6)
+            throw std::runtime_error("manual NES override needs exactly six fields");
+        uint32_t val = 0;
+        std::string str;
+        if (!v3_parameter(choice, "mapper", RETRODE3_PARAMETER_INTEGER_V3, val, str))
+            throw std::runtime_error("missing mapper");
+        request.mapper = val;
+        if (!v3_parameter(choice, "submapper", RETRODE3_PARAMETER_INTEGER_V3, val, str))
+            throw std::runtime_error("missing submapper");
+        request.submapper = val;
+        if (!v3_parameter(choice, "prg_kib", RETRODE3_PARAMETER_INTEGER_V3, val, str))
+            throw std::runtime_error("missing prg_kib");
+        request.prg_kib = val;
+        if (!v3_parameter(choice, "chr_kib", RETRODE3_PARAMETER_INTEGER_V3, val, str))
+            throw std::runtime_error("missing chr_kib");
+        request.chr_kib = val;
+        if (!v3_parameter(choice, "battery", RETRODE3_PARAMETER_BOOLEAN_V3, val, str))
+            throw std::runtime_error("missing battery");
+        request.battery = static_cast<uint8_t>(val);
+        if (!v3_parameter(choice, "mirroring", RETRODE3_PARAMETER_STRING_V3, val, str))
+            throw std::runtime_error("missing mirroring");
+        if (str != "horizontal" && str != "vertical" && str != "four_screen")
+            throw std::runtime_error("invalid NES mirroring override");
+        request.mirroring = str == "vertical" ? 1 : str == "four_screen" ? 2 : 0;
+        request.manual = 1;
+        const bool geometry = request.mapper == 0 ?
+            request.submapper == 0 && valid_geometry(request.prg_kib, request.chr_kib) :
+            retrode3::nesmapper::geometry(request.mapper, request.submapper,
+                                          request.prg_kib, request.chr_kib) &&
+            (request.mapper == 1 ?
+             retrode3::nesmapper::mmc1_layout_enabled(request.submapper,
+                request.prg_kib, request.chr_kib, request.battery != 0) :
+             retrode3::nesmapper::runtime_mapper_enabled(request.mapper));
+        if (!geometry || (request.mapper == 1 && request.battery))
+            throw std::runtime_error("NES override geometry or mapper not approved");
+        prg = request.prg_kib; chr = request.chr_kib;
+        return;
+    }
+    if (choice->parameter_count || (choice->mode == RETRODE3_SELECT_AUTO_V3 &&
+        (choice->candidate_id[0] || choice->layout_id[0])))
+        throw std::runtime_error("unexpected NES selection parameters");
+    if (choice->mode == RETRODE3_SELECT_CANDIDATE_V3) {
+        if (!choice->candidate_id[0] || choice->layout_id[0])
+            throw std::runtime_error("invalid candidate selection");
+        for (unsigned i = 0; i < probe.candidate_count; ++i)
+            if (std::strcmp(choice->candidate_id, probe.candidates[i].id) == 0)
+                candidate = &probe.candidates[i];
+        if (!candidate || !candidate->read_supported)
+            throw std::runtime_error("NES candidate not approved or no longer present");
+        std::snprintf(request.candidate_id, sizeof(request.candidate_id), "%s",
+                      candidate->id);
+    } else if (choice->mode == RETRODE3_SELECT_LAYOUT_V3) {
+        if (!choice->layout_id[0] || choice->candidate_id[0])
+            throw std::runtime_error("invalid layout selection");
+        std::snprintf(request.layout_id, sizeof(request.layout_id), "%s",
+                      choice->layout_id);
+    } else if (choice->mode != RETRODE3_SELECT_AUTO_V3)
+        throw std::runtime_error("unknown NES selection mode");
+    for (unsigned i = 0; i < probe.layout_count; ++i) {
+        const retrode3_layout_v2 &l = probe.layouts[i];
+        if (candidate && std::strcmp(l.id, candidate->layout_id) != 0) continue;
+        if (choice->mode == RETRODE3_SELECT_LAYOUT_V3 &&
+            std::strcmp(l.id, choice->layout_id) != 0) continue;
+        if (layout) throw std::runtime_error("NES layout choice required");
+        layout = &l;
+    }
+    if (!layout || !layout->read_supported)
+        throw std::runtime_error("NES layout unavailable or not approved");
+    const bool geometry = layout->mapper == 0 ?
+        layout->submapper == 0 && valid_geometry(layout->prg_kib, layout->chr_kib) :
+        retrode3::nesmapper::geometry(layout->mapper, layout->submapper,
+                                      layout->prg_kib, layout->chr_kib) &&
+        (layout->mapper == 1 ?
+         retrode3::nesmapper::mmc1_layout_enabled(layout->submapper,
+                layout->prg_kib, layout->chr_kib, false) :
+         retrode3::nesmapper::runtime_mapper_enabled(layout->mapper));
+    if (!geometry) throw std::runtime_error("unsupported NES read layout");
+    prg = layout->prg_kib; chr = layout->chr_kib;
+}
+
+int plan_read_v3(const retrode3_selection_v3 *choice,
+                 retrode3_read_plan_v3 *plan, char *err, size_t cap)
+{
+    try {
+        if (!plan || plan->struct_size != sizeof(*plan))
+            return fail(err, cap, "invalid NES v3 read plan ABI");
+        retrode3_probe_v2 probe_info;
+        std::memset(&probe_info, 0, sizeof(probe_info));
+        probe_info.struct_size = sizeof(probe_info);
+        if (fast_probe(&probe_info, err, cap)) return -1;
+        retrode3_read_request_v2 request;
+        unsigned prg = 0, chr = 0;
+        selection_to_nes_v3(choice, probe_info, request, prg, chr);
+        plan->prefix_bytes = 16;
+        plan->payload_bytes = (prg + chr) * 1024ull;
+        return 0;
+    } catch (const std::exception &e) { return fail(err, cap, e.what()); }
+    catch (...) { return fail(err, cap, "invalid NES v3 read plan"); }
+}
+
+int read_rom_v3(const retrode3_selection_v3 *choice,
+                const retrode3_host_io_v1 *io, retrode3_read_result_v3 *result,
+                char *err, size_t cap)
+{
+    try {
+        if (!result || result->struct_size != sizeof(*result))
+            return fail(err, cap, "invalid NES v3 result ABI");
+        retrode3_probe_v2 probe_info;
+        std::memset(&probe_info, 0, sizeof(probe_info));
+        probe_info.struct_size = sizeof(probe_info);
+        if (fast_probe(&probe_info, err, cap)) return -1;
+        retrode3_read_request_v2 request;
+        unsigned prg = 0, chr = 0;
+        selection_to_nes_v3(choice, probe_info, request, prg, chr);
+        retrode3_read_result_v2 old;
+        std::memset(&old, 0, sizeof(old));
+        old.struct_size = sizeof(old);
+        if (read_rom_v2(&probe_info, &request, io, &old, err, cap))
+            return -1;
+        std::memcpy(result->prefix, old.header, 16);
+        result->prefix_bytes = 16;
+        result->payload_crc_known = 1;
+        result->payload_crc32 = old.payload_crc32;
+        const std::string title(old.title);
+        const std::string matched(old.matched_candidate_id);
+        const std::string selected(choice->candidate_id);
+        const bool mismatch = !selected.empty() && matched != selected;
+        const std::string status = mismatch ? "mismatch" :
+            old.verified ? "verified" :
+            matched.empty() ? "not_found" : "ambiguous";
+        char crc[9];
+        std::snprintf(crc, sizeof(crc), "%08X", old.payload_crc32);
+        std::string details = std::string("{\"read_configuration\":{") +
+            "\"layout_id\":" + retrode3::json_quote_v3(old.layout_id) +
+            ",\"mapper\":" + std::to_string(request.manual ? request.mapper :
+                (request.candidate_id[0] ? 0u : 0u)) +
+            ",\"prg_kib\":" + std::to_string(prg) +
+            ",\"chr_kib\":" + std::to_string(chr) +
+            "},\"identity\":{\"selected_candidate_id\":" +
+                (selected.empty() ? "null" : retrode3::json_quote_v3(selected)) +
+            ",\"matched_candidate_id\":" +
+                (matched.empty() ? "null" : retrode3::json_quote_v3(matched)) +
+            ",\"title\":" + retrode3::json_quote_v3(title) +
+            "},\"verification\":{\"status\":" + retrode3::json_quote_v3(status) +
+            ",\"verified\":" + (status == "verified" ? "true" : "false") +
+            ",\"method\":\"payload_crc32\",\"actual\":" +
+                retrode3::json_quote_v3(crc) + "}}";
+        if (details.size() >= sizeof(result->details_json))
+            return fail(err, cap, "NES v3 result metadata too large");
+        std::memcpy(result->details_json, details.c_str(), details.size() + 1);
+        return 0;
+    } catch (const std::exception &e) { return fail(err, cap, e.what()); }
+    catch (...) { return fail(err, cap, "unknown NES v3 read error"); }
+}
+
 void release()
 {
     OSCR::Storage::Shared::clearHostSink();
@@ -608,6 +891,15 @@ extern "C" const retrode3_core_operations_v2 *retrode3_core_get_operations_v2(vo
     static const retrode3_core_operations_v2 operations = {
         RETRODE3_CORE_OPERATION_ABI_V2, sizeof(retrode3_core_operations_v2),
         fast_probe, read_rom_v2
+    };
+    return &operations;
+}
+
+extern "C" const retrode3_core_operations_v3 *retrode3_core_get_operations_v3(void)
+{
+    static const retrode3_core_operations_v3 operations = {
+        RETRODE3_CORE_OPERATION_ABI_V3, sizeof(retrode3_core_operations_v3),
+        capabilities_json_v3, fast_probe_json_v3, plan_read_v3, read_rom_v3
     };
     return &operations;
 }
