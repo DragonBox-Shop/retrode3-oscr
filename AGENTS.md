@@ -125,6 +125,16 @@ Integrate its changes with OS `develop`, test on the actual MIPS
 Retrode3 (incl. SNES/MD/NES, auto-insertion/removal, cancellation,
 permissions, reboot), then squash-promote to OS `master`.
 
+## Geplante NES-Mapper-Auswahl und Fast-Probe
+
+Die verbindlichen **noch nicht implementierten** Anforderungen für
+schnelle Fingerprint-Erkennung, Kandidaten-Dropdown nur bei unterschiedlichen
+sicheren Leselayouts, manuellen Mapper-/Größen-Override, CLI/Core-ABI,
+Einmal-Dump und erst nach CRC gewählten iNES-Header stehen in
+[docs/nes-fast-probe-mapper-selection.md](docs/nes-fast-probe-mapper-selection.md).
+Der derzeitige NROM-Core liest beim Probe noch vollständige ROM-Daten;
+keinen neuen Mapper als bereits getestet deklarieren.
+
 ## Safety and change discipline
 
 Read the latest source and CI runs before edits; prefer focused
