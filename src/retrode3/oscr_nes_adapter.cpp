@@ -168,13 +168,46 @@ void mmc1_layout_id(unsigned sub, unsigned prg, unsigned chr,
     else
         std::snprintf(out, capacity, "m1s%u-%u-%u", sub, prg, chr);
 }
+// Supplementary cartridge references are CRC/geometry metadata, never ROMs.
+// Sanni's pinned data lacks these regional titles. Do not guess fingerprints:
+// only PAL Rad Racer shares the experimentally observed Highway Star probe.
+// CRC sources: nesCartDB profiles 2124/2698 (Rad Racer EU), NES-RC-USA,
+// and profile 1997 (Mario & Yoshi Europe). The PAL Rad Racer CRC was also
+// physically matched on this Retrode3 on 2026-11-20.
+// Keep Sanni's generated catalogue untouched; IDs remain catalogue-stable.
+const retrode3::nesstage1::Mmc1Record regional_mmc1_records[] = {
+    {0x402629F3u, 0xF94CC110u, 0x654F4E90u, 128u, 0u, 0u, 0u,
+     "4E45531A08001008000000070100001D", "Rad Racer (Europe)"},
+    {0u, 0u, 0x8B9D3E9Cu, 128u, 0u, 0u, 0u,
+     "4E45531A08001008000000070000001D", "Rad Racer (USA)"},
+    {0u, 0u, 0x836685C4u, 128u, 32u, 0u, 0u,
+     "4E45531A080410080000000001000001", "Mario & Yoshi (Europe)"}
+};
+const std::size_t regional_mmc1_record_count =
+    sizeof(regional_mmc1_records) / sizeof(regional_mmc1_records[0]);
+std::size_t mmc1_all_record_count()
+{
+    return retrode3::nesstage1::mmc1_record_count +
+           regional_mmc1_record_count;
+}
+const retrode3::nesstage1::Mmc1Record &mmc1_record(std::size_t index)
+{
+    if (index < retrode3::nesstage1::mmc1_record_count)
+        return retrode3::nesstage1::mmc1_records[index];
+    index -= retrode3::nesstage1::mmc1_record_count;
+    if (index >= regional_mmc1_record_count)
+        throw std::runtime_error("invalid MMC1 reference index");
+    return regional_mmc1_records[index];
+}
+// The two read-only 512-byte fingerprints are diagnostic signals,
+// not proof of ROM identity. Passing output arguments does not add I/O.
 const retrode3::nesstage1::Mmc1Record *find_mmc1_record(char const *id)
 {
     char name[32];
-    for (std::size_t i = 0; i < retrode3::nesstage1::mmc1_record_count; ++i) {
+    for (std::size_t i = 0; i < mmc1_all_record_count(); ++i) {
         mmc1_candidate_id(i, name, sizeof(name));
         if (std::strcmp(name, id) == 0)
-            return &retrode3::nesstage1::mmc1_records[i];
+            return &mmc1_record(i);
     }
     return NULL;
 }
@@ -203,7 +236,9 @@ void hex_mmc1_header(char const *hex, unsigned prg, unsigned chr,
             (header[8] >> 4) : 0u) != sub)
         throw std::runtime_error("pinned MMC1 header/layout mismatch");
 }
-int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap)
+int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap,
+               std::uint32_t *first_crc = NULL,
+               std::uint32_t *last_crc = NULL)
 {
     try {
         if (!out || out->struct_size != sizeof(*out))
@@ -216,6 +251,8 @@ int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap)
             (uniform(first, 255) && uniform(last, 255)))
             return fail(error, cap, "NES slot empty/unreadable");
         const std::uint32_t a = fingerprint(first), b = fingerprint(last);
+        if (first_crc) *first_crc = a;
+        if (last_crc) *last_crc = b;
         out->candidate_count = out->layout_count = 0;
         for (std::size_t i = 0; i < retrode3::nesstage1::record_count; ++i) {
             retrode3::nesstage1::NromRecord const &record =
@@ -254,9 +291,8 @@ int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap)
         // Pinned Sanni Mapper-1 fingerprints: two constant-size, READ-ONLY
         // CPU bus samples. No mapper writes or whole-ROM scans during probe.
         for (std::size_t i = 0;
-             i < retrode3::nesstage1::mmc1_record_count; ++i) {
-            const retrode3::nesstage1::Mmc1Record &rec =
-                retrode3::nesstage1::mmc1_records[i];
+             i < mmc1_all_record_count(); ++i) {
+            const retrode3::nesstage1::Mmc1Record &rec = mmc1_record(i);
             if (!((rec.id32a && rec.id32a == a) ||
                   (rec.id32b && rec.id32b == b))) continue;
             if (out->candidate_count == RETRODE3_MAX_CANDIDATES_V2)
@@ -468,9 +504,8 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             unsigned exact_count = 0;
             std::size_t exact_index = 0;
             for (std::size_t i = 0;
-                 i < retrode3::nesstage1::mmc1_record_count; ++i) {
-                const retrode3::nesstage1::Mmc1Record &r =
-                    retrode3::nesstage1::mmc1_records[i];
+                 i < mmc1_all_record_count(); ++i) {
+                const retrode3::nesstage1::Mmc1Record &r = mmc1_record(i);
                 if (r.prg_bytes_kib != prg || r.chr_bytes_kib != chr ||
                     r.submapper != submapper ||
                     r.payload_crc32 != result->payload_crc32) continue;
@@ -623,7 +658,8 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
     retrode3_probe_v2 result;
     std::memset(&result, 0, sizeof(result));
     result.struct_size = sizeof(result);
-    if (fast_probe(&result, err, cap)) return -1;
+    std::uint32_t first_crc = 0, last_crc = 0;
+    if (fast_probe(&result, err, cap, &first_crc, &last_crc)) return -1;
     const bool unique_layout = result.layout_count == 1;
     const std::string ambiguity = result.candidate_count < 2 ? "none" :
         (unique_layout ? "titles_only" : "layouts");
@@ -634,6 +670,12 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
         ",\"ambiguity\":" + retrode3::json_quote_v3(ambiguity) +
         ",\"selection_required\":" + (required ? "true" : "false") +
         ",\"candidate_lookup\":\"fingerprint_only\",\"checksum\":null" +
+        ",\"probe_fingerprints\":{\"cpu_8000_crc32\":" +
+            retrode3::json_quote_v3(
+                [&]() { char h[9]; std::snprintf(h,sizeof(h),"%08X",first_crc); return std::string(h); }()) +
+        ",\"cpu_e000_crc32\":" +
+            retrode3::json_quote_v3(
+                [&]() { char h[9]; std::snprintf(h,sizeof(h),"%08X",last_crc); return std::string(h); }()) + "}" +
         ",\"mapping\":" + retrode3::json_quote_v3(unique_layout ?
             (result.layouts[0].mapper == 0 ? "nrom" :
              result.layouts[0].mapper == 1 ? "mmc1" : "unknown") : "unknown") +
