@@ -156,7 +156,15 @@ implementiert; solche Cartridges bleiben strikt gesperrt.
 Ablaufplanung. `tools/nes-mmc1-sgrom-lab.sh` fuehrt den Versuch nach
 Board-Bestaetigung mit temporaerer `.so`-Installation und Restore aus.
 Details: [docs/nes-mmc1-sgrom-lab.md](docs/nes-mmc1-sgrom-lab.md).
-Weder Zielhardware-Tests noch eine MMC1-CRC-Abnahme sind bisher belegt. Andere Mapper sind noch
+**Echter Retrode3-Labor-Dump vom 2026-11-20 erfolgreich:**
+Rad Racer PAL, Mapper 1 / SGROM (128 KiB PRG-ROM, 0 KiB CHR-ROM),
+131088 Bytes inklusive Header; **Payload-CRC32 `654F4E90` stimmt mit
+der PAL-Referenz ueberein**, Datei-CRC32 `B78FDA39`. Die
+Laborskript-Ausgabe bestaetigt die Wiederherstellung des normalen
+NES-Cores. `verified:false` betrifft nur den Mapper-0-only-
+Erkennungskatalog. Diese **einzelne physische SGROM-Leseabnahme**
+bedeutet **keine** allgemeine Mapper-1-Freigabe oder PRG-WRAM-Sicherheit;
+Signal-Timing/PCB-Verifikation/CI-Protokolle bleiben eigenstaendige Gates. Andere Mapper sind noch
 nicht implementiert. Die automatischen Fast-Probe-DB-Treffer sind weiterhin
 Mapper-0-only; für experimentelle Bankmapper braucht es ein bestätigtes
 manuelles Layout. `get_capabilities` darf die neuen Mapper bis zur
