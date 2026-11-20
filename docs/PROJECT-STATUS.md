@@ -6,6 +6,45 @@
 > `migration/oscr-firmware`, unfinished MD/NES shared cores, old paths
 > or pending physical tests have been superseded.
 
+## 2026-11-20: MMC1 in the normal NES core and Web v2 (develop only)
+
+**This section overrides the earlier historical SGROM-lab notes below.**
+`retrode3-oscr/develop` now compiles 695 pinned Sanni MMC1 database
+metadata records and the PRG/CHR mapper-1 ROM read implementation into
+the **ordinary** `native-nes-module` `nes.so` (version
+`0.2.0-nrom-mmc1`). No separate lab binary and no environment variable
+are required. Read-only first/last 512-byte fingerprints provide NES
+game/layout candidates; full CRC after dump confirms a unique title.
+Supported geometries: 32–512 KiB PRG-ROM, 0–128 KiB CHR-ROM (supported
+power-of-two sizes), mapper 1/submapper 0 or 5 (only 32 KiB PRG). The
+32/32 and 128/32 KiB examples have native C++11/mock test coverage.
+
+`retrode3/develop` Web v2 displays the CLI's cached
+`candidates`/`read_layouts` from automatic read-only cartridge
+insertion probing, provides a layout selector when ambiguous and
+manual mapper/PRG/CHR/NT mirroring overrides when unknown, and
+forwards that selection through the existing `POST /api/jobs`
+and the common CLI's `read_rom`. The backend does not attempt
+a ROM dump during insertion; it only schedules the existing 1024-byte
+fingerprint probe. ROM files, CRC and cancellation remain owned by
+the shared CLI. Web backend/JavaScript mock tests pass on develop.
+
+**Battery-backed MMC1 carts are blocked** until NES_REG/M2/ROMSEL
+write pulse timing is shown safe for PRG-RAM. The core additionally
+rejects manual `battery=0` overrides when a pinned MMC1
+fingerprint reveals battery-backed metadata. Unknown carts must be
+tested with appropriate PCB knowledge; no safe SRAM-restore exists.
+Mappers 2/3/4/7 retain their experimental write gates. Only
+Rad Racer PAL 128/0 has prior real-device MMC1 CRC acceptance;
+32/32 and 128/32 still need physical CRC validation.
+
+Neither repository's `master` nor the actual Retrode3 installation
+were updated by these source commits. The installed CLI, NES
+`nes.so`, matching `nes.core` manifest, and Web v2 deployment
+need coordinated upgrade/testing on the real device.
+See [NES mapper status](NES-MAPPER-STATUS.md) and the
+[OS Web v2 CLI integration document](https://github.com/DragonBox-Shop/retrode3/blob/develop/retrode3-web-control/v2/docs/cli-integration.md).
+
 ## Current authoritative state: three shared cores ready
 
 - Stable `master` contains the shared CLI and physical SNES/MD/NES
