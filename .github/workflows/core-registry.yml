@@ -24,6 +24,12 @@ on:
       - master
       - develop
     paths:
+      - 'include/retrode3/sms_*.h'
+      - 'src/retrode3/oscr_sms_md_adapter.cpp'
+      - 'src/retrode3/sms_md_posix_v1.cpp'
+      - 'tests/sms_*.cpp'
+      - 'tests/test_sms_md_json.py'
+      - 'packaging/cores/sms-md.core'
       - 'include/retrode3/core_descriptor_v1.h'
       - 'include/retrode3/core_operations_v1.h'
       - 'include/retrode3/ndjson_protocol.h'
@@ -118,3 +124,11 @@ jobs:
         run: |
           output="$(build/migration/retrode3-cli --list-cores)"
           printf '%s\n' "$output" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["event"] == "cores" and d["cores"] == []'
+
+  sms-gcc8:
+    runs-on: ubuntu-latest
+    container: gcc:8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build SMS dynamic core with GCC 8 and warnings as errors
+        run: make -f Makefile.migration native-sms-md-module
