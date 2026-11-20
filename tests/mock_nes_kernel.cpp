@@ -11,6 +11,8 @@ unsigned char prg[32768], chr[8192];
 unsigned prg_size = 16384, chr_size = 8192;
 unsigned mapper = 0, ux_bank = 0, cn_bank = 0, ax_bank = 0;
 unsigned mmc_mode = 0, mmc_prg_bank = 0, mmc_chr_bank = 0;
+// MMC1 serial latch, simulated for tests only. 128K PRG, CHR-RAM SGROM.
+unsigned mmc1_shift = 0, mmc1_bits = 0, mmc1_bank = 0;
 std::vector<unsigned char> rom_prg, rom_chr;
 bool initialized = false;
 unsigned char pattern_prg(unsigned i)
@@ -79,6 +81,10 @@ void init()
 unsigned char mapped_prg(unsigned address)
 {
     unsigned offset = address - 0x8000u;
+    if (mapper == 1) {
+        unsigned bank = address < 0xc000u ? mmc1_bank : prg_size / 16384u - 1u;
+        return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
+    }
     if (mapper == 2) {
         unsigned bank = address < 0xc000u ? ux_bank : prg_size / 16384u - 1u;
         return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
@@ -153,7 +159,19 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     if ((mapper == 2 || mapper == 3) && mapped_prg(address) != value)
         return -1;
     record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
-    if (mapper == 2) ux_bank = value;
+    if (mapper == 1) {
+        if (value & 0x80u) {
+            mmc1_shift = mmc1_bits = 0;
+        } else {
+            mmc1_shift |= (value & 1u) << mmc1_bits;
+            if (++mmc1_bits == 5u) {
+                if (address >= 0xe000u) mmc1_bank = mmc1_shift & 15u;
+                else if (address != 0x8000u) return -1;
+                mmc1_shift = mmc1_bits = 0;
+            }
+        }
+    }
+    else if (mapper == 2) ux_bank = value;
     else if (mapper == 3) cn_bank = value;
     else if (mapper == 4) {
         if (address == 0x8000u) mmc_mode = value & 7u;
