@@ -231,9 +231,38 @@ Vorher/Nachher-Pruefung und einen separat erprobten Restore-Pfad.
    Hardwaretests die MMC1-Unterstuetzung fuer PRG-WRAM-Boards
    ausweiten. Rad Racer SGROM bleibt der bekannte PRG-CRC-Test.
 
-**Testmodul:** Ein *konkret verifiziertes* MMC1-Spiel mit Batterie und
-entbehrlichem Spielstand ist fuer diesen Schritt noch erforderlich;
-StarTropics (MMC6) ist keine MMC1-SRAM-Referenz.
+**Testhardware laut Projektinhaber (2026-11-20):** Mehrere
+MMC1-Cartridges **ohne Speicherbatterie** sind vorhanden, deren
+konkrete Mapper-/PCB-/RAM-Ausstattung aber noch einzeln zu
+identifizieren ist. Ausserdem stehen japanische **Famicom**
+Final-Fantasy-I- und Final-Fantasy-II-Cartridges mit Batterie zur
+Verfuegung. Fuer diese wird ein **Famicom-60-Pin-auf-NES-72-Pin-Adapter**
+benoetigt; Pinbelegung, Ausrichtung, CPU-Bus/M2/ROMSEL und 5-V-Versorgung
+vor dem Einsatz pruefen. Nicht auf batteriegepufferte Module gehen,
+bis der Lese-/Backup- und **separat hardwareverifizierte Restore-Pfad**
+funktioniert. StarTropics (MMC6) bleibt eine getrennte Mapper-4-Aufgabe.
+
+**Dokumentierte Referenzplatinen, nur nach Abgleich mit den tatsaechlichen
+Cartridges verwenden:**
+- Final Fantasy I (JP, SQF-FF): HVC-SNROM, MMC1, PRG **256 KiB**,
+  CHR-RAM **8 KiB**, batteriegepuffertes PRG-WRAM **8 KiB**.
+  Varianten mit MMC1A und MMC1B2 dokumentiert.
+- Final Fantasy II (JP, SQF-FY): HVC-SNROM, MMC1/oft MMC1A,
+  PRG **256 KiB**, CHR-RAM **8 KiB**, batteriegepuffertes
+  PRG-WRAM **8 KiB**.
+- Falls statt zwei separaten Spielen die japanische Kombi
+  **Final Fantasy I & II** (SQF-FO, 1994) gemeint ist:
+  **HVC-SXROM**, MMC1, PRG **512 KiB**, batteriegepuffertes
+  PRG-WRAM **32 KiB**. Hier sind zusaetzliche RAM-Banks zu
+  pruefen; niemals einfach als einzelnes 8-KiB-SNROM behandeln.
+
+Quellen: nesCartDB Profile 3605, 3435 und 3950; NESdev MMC1
+ASIC-Revisionsdokumentation und Cartridge-Connector-Pinbelegung.
+
+**Empfohlene Reihenfolge:** Zuerst SRAM-Read-Probe mit ungefaehrdetem
+Modul, dann byteidentische Doppel-Backups mit bereits gepruefter
+Busverriegelung, dann entbehrliche Save-Daten und Restore testen,
+zuletzt FF1/FF2 (nur mit geprueftem Adapter).
 `master` und alle regulaeren NES-Capabilities bleiben unberuehrt.
 
 ## Handoff bei neuem Chat
