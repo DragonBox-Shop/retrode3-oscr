@@ -426,6 +426,23 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
                       submapper, prg, chr, request->battery != 0) :
                   retrode3::nesmapper::runtime_mapper_enabled(mapper))))
             return fail(error, cap, "unsupported NES mapper PRG/CHR sizes");
+        // A manual "battery=0" switch cannot downgrade an already
+        // recognized battery-backed MMC1 board. Its $E000 register
+        // strobes may corrupt PRG-RAM even during an otherwise ROM-only
+        // read. This check performs no additional cartridge bus writes.
+        if (mapper == 1) {
+            for (unsigned i = 0; i < probe->candidate_count; ++i) {
+                const retrode3_candidate_v2 &c = probe->candidates[i];
+                if (c.mapper != 1) continue;
+                const retrode3::nesstage1::Mmc1Record *known =
+                    find_mmc1_record(c.id);
+                if (!known)
+                    return fail(error, cap, "invalid MMC1 fingerprint candidate");
+                if (mmc1_battery(*known))
+                    return fail(error, cap,
+                        "MMC1 battery-backed fingerprint: SRAM-safe kernel write required");
+            }
+        }
         if (io->cancelled(io->context))
             return fail(error, cap, "cancelled");
 
