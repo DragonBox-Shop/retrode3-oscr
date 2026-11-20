@@ -154,7 +154,7 @@ int main() {
         assert(std::strstr(json, "read_supported\":true") != NULL);
         assert(v3->fast_probe_json(json, sizeof(json), err, sizeof(err)) == 0);
         assert(std::strstr(json, "hardware_disabled") != NULL);
-        retrode3_selection_v3 selection = {};
+        retrode3_selection_v3 selection = retrode3_selection_v3();
         selection.struct_size = sizeof(selection);
         selection.protocol_version = 1;
         selection.mode = RETRODE3_SELECT_OVERRIDE_V3;
@@ -166,7 +166,7 @@ int main() {
         std::strcpy(selection.parameters[1].id, "rom_kib");
         selection.parameters[1].type = RETRODE3_PARAMETER_INTEGER_V3;
         selection.parameters[1].integer_value = 32;
-        retrode3_read_plan_v3 plan = {};
+        retrode3_read_plan_v3 plan = retrode3_read_plan_v3();
         plan.struct_size = sizeof(plan);
         assert(v3->plan_read(&selection, &plan, err, sizeof(err)) != 0);
         assert(std::strstr(err, "explicit opt-in") != NULL);
@@ -191,18 +191,18 @@ int main() {
             }
             static int cancelled(void *) { return 0; }
         };
-        retrode3_host_io_v1 io = {};
+        retrode3_host_io_v1 io = retrode3_host_io_v1();
         io.abi_version = RETRODE3_CORE_OPERATION_ABI_V1;
         io.struct_size = sizeof(io);
         io.context = &writes;
         io.write = Writer::send;
         io.cancelled = Writer::cancelled;
-        retrode3_read_result_v3 result = {};
+        retrode3_read_result_v3 result = retrode3_read_result_v3();
         result.struct_size = sizeof(result);
         std::strcpy(selection.parameters[0].id, "mapping");
         assert(v3->read_rom(&selection, &io, &result, err, sizeof(err)) != 0);
         assert(writes == 0);
-        retrode3_probe_v1 legacy = {};
+        retrode3_probe_v1 legacy = retrode3_probe_v1();
         legacy.struct_size = sizeof(legacy);
         assert(old->probe(&legacy, err, sizeof(err)) != 0);
         assert(writes == 0);

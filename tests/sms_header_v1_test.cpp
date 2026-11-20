@@ -17,7 +17,7 @@ int main()
         sample[10] = 0x34;
         sample[11] = 0x12;
         sample[15] = static_cast<std::uint8_t>(0x40u | cases[i].code);
-        retrode3::sms::Header got = {};
+        retrode3::sms::Header got = retrode3::sms::Header();
         assert(retrode3::sms::decode_header(sample, sizeof(sample), &got));
         assert(got.declared_rom_bytes == cases[i].bytes);
         assert(got.checksum == 0x1234u);
@@ -27,7 +27,7 @@ int main()
     std::uint8_t sample[16] = {};
     std::memcpy(sample, "TMR SEGA", 8);
     sample[15] = 0x4Cu;
-    retrode3::sms::Header got = {};
+    retrode3::sms::Header got = retrode3::sms::Header();
     assert(!retrode3::sms::decode_header(sample, 15, &got));
     assert(!retrode3::sms::decode_header(NULL, 16, &got));
     assert(!retrode3::sms::decode_header(sample, 16, NULL));

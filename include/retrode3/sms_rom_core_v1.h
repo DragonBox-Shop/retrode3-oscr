@@ -55,14 +55,14 @@ inline bool valid_layout(Layout layout)
 inline Probe bounded_probe(Bus &bus)
 {
     if (!bus.approved()) throw std::runtime_error("SMS adapter bus unapproved");
-    Probe probe = {};
+    Probe probe = Probe();
     const std::uint16_t addresses[] = {0x1ff0u, 0x3ff0u, 0x7ff0u};
     for (unsigned i = 0; i < 3u; ++i) {
         if (bus.cancelled()) throw std::runtime_error("cancelled");
         std::uint8_t window[16] = {};
         if (!bus.read(addresses[i], window, sizeof(window)))
             throw std::runtime_error("SMS bounded header read failed");
-        Header header = {};
+        Header header = Header();
         if (!decode_header(window, sizeof(window), &header)) continue;
         if (!probe.header_found) {
             probe.header_found = true;

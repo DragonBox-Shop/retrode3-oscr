@@ -46,7 +46,7 @@ inline bool decode_header(const std::uint8_t *window, std::size_t length,
     const std::uint8_t size_code = window[15] & 0x0Fu;
     std::uint32_t bytes = 0;
     if (!decode_size(size_code, &bytes)) return false;
-    Header parsed = {};
+    Header parsed = Header();
     parsed.declared_rom_bytes = bytes;
     parsed.checksum = static_cast<std::uint16_t>(
         static_cast<unsigned>(window[10]) |

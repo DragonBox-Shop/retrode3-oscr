@@ -53,12 +53,12 @@ int main()
     assert(std::strstr(response, "linear-32") != NULL);
     assert(std::strstr(response, "header_found\":true") != NULL);
 
-    retrode3_selection_v3 s = {};
+    retrode3_selection_v3 s = retrode3_selection_v3();
     s.struct_size = sizeof(s); s.protocol_version = 1;
     std::strcpy(s.schema_id,"sms-md-layout-v1");
     s.mode = RETRODE3_SELECT_LAYOUT_V3;
     std::strcpy(s.layout_id,"linear-32");
-    retrode3_read_plan_v3 p = {};
+    retrode3_read_plan_v3 p = retrode3_read_plan_v3();
     p.struct_size = sizeof(p);
     assert(!ops->plan_read(&s, &p, error, sizeof(error)));
     assert(p.payload_bytes == 32768 && p.prefix_bytes == 0);
@@ -66,7 +66,7 @@ int main()
     Sink sink;
     retrode3_host_io_v1 io = {RETRODE3_CORE_OPERATION_ABI_V1,
                               sizeof(io), &sink, Sink::write, Sink::cancel};
-    retrode3_read_result_v3 result = {};
+    retrode3_read_result_v3 result = retrode3_read_result_v3();
     result.struct_size = sizeof(result);
     assert(!ops->read_rom(&s, &io, &result, error, sizeof(error)));
     assert(sink.bytes == expected);
