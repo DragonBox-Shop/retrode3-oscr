@@ -213,3 +213,32 @@ Avoid speculative mapper, SRAM, save or flash writes. Check hardware
 revision, voltage and mapper constraints before declaring support.
 Record real sizes/CRC32 and mark `mock tested`, `physically tested`
 and `released in a Debian package` as three different states.
+
+## Generic cartridge selection: v3 adapter contract (2026-11-20)
+
+**Mandatory for all newly developed cores and adapter variants.** Read
+[docs/generic-cartridge-selection-v3.md](docs/generic-cartridge-selection-v3.md)
+and `include/retrode3/core_operations_v3.h` before adding any new system.
+The shared CLI owns NDJSON framing, cancellation, atomic publication, CRC
+and host locks. A new core exposes selection and override fields through the
+optional v3 adapter ABI, not a new console-specific host parser.
+Legacy v1 and NES v2 remain additive/compatible during migration.
+
+Selection is explicit: `auto`, `candidate`, `layout`, `override`.
+Never infer override from incidental fields. Candidate/title ambiguity and
+layout ambiguity are different: only the latter blocks auto reading.
+The adapter MUST revalidate every selected field and combination at plan
+and read time, reject unapproved mapper/bank writes and any RAM/save/flash
+writes, and never interpret a catalogue entry as hardware authorization.
+A successful dump with no unique CRC match is NOT verified.
+
+**Recommended packaging:** keep Sanni upstream untouched; use a Retrode3
+adapter plus optional package-owned read-only JSON describing UI labels,
+parameter types/dependencies and static adapter slot. The executable core's
+validation remains authoritative; a JSON file cannot enable unsafe hardware
+operations. Physical `slot` is already mandatory in both `.core` and
+descriptor; use separate IDs for different adapter routes (e.g. `sms-snes`
+vs `sms-md`), never guess the slot from the logical console name.
+All new JSON schema revisions must be discoverable without changes to
+the web frontend. Generic common-CLI changes must preserve v1/v2 tests.
+No `master` promotion before target hardware and regression acceptance.
