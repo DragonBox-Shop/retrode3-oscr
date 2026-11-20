@@ -133,5 +133,11 @@ jobs:
     container: gcc:8
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Python for pinned Sanni core converter
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Initialize pinned original OSCR SMS source
+        run: git submodule update --init third_party/oscr-firmware
       - name: Build SMS dynamic core with GCC 8 and warnings as errors
         run: make -f Makefile.migration native-sms-md-module
