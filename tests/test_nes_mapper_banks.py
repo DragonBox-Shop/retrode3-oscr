@@ -71,6 +71,119 @@ class TestNesMapperBanks(unittest.TestCase):
                 "mapper": mapper, "submapper": 0, "prg_kib": prg,
                 "chr_kib": chr_size, "mirroring": "horizontal", "battery": 0}
 
+    def v3_override(self, prg, chr_size):
+        return {"version": 1, "schema_id": "nes-layout-v1",
+                "mode": "override", "parameters": {
+                    "mapper": 1, "submapper": 0, "prg_kib": prg,
+                    "chr_kib": chr_size, "mirroring": "horizontal",
+                    "battery": False}}
+
+    def test_v3_rad_racer_pal_is_not_highway_star_japan(self):
+        # Actual PAL PRG CRC 654F4E90 from NES-SGROM and real hardware.
+        # First 512 bytes intentionally have Sanni's Highway Star CRC.
+        env = {"RETRODE_MOCK_NES_PRG_KIB": "128",
+               "RETRODE_MOCK_NES_CHR_KIB": "0",
+               "RETRODE_MOCK_NES_RAD_RACER_REF": "1"}
+        log = os.path.join(self.temp.name, "rad-racer-probe-writes")
+        probe = {"command": "probe", "core": "nes", "request_id": "rad-probe"}
+        events = self.run_cli(1, [probe],
+                              dict(env, RETRODE_MOCK_NES_WRITELOG=log))
+        info = events[-1]
+        self.assertEqual(info["event"], "probe_result", events)
+        self.assertEqual(info["probe_fingerprints"]["cpu_8000_crc32"],
+                         "402629F3")
+        self.assertFalse(os.path.exists(log), "probe wrote mapper registers")
+        candidates = info["candidates"]
+        jp = [c for c in candidates if c["title"] ==
+              "Highway Star (Japan) (Famicom 3D System)"]
+        eu = [c for c in candidates if c["title"] == "Rad Racer (Europe)"]
+        self.assertEqual(len(jp), 1)
+        self.assertEqual(len(eu), 1)
+        self.assertEqual(jp[0]["layout_id"], eu[0]["layout_id"])
+        self.assertEqual(info["ambiguity"], "titles_only")
+        self.assertFalse(info["selection_required"])
+        self.assertTrue(all(c["read_supported"] for c in (jp[0], eu[0])))
+        self.assertEqual(info["title"], "NES cartridge")
+
+        job = {"command": "read_rom", "core": "nes",
+               "request_id": "rad-pal", "output":
+               os.path.join(self.temp.name, "rad-racer-eu.nes"),
+               "selection": {"version": 1, "schema_id": "nes-layout-v1",
+                             "mode": "auto"}}
+        events = self.run_cli(1, [job], env)
+        result = events[-1]
+        self.assertEqual(result["event"], "result", events)
+        self.assertTrue(result["verified"], events)
+        self.assertEqual(result["identity"]["title"], "Rad Racer (Europe)")
+        self.assertEqual(result["verification"]["actual"], "654F4E90")
+        self.assertEqual(result["bytes_written"], 131088)
+        with io.open(job["output"], "rb") as handle:
+            data = handle.read()
+        self.assertEqual(zlib.crc32(data[16:]) & 0xffffffff, 0x654F4E90)
+        self.assertEqual(data[12], 1)  # PAL region bit in NES 2.0
+
+        # Explicitly picking the misleading JP candidate must be reported
+        # as a mismatched identity, not silently considered verified.
+        mismatch = dict(job, request_id="rad-jp-wrong",
+                        output=os.path.join(self.temp.name, "rad-wrong.nes"),
+                        selection={"version": 1, "schema_id": "nes-layout-v1",
+                                   "mode": "candidate", "candidate_id": jp[0]["id"]})
+        events = self.run_cli(1, [mismatch], env)
+        self.assertEqual(events[-1]["verification"]["status"], "mismatch")
+        self.assertFalse(events[-1]["verified"])
+        self.assertEqual(events[-1]["identity"]["title"], "Rad Racer (Europe)")
+        self.assertEqual(events[-1]["verification"]["expected"], "02589598")
+
+    def test_v3_mario_and_yoshi_europe_crc_after_manual_layout(self):
+        env = {"RETRODE_MOCK_NES_PRG_KIB": "128",
+               "RETRODE_MOCK_NES_CHR_KIB": "32",
+               "RETRODE_MOCK_NES_MARIO_YOSHI_EU": "1"}
+        probe = {"command": "probe", "core": "nes", "request_id": "yoshi-probe"}
+        events = self.run_cli(1, [probe], env)
+        self.assertEqual(events[-1]["event"], "probe_result", events)
+        # A new full payload CRC reference cannot magically produce
+        # the missing first/last-512-byte probe signatures.
+        self.assertEqual(events[-1]["identification_status"], "unknown")
+        job = {"command": "read_rom", "core": "nes",
+               "request_id": "yoshi-eu",
+               "output": os.path.join(self.temp.name, "mario-yoshi.nes"),
+               "selection": self.v3_override(128, 32)}
+        events = self.run_cli(1, [job], env)
+        result = events[-1]
+        self.assertEqual(result["event"], "result", events)
+        self.assertTrue(result["verified"], events)
+        self.assertEqual(result["identity"]["title"], "Mario & Yoshi (Europe)")
+        self.assertEqual(result["verification"]["actual"], "836685C4")
+        self.assertEqual(result["bytes_written"], 163856)
+        with io.open(job["output"], "rb") as handle:
+            data = handle.read()
+        self.assertEqual(data[12], 1)  # PAL
+        self.assertEqual(zlib.crc32(data[16:]) & 0xffffffff, 0x836685C4)
+
+    def test_v3_faxanadu_europe_known_crc_without_probe_match(self):
+        env = {"RETRODE_MOCK_NES_PRG_KIB": "256",
+               "RETRODE_MOCK_NES_CHR_KIB": "0",
+               "RETRODE_MOCK_NES_FAXANADU_EU": "1"}
+        probe = {"command": "probe", "core": "nes", "request_id": "fax-probe"}
+        events = self.run_cli(1, [probe], env)
+        self.assertEqual(events[-1]["event"], "probe_result", events)
+        self.assertIn("probe_fingerprints", events[-1])
+        self.assertEqual(events[-1]["identification_status"], "unknown")
+        job = {"command": "read_rom", "core": "nes",
+               "request_id": "fax-eu",
+               "output": os.path.join(self.temp.name, "faxanadu.nes"),
+               "selection": self.v3_override(256, 0)}
+        events = self.run_cli(1, [job], env)
+        result = events[-1]
+        self.assertEqual(result["event"], "result", events)
+        self.assertTrue(result["verified"], events)
+        self.assertEqual(result["identity"]["title"], "Faxanadu (Europe)")
+        self.assertEqual(result["verification"]["actual"], "76C161E3")
+        self.assertEqual(result["bytes_written"], 262160)
+        with io.open(job["output"], "rb") as handle:
+            data = handle.read()
+        self.assertEqual(zlib.crc32(data[16:]) & 0xffffffff, 0x76C161E3)
+
     def test_mmc1_in_regular_production_core_no_lab_switch(self):
         # This .so is compiled WITHOUT RETRODE3_TESTING, MMC1_LAB or
         # any experimental mapper-writes build flags.
