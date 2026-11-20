@@ -715,6 +715,7 @@ bool nes_manual_geometry(unsigned m, unsigned sub, unsigned p, unsigned c)
     if (sub != 0) return false;
     switch (m) {
     case 0: return (p == 16 || p == 32) && (c == 0 || c == 8);
+    case 1: return p == 128 && c == 0; // manual SGROM lab shape only; core enforces opt-in
     case 2: return nes_power_two(p) && p >= 64 && p <= 256 && c == 0;
     case 3: return (p == 16 || p == 32) &&
                    nes_power_two(c) && c >= 8 && c <= 32;
