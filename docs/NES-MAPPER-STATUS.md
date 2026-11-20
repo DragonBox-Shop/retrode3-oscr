@@ -30,7 +30,7 @@
 | Mapper | Auf `develop` | Mock-Tests | Physisch validiert | Normaler Build |
 | --- | --- | --- | --- | --- |
 | **0 NROM** | Linear: PRG 16/32 KiB, CHR 0/8 KiB | Vorhanden | **Stage 1 ja; v2 noch nicht** | Read-only freigegeben |
-| **1 MMC1** | Bankplan + abgeschotteter SGROM-Labortest mit echten Registerwrites (128 KiB PRG / CHR-RAM) | Isolierter C++11-Test lokal bestanden; neue End-to-End-Mocks/CI ausstehend | Nein | Gesperrt (Laborbuild getrennt) |
+| **1 MMC1** | Bankplan + abgeschotteter SGROM-Labortest mit echten Registerwrites (128 KiB PRG / CHR-RAM) | Isolierter C++11-Test zuvor bestanden; neue CI-Ausgabe nicht dokumentiert | **Ja: Rad Racer PAL, 128 KiB SGROM per Laborbuild, CRC-Treffer 2026-11-20** | Gesperrt (Laborbuild getrennt) |
 | **2 UxROM** | 16-KiB-PRG-Bankswitch, letzte Bank fix | Vorhanden | Nein | Registerwrites gesperrt |
 | **3 CNROM** | CHR-Bankswitch je 8 KiB | Vorhanden | Nein | Registerwrites gesperrt |
 | **4 MMC3** | 8-KiB-PRG (R6), 1-KiB-CHR (R2) | Vorhanden | Nein | Registerwrites gesperrt |
@@ -115,6 +115,35 @@ make -f Makefile.migration test-release-stage
 
 ## Echthardware-Referenz und noch offene Gates
 
+### Neuer physischer Mapper-1-Referenzdump (2026-11-20)
+
+Vom Projektinhaber am echten Retrode3-Geraet gelieferter vollstaendiger
+CLI-Laborlauf mit Rad Racer (PAL), manuelles MMC1-SGROM-Layout
+`mapper:1,submapper:0,prg_kib:128,chr_kib:0,battery:0`.
+Das Laborskript verlangte die SGROM-/No-PRG-WRAM-Bestaetigung;
+eine unabhaengige PCB-Foto-/Schaltungspruefung liegt nicht im Log vor.
+
+| Messwert | Originales CLI-Ergebnis |
+| --- | --- |
+| Event | `result`, `ok:true`, `system:nes` |
+| Datenlaenge | **131088 Bytes** inkl. 16-Byte-iNES-Header |
+| PRG-Payload-CRC32 | **`654F4E90`** (bekannte PAL-Rad-Racer-Referenz: **`654F4E90`**) |
+| Vollstaendige Datei-CRC32 | `B78FDA39` |
+| Layout | `m1-128-0` |
+| Titel/DB | `Unverified NES ROM (manual layout)`, `verified:false`, `matched_candidate_id:""` |
+| Ausgabedatei | `/tmp/retrode3-rad-racer-mmc1-20261120-040057.nes` |
+| Ruecksicherung | `Original NES core restored.` gemeldet |
+
+**Ergebnis:** MMC1-PRG-Bankswitching hat auf diesem SGROM-Testmodul
+einen korrekten vollstaendigen ROM-Payload geliefert. `verified:false`
+ist die noch fehlende Mapper-1-Katalogidentifikation, kein
+CRC-Fehler. Dieser Hardwarebeleg erlaubt **keine** allgemeine
+MMC1-/PRG-WRAM-Freigabe: Kernel-`NES_REG`-/M2-/ROMSEL-Timing ist fuer
+RAM-Boards weiter nicht geklaert, elektrische Oszilloskopmessung fehlt.
+Es ist ein erfolgreicher einzelner physischer Labor-Dump, keine
+Serien-/Wiederholbarkeitspruefung. Vollstaendige CI-Logausgabe wurde
+nicht mitgeliefert.
+
 **Frueher erfolgreich auf echter Retrode3, vor NES-v2:**
 
 | Core | Modul | Referenz |
@@ -184,15 +213,19 @@ Leselayout bestimmen. Kein riskanter Versuch nur anhand des Spieletitels.
   `tools/nes-mmc1-sgrom-lab.sh`.
 - GitHub Actions fuer NES laeuft nun auch auf Push nach `develop`
   und baut die Labor-`.so` zur Compiler-Pruefung.
-- **Nachgewiesen:** isolierter C++11-Bankplan-Test lokal erfolgreich.
-  **Ausstehend:** vollstaendige GitHub-CI/Mock-Integration und
-  GCC-4.9-MIPS-Build, echter SGROM-Dump/CRC, elektrische Pruefung.
+- **Nachgewiesen:** isolierter C++11-Bankplan-Test zuvor lokal erfolgreich;
+  **echter MMC1-SGROM-Rad-Racer-PAL-Dump am 2026-11-20 erfolgreich**
+  (PRG `654F4E90`, Dateiversion `B78FDA39`). Das Laborskript
+  meldete Wiederherstellung des regulaeren NES-Cores.
+  **Weiter offen:** vollstaendige GitHub-CI-/Mock-Logausgabe, getrennte
+  reproduzierbare Build-Abnahme und elektrische Timing-Pruefung.
 - `master`, regulare Core-Capabilities, Pakete und Kernel nicht geaendert.
 
 ### Aktueller naechster Schritt
 
-`make -f Makefile.migration test-native-nes-module` und
-`native-nes-mmc1-lab` auf der Retrode3 ausfuehren. Danach nur
-mit physisch bestaetigter, PRG-WRAM-freier NES-SGROM-Rad-Racer-Platine
-den dokumentierten Laborversuch machen. Danach Mapper-0-v2-
-und SNES/MD-Regression nachholen. Keine allgemeine MMC1-Freigabe.
+Nach dem **erfolgreichen MMC1-SGROM-Rad-Racer-PAL-Labor-Dump**:
+MMC1-Resultat/Referenz dokumentiert lassen, fehlende CI-Protokolle
+pruefen und Mapper-0-v2- sowie SNES/MD-Regression nachholen.
+Vor weitergehenden Mapper-1-Tests PRG-WRAM-sichere Kernel-Timing-Loesung
+und echte PCB-/Signalmessung klaeren. Standard-`nes.so` und
+`get_capabilities` bleiben unveraendert; **keine allgemeine MMC1-Freigabe**.
