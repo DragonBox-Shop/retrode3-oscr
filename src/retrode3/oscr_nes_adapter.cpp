@@ -8,6 +8,7 @@
 #include "retrode3/read_bus.h"
 #include "retrode3/oscr_nes_compat.h"
 #include "retrode3/oscr_nes_stage1.h"
+#include "retrode3/oscr_nes_mapper.h"
 
 #include <cstdio>
 #include <cstring>
@@ -226,16 +227,17 @@ const retrode3::nesstage1::NromRecord *find_record(char const *id)
     }
     return NULL;
 }
-void synthetic_header(unsigned prg, unsigned chr, unsigned mirroring,
-                      unsigned battery, unsigned char *header)
+void synthetic_header(unsigned mapper, unsigned prg, unsigned chr,
+                      unsigned mirroring, unsigned battery, unsigned char *header)
 {
     std::memset(header, 0, 16);
     std::memcpy(header, "NES\x1a", 4);
     header[4] = static_cast<unsigned char>(prg / 16u);
     header[5] = static_cast<unsigned char>(chr / 8u);
-    header[6] = static_cast<unsigned char>(
+    header[6] = static_cast<unsigned char>(((mapper & 15u) << 4) |
         (mirroring == 1 ? 1u : 0u) | (battery ? 2u : 0u) |
         (mirroring == 2 ? 8u : 0u));
+    header[7] = static_cast<unsigned char>(mapper & 0xf0u);
 }
 int read_rom_v2(retrode3_probe_v2 const *probe,
                 retrode3_read_request_v2 const *request,
@@ -252,16 +254,21 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             !io->write || !io->cancelled ||
             !result || result->struct_size != sizeof(*result))
             return fail(error, cap, "invalid NES v2 read ABI");
-        unsigned prg = 0, chr = 0;
+        unsigned prg = 0, chr = 0, mapper = 0;
         const retrode3_candidate_v2 *selected = NULL;
         if (request->manual) {
-            if (request->mapper != 0 || request->submapper != 0 ||
-                !valid_geometry(request->prg_kib, request->chr_kib) ||
+            if (request->submapper != 0 ||
+                !(request->mapper == 0 ?
+                  valid_geometry(request->prg_kib, request->chr_kib) :
+                  retrode3::nesmapper::geometry(request->mapper, request->submapper,
+                        request->prg_kib, request->chr_kib) &&
+                  retrode3::nesmapper::runtime_writes_enabled()) ||
                 request->mirroring > 2 || request->battery > 1 ||
                 request->candidate_id[0] || request->layout_id[0])
                 return fail(error, cap, "unsupported or incomplete manual NROM layout");
             prg = request->prg_kib;
             chr = request->chr_kib;
+            mapper = request->mapper;
         } else {
             if (request->candidate_id[0]) {
                 for (unsigned i = 0; i < probe->candidate_count; ++i)
@@ -288,16 +295,22 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             prg = layout->prg_kib;
             chr = layout->chr_kib;
         }
-        if (!valid_geometry(prg, chr))
-            return fail(error, cap, "unsupported NROM PRG/CHR sizes");
+        if (!(mapper == 0 && valid_geometry(prg, chr)) &&
+            !(request->manual && retrode3::nesmapper::geometry(mapper, 0, prg, chr) &&
+              retrode3::nesmapper::runtime_writes_enabled()))
+            return fail(error, cap, "unsupported NES mapper PRG/CHR sizes");
         if (io->cancelled(io->context))
             return fail(error, cap, "cancelled");
 
         PayloadSink sink = {io, 0xffffffffu};
         OSCR::Storage::Shared::setHostSink(payload_write, &sink);
         ClearSink clear;
-        OSCR::Cores::NES::dumpBankPRG(0, prg * 1024u, 0x8000);
-        if (chr) OSCR::Cores::NES::dumpBankCHR(0, chr * 1024u);
+        if (mapper == 0) {
+            OSCR::Cores::NES::dumpBankPRG(0, prg * 1024u, 0x8000);
+            if (chr) OSCR::Cores::NES::dumpBankCHR(0, chr * 1024u);
+        } else {
+            retrode3::nesmapper::dump(mapper, 0, prg, chr, io);
+        }
         result->payload_crc32 = ~sink.crc;
 
         const retrode3::nesstage1::NromRecord *match = NULL;
@@ -319,7 +332,7 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
                           sizeof(result->matched_candidate_id), "%s", match_id);
             std::snprintf(result->title, sizeof(result->title), "%s", match->title);
         } else if (request->manual) {
-            synthetic_header(prg, chr, request->mirroring, request->battery,
+            synthetic_header(mapper, prg, chr, request->mirroring, request->battery,
                              result->header);
             std::snprintf(result->title, sizeof(result->title), "%s",
                           "Unverified NES ROM (manual layout)");
@@ -343,7 +356,11 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             std::snprintf(result->title, sizeof(result->title), "%s",
                           "Unverified NES ROM");
         }
-        layout_id(prg, chr, result->layout_id, sizeof(result->layout_id));
+        if (mapper == 0)
+            layout_id(prg, chr, result->layout_id, sizeof(result->layout_id));
+        else
+            std::snprintf(result->layout_id, sizeof(result->layout_id),
+                          "m%u-%u-%u", mapper, prg, chr);
         return 0;
     } catch (std::exception const &e) { return fail(error, cap, e.what()); }
     catch (...) { return fail(error, cap, "unknown NES v2 read error"); }

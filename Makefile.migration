@@ -104,8 +104,12 @@ build/migration/oscr_nes_nrom.cpp: tools/build-linux-nes-core.py third_party/osc
 build/migration/oscr_nes_nrom.pic.o: build/migration/oscr_nes_nrom.cpp include/retrode3/oscr_nes_compat.h
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC $(NATIVE_INCLUDES) -c $< -o $@
 
+.PHONY: verify-nes-mapper-sequences
+verify-nes-mapper-sequences:
+	python3 tools/verify-nes-mapper-sequences.py
+
 .PHONY: native-nes-module test-native-nes-module stage-nes-module
-native-nes-module: build/migration/oscr_nes_nrom.pic.o
+native-nes-module: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o
 	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/retrode3-lib.pic.o
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
@@ -114,7 +118,7 @@ native-nes-module: build/migration/oscr_nes_nrom.pic.o
 		src/retrode3/oscr_nes_adapter.cpp build/migration/retrode3-lib.pic.o \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/nes.so
 
-test-native-nes-module: build/migration/oscr_nes_nrom.pic.o test-core-registry
+test-native-nes-module: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o test-core-registry
 	mkdir -p build/migration/real-nes-fixture
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs -DRETRODE3_TESTING $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
