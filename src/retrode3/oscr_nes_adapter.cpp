@@ -143,6 +143,63 @@ bool valid_geometry(unsigned prg, unsigned chr)
 {
     return (prg == 16 || prg == 32) && (chr == 0 || chr == 8);
 }
+
+bool mmc1_battery(retrode3::nesstage1::Mmc1Record const &r)
+{
+    const char c = r.header_hex[13]; // low nibble of iNES flag 6
+    const unsigned digit = c >= '0' && c <= '9' ? c - '0' :
+                           c >= 'A' && c <= 'F' ? c - 'A' + 10 :
+                           c >= 'a' && c <= 'f' ? c - 'a' + 10 : 255u;
+    if (digit > 15u) throw std::runtime_error("invalid pinned MMC1 flags");
+    return (digit & 2u) != 0u;
+}
+void mmc1_candidate_id(std::size_t index, char *out, std::size_t capacity)
+{
+    std::snprintf(out, capacity, "mmc1-%04u", static_cast<unsigned>(index));
+}
+void mmc1_layout_id(unsigned sub, unsigned prg, unsigned chr,
+                    char *out, std::size_t capacity)
+{
+    if (sub == 0)
+        std::snprintf(out, capacity, "m1-%u-%u", prg, chr);
+    else
+        std::snprintf(out, capacity, "m1s%u-%u-%u", sub, prg, chr);
+}
+const retrode3::nesstage1::Mmc1Record *find_mmc1_record(char const *id)
+{
+    char name[32];
+    for (std::size_t i = 0; i < retrode3::nesstage1::mmc1_record_count; ++i) {
+        mmc1_candidate_id(i, name, sizeof(name));
+        if (std::strcmp(name, id) == 0)
+            return &retrode3::nesstage1::mmc1_records[i];
+    }
+    return NULL;
+}
+void hex_mmc1_header(char const *hex, unsigned prg, unsigned chr,
+                     unsigned sub, unsigned char *header)
+{
+    if (!hex || std::strlen(hex) != 32u)
+        throw std::runtime_error("invalid pinned MMC1 header length");
+    for (unsigned i = 0; i < 16u; ++i) {
+        unsigned char b = 0;
+        for (unsigned j = 0; j < 2u; ++j) {
+            const char x = hex[i * 2u + j];
+            const unsigned digit = x >= '0' && x <= '9' ? x-'0' :
+                    x >= 'A' && x <= 'F' ? x-'A'+10 :
+                    x >= 'a' && x <= 'f' ? x-'a'+10 : 255u;
+            if (digit > 15u)
+                throw std::runtime_error("bad pinned MMC1 header hex");
+            b = static_cast<unsigned char>((b << 4) | digit);
+        }
+        header[i] = b;
+    }
+    if (std::memcmp(header, "NES\\x1a", 4) != 0 ||
+        (header[6] >> 4) != 1u || (header[7] & 0xf0u) != 0 ||
+        header[4] * 16u != prg || header[5] * 8u != chr ||
+        (((header[7] & 0x0cu) == 0x08u) ?
+            (header[8] >> 4) : 0u) != sub)
+        throw std::runtime_error("pinned MMC1 header/layout mismatch");
+}
 int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap)
 {
     try {
