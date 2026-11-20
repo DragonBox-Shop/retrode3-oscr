@@ -42,6 +42,15 @@
   dynamic plugin registry and limited `/usr/sbin/retrode3-corectl`.
   The web feature branch has diverged from OS `develop`, so
   reconcile it **without losing the SysV-init fix**.
+- **NES Mapper 1 lab acceptance (2026-11-20):** Rad Racer PAL
+  with manually confirmed SGROM/no-PRG-WRAM test setting produced
+  131088 bytes (128 KiB PRG + 16-byte iNES header), PRG CRC32
+  `654F4E90` matching the PAL reference and full-file CRC32
+  `B78FDA39`. The temporary lab `nes.so` was restored afterward.
+  This does **not** authorize Mapper 1 in production, other MMC1
+  boards, PRG-WRAM writes, or automated Web activation.
+  See [NES mapper handoff](NES-MAPPER-STATUS.md) and
+  [MMC1 lab acceptance](nes-mmc1-sgrom-lab.md).
 - **Immediate work:** finish tested Web v2 path/privilege and
   cartridge-presence handling in OS `develop`, verify against
   real Retrode3 and only then squash-merge to OS `master`.
