@@ -96,7 +96,9 @@ int capabilities_json_v3(char *out, size_t capacity, char *err, size_t cap)
  "values":[{"value":"linear","label":"Standard linear","read_supported":true}]},
 {"id":"rom_size_bytes","label":"ROM size (bytes)","type":"integer",
  "required":true,"minimum":512,"maximum":4194304}],
-"rules":[{"when":{"mapping":"linear"},"read_supported":true}]
+"rules":[{"when":{"mapping":"linear"},"read_supported":true}],
+"probe_voltage_mv":3300,"read_voltage_mv":5000,
+"automatic_voltage_switch":true
 })V3";
     if (!out || sizeof(schema) > capacity)
         return fail(err, cap, "MegaDrive v3 capability buffer too small");
@@ -112,7 +114,7 @@ int fast_probe_json_v3(char *out, size_t capacity, char *err, size_t cap)
         std::snprintf(checksum, sizeof(checksum), "%04X", info.checksum);
         std::string json = std::string("{\"identification_status\":\"unknown\",") +
             "\"ambiguity\":\"none\",\"selection_required\":false," +
-            "\"candidate_lookup\":\"cartridge_header_only\",\"candidates\":[]," +
+            "\"candidate_lookup\":\"cartridge_header_only\",\"system_detected\":true,\"candidates\":[]," +
             "\"read_layouts\":[{\"id\":\"md-linear\"," +
             "\"label\":\"Standard linear Mega Drive ROM\",\"read_supported\":true," +
             "\"size_bytes\":" + std::to_string(info.size) + "}]," +

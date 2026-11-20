@@ -1001,9 +1001,8 @@ void emit_capabilities_v3(retrode3::NdjsonProtocol &stream,
         + retrode3::stringify_json_v3(schema) + "}");
 }
 
-void emit_probe_v3(retrode3::NdjsonProtocol &stream,
-                   std::string const &id, Core const &core,
-                   OpenCore &module)
+std::string probe_event_v3(std::string const &id, Core const &core,
+                           OpenCore &module)
 {
     retrode3::JsonV3 schema = capability_schema_v3(module);
     retrode3::JsonV3 info = core_document_v3(module.api3->fast_probe_json);
@@ -1045,9 +1044,170 @@ void emit_probe_v3(retrode3::NdjsonProtocol &stream,
         out += "," + retrode3::NdjsonProtocol::quote(it->first) + ":" +
             retrode3::stringify_json_v3(it->second);
     }
-    stream.emit(out + "}");
+    return out + "}";
 }
 
+
+void emit_probe_v3(retrode3::NdjsonProtocol &stream,
+                   std::string const &id, Core const &core,
+                   OpenCore &module)
+{
+    stream.emit(probe_event_v3(id, core, module));
+}
+
+/* Slot-oriented detection remains within ONE bus lock. Core-provided
+ * identification_status describes game identity, not console identity.
+ * Only the explicit system_detected boolean counts for adapter selection.
+ * A failed or unsupported probe never constitutes a positive match. */
+std::string read_slot_attribute(const std::string &slot, const char *attribute)
+{
+#ifdef RETRODE3_TESTING
+    const char *root = std::getenv("RETRODE3_TEST_SLOT_ROOT");
+    const std::string base = (root && *root) ? root : "/sys/class/retrode3";
+#else
+    const std::string base = "/sys/class/retrode3";
+#endif
+    std::ifstream in((base + "/slot-" + slot + "/" + attribute).c_str());
+    std::string value;
+    if (!in || !std::getline(in, value))
+        throw std::runtime_error("slot hardware status unavailable");
+    return value;
+}
+std::string slot_attribute_path(const std::string &slot, const char *attribute)
+{
+#ifdef RETRODE3_TESTING
+    const char *root = std::getenv("RETRODE3_TEST_SLOT_ROOT");
+    const std::string base = (root && *root) ? root : "/sys/class/retrode3";
+#else
+    const std::string base = "/sys/class/retrode3";
+#endif
+    return base + "/slot-" + slot + "/" + attribute;
+}
+std::string apply_voltage(const std::string &slot, unsigned requested)
+{
+    if (requested != 3300 && requested != 5000)
+        return "unsupported";
+    const std::string current = read_slot_attribute(slot, "vcc");
+    const std::string target = std::to_string(requested) + "mV";
+    if (current == target) return "ready";
+    if (read_slot_attribute(slot, "sense") != "active")
+        return "cartridge_removed";
+    const std::string path = slot_attribute_path(slot, "vcc");
+    // No shell, no raw GPIO. Sysfs permissions remain the privilege boundary.
+    const int fd = ::open(path.c_str(), O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) return "manual_required";
+    const std::string data = std::to_string(requested) + "\n";
+    ssize_t n = ::write(fd, data.data(), data.size());
+    const int close_rc = ::close(fd);
+    if (n != static_cast<ssize_t>(data.size()) || close_rc != 0)
+        return "manual_required";
+    if (read_slot_attribute(slot, "sense") != "active")
+        return "cartridge_removed";
+    return read_slot_attribute(slot, "vcc") == target ? "ready" : "manual_required";
+}
+void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
+                const std::string &slot, const std::vector<Core> &cores,
+                const std::string &available, const std::string &enabled)
+{
+    std::vector<Core> matches;
+    for (std::size_t i = 0; i < cores.size(); ++i)
+        if (cores[i].slot == slot && cores[i].enabled && cores[i].usable &&
+            cores[i].has_v3)
+            matches.push_back(cores[i]);
+    std::string out = prefix("slot_probe_result", request_id)
+        + ",\"slot\":" + retrode3::NdjsonProtocol::quote(slot);
+    if (matches.empty()) {
+        stream.emit(out + ",\"detection\":\"unavailable\",\"core\":null,"
+                    "\"candidates\":[],\"attempts\":[]}");
+        return;
+    }
+    BusLock lock(enabled);
+    if (read_slot_attribute(slot, "sense") != "active") {
+        stream.emit(out + ",\"detection\":\"empty\",\"core\":null,"
+                    "\"candidates\":[],\"attempts\":[]}");
+        return;
+    }
+    const std::string vcc = read_slot_attribute(slot, "vcc");
+    if (vcc != "3300mV" && vcc != "5000mV") {
+        stream.emit(out + ",\"detection\":\"manual_required\",\"core\":null,"
+                    "\"reason\":\"unknown_probe_voltage\","
+                    "\"candidates\":[],\"attempts\":[]}");
+        return;
+    }
+    // Deterministic lexicographic ID order, with no speculative writes.
+    std::string attempts = "[";
+    std::string candidates = "[";
+    std::string selected;
+    std::string selected_event;
+    std::string selected_voltage = "not_applicable";
+    unsigned candidate_count = 0;
+    for (std::size_t i = 0; i < matches.size(); ++i) {
+        const Core &c = matches[i];
+        if (i) attempts += ",";
+        attempts += "{\"core\":" + retrode3::NdjsonProtocol::quote(c.id);
+        try {
+            if (read_slot_attribute(slot, "sense") != "active")
+                throw std::runtime_error("cartridge_removed");
+            OpenCore module(available + "/" + c.id + ".so");
+            retrode3::JsonV3 schema = capability_schema_v3(module);
+            if (!schema.has("probe_voltage_mv") ||
+                schema.at("probe_voltage_mv").number() != 3300 ||
+                vcc != "3300mV") {
+                attempts += ",\"outcome\":\"skipped_voltage\"}";
+                continue;
+            }
+            std::string event = probe_event_v3(request_id, c, module);
+            retrode3::JsonV3 parsed = retrode3::parse_json_v3(event);
+            if (!parsed.has("system_detected") ||
+                parsed.at("system_detected").kind != retrode3::JsonV3::Boolean ||
+                !parsed.at("system_detected").boolean) {
+                attempts += ",\"outcome\":\"no_match\"}";
+                continue;
+            }
+            ++candidate_count;
+            if (candidate_count > 1) candidates += ",";
+            candidates += retrode3::NdjsonProtocol::quote(c.id);
+            attempts += ",\"outcome\":\"matched\"}";
+            selected = c.id;
+            selected_event = event;
+            if (schema.has("read_voltage_mv") &&
+                schema.at("read_voltage_mv").kind == retrode3::JsonV3::Integer &&
+                schema.at("read_voltage_mv").integer == 5000 &&
+                schema.has("automatic_voltage_switch") &&
+                schema.at("automatic_voltage_switch").kind == retrode3::JsonV3::Boolean &&
+                schema.at("automatic_voltage_switch").boolean) {
+                selected_voltage = "pending";
+            } else if (schema.has("read_voltage_mv") &&
+                       schema.at("read_voltage_mv").kind == retrode3::JsonV3::Integer &&
+                       schema.at("read_voltage_mv").integer == 5000) {
+                selected_voltage = "manual_required";
+            } else selected_voltage = "ready";
+            break;
+        } catch (std::exception const &e) {
+            attempts += ",\"outcome\":\"failed\",\"reason\":" +
+                retrode3::NdjsonProtocol::quote(e.what()) + "}";
+        }
+    }
+    attempts += "]";
+    candidates += "]";
+    if (read_slot_attribute(slot, "sense") != "active") {
+        stream.emit(out + ",\"detection\":\"empty\",\"core\":null,"
+                    "\"candidates\":[] ,\"attempts\":" + attempts + "}");
+        return;
+    }
+    if (!selected.empty() && selected_voltage == "pending")
+        selected_voltage = apply_voltage(slot, 5000);
+    out += ",\"detection\":" +
+        retrode3::NdjsonProtocol::quote(selected.empty() ? "manual_required" : "detected")
+        + ",\"core\":" + (selected.empty() ? "null" :
+            retrode3::NdjsonProtocol::quote(selected))
+        + ",\"candidates\":" + candidates
+        + ",\"attempts\":" + attempts
+        + ",\"voltage_status\":" + retrode3::NdjsonProtocol::quote(selected_voltage)
+        + ",\"probe_result\":" + (selected.empty() ? "null" : selected_event)
+        + "}";
+    stream.emit(out);
+}
 retrode3_selection_v3 typed_selection_v3(retrode3::WebCommand const &command,
                                         std::string const &schema_id)
 {
@@ -1256,6 +1416,11 @@ void interactive(std::string const &available, std::string const &enabled)
                            "nothing to cancel");
                 continue;
             }
+            if (command.action == "probe_slot") {
+                probe_slot(stream, command.request_id, command.slot,
+                           discover(available, enabled), available, enabled);
+                continue;
+            }
             if (command.core.empty())
                 throw std::runtime_error("missing core identifier");
             std::vector<Core> cores = discover(available, enabled);
@@ -1307,7 +1472,7 @@ int main(int argc, char **argv)
 {
     std::string available = "/usr/lib/retrode3/cores-available";
     std::string enabled = "/etc/retrode3/cores-enabled";
-    std::string core_id, action, output;
+    std::string core_id, action, output, slot_id;
     bool list = false, streamed = false, run_interactive = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -1319,9 +1484,12 @@ int main(int argc, char **argv)
             streamed = true;
         } else if (arg == "--core" && i + 1 < argc && core_id.empty()) {
             core_id = argv[++i];
+        } else if (arg == "--slot" && i + 1 < argc && slot_id.empty()) {
+            slot_id = argv[++i];
         } else if (arg == "--action" && i + 1 < argc && action.empty()) {
             action = argv[++i];
             if (action == "read-rom") action = "read_rom";
+            if (action == "probe-slot") action = "probe_slot";
         } else if (arg == "--output" && i + 1 < argc && output.empty()) {
             output = argv[++i];
         }
@@ -1335,18 +1503,20 @@ int main(int argc, char **argv)
             std::fprintf(stderr,
                 "usage: retrode3-cli --list-cores | --protocol ndjson-v1 "
                 "--interactive | --protocol ndjson-v1 --core ID "
-                "--action probe|read-rom [--output FILE]\n");
+                "--action probe|read-rom|probe-slot [--slot ID] [--output FILE]\n");
             return 2;
         }
     }
     unsigned mode_count = (list ? 1u : 0u) + (run_interactive ? 1u : 0u)
                         + (!action.empty() ? 1u : 0u);
     if (mode_count != 1 || ((run_interactive || !action.empty()) && !streamed) ||
-        ((list || run_interactive) && (!core_id.empty() || !output.empty())) ||
-        (!action.empty() && (!is_slug(core_id) ||
-                             (action != "probe" && action != "read_rom") ||
+        ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() || !output.empty())) ||
+        (!action.empty() && ((action == "probe_slot" ?
+                                (!core_id.empty() || !is_slug(slot_id)) :
+                                (!is_slug(core_id) || !slot_id.empty())) ||
+                             (action != "probe" && action != "read_rom" && action != "probe_slot") ||
                              (action == "read_rom" && output.empty()) ||
-                             (action == "probe" && !output.empty())))) {
+                             ((action == "probe" || action == "probe_slot") && !output.empty())))) {
         std::fprintf(stderr, "invalid Retrode3 command mode/options\n");
         return 2;
     }
@@ -1359,6 +1529,10 @@ int main(int argc, char **argv)
             retrode3::NdjsonProtocol stream(false);
             try {
                 std::vector<Core> installed = discover(available, enabled);
+                if (action == "probe_slot") {
+                    probe_slot(stream, "cli", slot_id, installed, available, enabled);
+                    return 0;
+                }
                 Core const &c = find_usable(installed, core_id);
                 BusLock lock(enabled);
                 OpenCore module(available + "/" + c.id + ".so");

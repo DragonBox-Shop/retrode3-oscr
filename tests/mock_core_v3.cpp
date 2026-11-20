@@ -7,6 +7,15 @@
 #include <cstring>
 #include <string>
 
+#ifndef RETRODE3_TEST_MOCK_ID
+#define RETRODE3_TEST_MOCK_ID "mock-v3"
+#endif
+#ifndef RETRODE3_TEST_MOCK_NAME
+#define RETRODE3_TEST_MOCK_NAME "Generic v3 fixture"
+#endif
+#ifndef RETRODE3_TEST_MOCK_SLOT
+#define RETRODE3_TEST_MOCK_SLOT "snes"
+#endif
 namespace {
 int fail(char *err, size_t cap, const char *why) {
     if (err && cap) std::snprintf(err, cap, "%s", why);
@@ -27,14 +36,18 @@ int cap_json(char *out, size_t n, char *err, size_t ec) {
         "\"fields\":[{\"id\":\"bank_count\",\"label\":\"Banks\","
         "\"type\":\"integer\",\"minimum\":1,\"maximum\":2},"
         "{\"id\":\"safe\",\"label\":\"Safe\",\"type\":\"boolean\"}],"
-        "\"rules\":[{\"when\":{\"bank_count\":2},\"read_supported\":false}]}",
+        "\"rules\":[{\"when\":{\"bank_count\":2},\"read_supported\":false}],"
+        "\"probe_voltage_mv\":3300,\"read_voltage_mv\":5000}",
         out, n, err, ec);
 }
 int probe_json(char *out, size_t n, char *err, size_t ec) {
     std::string s(scenario());
-    const char *head = "{\"identification_status\":";
+    const char *match = std::getenv("RETRODE_TEST_V3_SLOT_MATCH");
+    const bool detected = !match || std::strcmp(match, RETRODE3_TEST_MOCK_ID) == 0;
+    const std::string head = std::string("{\"system_detected\":") +
+        (detected ? "true" : "false") + ",\"identification_status\":";
     if (s == "unknown") {
-        return copy(std::string(head) + "\"unknown\",\"ambiguity\":\"none\","
+        return copy(head + "\"unknown\",\"ambiguity\":\"none\","
             "\"selection_required\":true,\"candidates\":[],\"read_layouts\":[]}",
             out, n, err, ec);
     }
@@ -173,7 +186,7 @@ void release() {}
 extern "C" const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void) {
     static const retrode3_core_descriptor_v1 d = {
         RETRODE3_CORE_DISCOVERY_ABI_V1, sizeof(d),
-        "mock-v3", "Generic v3 fixture", "1-test", "snes"
+        RETRODE3_TEST_MOCK_ID, RETRODE3_TEST_MOCK_NAME, "1-test", RETRODE3_TEST_MOCK_SLOT
     };
     return &d;
 }
