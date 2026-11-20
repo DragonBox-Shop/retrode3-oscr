@@ -2,6 +2,13 @@
 
 **Stand 2026-11-20. Nur `retrode3-oscr/develop`, keine Releasefreigabe.**
 
+> **Historischer Rad-Racer-spezifischer Laborlauf.** Fuer aktuelle
+> PRG+CHR-ROMs und den eingebundenen Sanni-MMC1-Katalog jetzt
+> [den allgemeinen MMC1-Lesetest](nes-mmc1-general-lab.md) verwenden.
+> Die damalige `verified:false`-Aussage galt vor Einbau des neuen
+> Mapper-1-Datenbankkatalogs. Die Rad-Racer-Pruefsummen bleiben korrekt.
+
+
 Dies ist ein **echter experimenteller Mapper-1-ROM-Auslesetest**, keine
 Simulation und kein neues Produktionsfeature. Der Standardbuild von
 `nes.so` aktiviert MMC1 nicht. Die separate Labor-`.so` ist **nicht**
