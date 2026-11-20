@@ -750,7 +750,7 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
                   command.candidate_id.c_str());
     std::snprintf(request.layout_id, sizeof(request.layout_id), "%s",
                   command.layout_id.c_str());
-    unsigned prg = 0, chr = 0, mapper = 0;
+    unsigned prg = 0, chr = 0, mapper = 0, submapper = 0;
     if (command.has_manual) {
         request.manual = 1;
         request.mapper = command.mapper;
@@ -767,6 +767,7 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
         prg = request.prg_kib;
         chr = request.chr_kib;
         mapper = request.mapper;
+        submapper = request.submapper;
     } else {
         const retrode3_layout_v2 *layout = NULL;
         for (unsigned i = 0; i < probe_info.layout_count; ++i) {
@@ -792,6 +793,7 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
         prg = layout->prg_kib;
         chr = layout->chr_kib;
         mapper = layout->mapper;
+        submapper = layout->submapper;
     }
     const std::size_t total = 16u + (prg + chr) * 1024u;
     std::string const &output = command.output;
@@ -852,6 +854,9 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
         if (mapper == 0)
             std::snprintf(expected_layout, sizeof(expected_layout),
                           "nrom-%u-%u", prg, chr);
+        else if (mapper == 1 && submapper)
+            std::snprintf(expected_layout, sizeof(expected_layout),
+                          "m1s%u-%u-%u", submapper, prg, chr);
         else
             std::snprintf(expected_layout, sizeof(expected_layout),
                           "m%u-%u-%u", mapper, prg, chr);
