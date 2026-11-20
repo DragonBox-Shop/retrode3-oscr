@@ -65,11 +65,20 @@ class TestRealMdAdapter(unittest.TestCase):
         self.assertEqual(cores[0]["actions"], ["probe", "read_rom"])
         self.assertEqual(events[2]["event"], "capabilities")
         self.assertFalse(events[2]["write_operations"])
+        schema = events[2]["selection_schema"]
+        self.assertEqual(schema["schema_id"], "md-linear-v1")
+        self.assertEqual(schema["selection_modes"], ["auto", "layout", "override"])
+        self.assertEqual([field["id"] for field in schema["fields"]],
+                         ["mapping", "rom_size_bytes"])
         self.assertEqual(events[3]["event"], "probe_result")
         self.assertEqual(events[3]["mapping"], "linear")
         self.assertEqual(events[3]["size_bytes"], 524288)
         self.assertEqual(events[3]["title"], "MOCK MEGADRIVE CART")
         self.assertEqual(events[3]["checksum"], "1234")
+        self.assertEqual(events[3]["identification_status"], "unknown")
+        self.assertEqual(events[3]["candidates"], [])
+        self.assertFalse(events[3]["selection_required"])
+        self.assertEqual(events[3]["read_layouts"][0]["id"], "md-linear")
         progress = [x for x in events if x["event"] == "progress"]
         self.assertGreater(len(progress), 2)
         self.assertEqual(progress[0]["bytes_done"], 0)
@@ -80,7 +89,10 @@ class TestRealMdAdapter(unittest.TestCase):
         result = events[-1]
         self.assertEqual(result["event"], "result")
         self.assertEqual(result["bytes_written"], 524288)
-        self.assertIsNone(result["verified"])
+        self.assertFalse(result["verified"])
+        self.assertEqual(result["verification"]["status"], "not_checked")
+        self.assertEqual(result["read_configuration"]["mapping"], "linear")
+        self.assertEqual(result["identity"]["title"], "MOCK MEGADRIVE CART")
 
         proc = subprocess.Popen([LEGACY, "--action", "read-rom",
                                  "--output", legacy_output],
@@ -94,6 +106,86 @@ class TestRealMdAdapter(unittest.TestCase):
         self.assertEqual(actual, previous)
         self.assertEqual(actual[0x100:0x104], b"SEGA")
         self.assertEqual(result["crc32"], "%08X" % (zlib.crc32(actual) & 0xffffffff))
+
+
+    def test_v3_layout_and_validated_smaller_override(self):
+        self.enable()
+        for mode, extra, size in (
+            ("layout", {"layout_id": "md-linear"}, 524288),
+            ("override", {"parameters": {"mapping": "linear",
+                                           "rom_size_bytes": 262144}}, 262144),
+        ):
+            target = os.path.join(self.temp.name, mode + "-md-v3.bin")
+            choice = {"version": 1, "schema_id": "md-linear-v1", "mode": mode}
+            choice.update(extra)
+            rc, events, errors = self.host([
+                {"command": "read_rom", "core": "md", "request_id": mode,
+                 "output": target, "selection": choice}
+            ])
+            self.assertEqual(rc, 0, errors)
+            self.assertEqual(events[-1]["event"], "result", events)
+            self.assertEqual(events[-1]["bytes_written"], size)
+            self.assertEqual(events[-1]["selection_mode"], mode)
+            self.assertEqual(events[-1]["read_configuration"]["rom_size_bytes"], size)
+            self.assertFalse(events[-1]["verification"]["verified"])
+            with io.open(target, "rb") as handle:
+                rom = handle.read()
+            self.assertEqual(len(rom), size)
+            self.assertEqual(events[-1]["crc32"],
+                             "%08X" % (zlib.crc32(rom) & 0xffffffff))
+
+    def test_v3_rejects_invalid_selections_and_unsafe_overrides(self):
+        self.enable()
+        def selection(mode, **extra):
+            choice = {"version": 1, "schema_id": "md-linear-v1", "mode": mode}
+            choice.update(extra)
+            return choice
+        choices = [
+            selection("candidate", candidate_id="fake"),
+            selection("layout", layout_id="banked"),
+            selection("auto", layout_id="md-linear"),
+            selection("layout", layout_id="md-linear",
+                      parameters={"rom_size_bytes": 524288}),
+            selection("override", parameters={"mapping": "linear",
+                                               "rom_size_bytes": 4194304}),
+            selection("override", parameters={"mapping": "linear",
+                                               "rom_size_bytes": 511}),
+            selection("override", parameters={"mapping": "linear",
+                                               "rom_size_bytes": 513}),
+            selection("override", parameters={"mapping": "banked",
+                                               "rom_size_bytes": 524288}),
+            selection("override", parameters={"mapping": "linear",
+                                               "rom_size_bytes": "524288"}),
+            selection("override", parameters={"mapping": "linear"}),
+            selection("override", parameters={"mapping": "linear",
+                                               "rom_size_bytes": 524288,
+                                               "voltage": 5}),
+            {"version": 2, "schema_id": "md-linear-v1", "mode": "auto"},
+            {"version": 1, "schema_id": "md-linear-v0", "mode": "auto"}
+        ]
+        for index, choice in enumerate(choices):
+            target = os.path.join(self.temp.name, "invalid-md-%d.bin" % index)
+            rc, events, errors = self.host([
+                {"command": "read_rom", "core": "md", "request_id": str(index),
+                 "output": target, "selection": choice}
+            ])
+            self.assertEqual(rc, 0, errors)
+            self.assertEqual(events[-1]["event"], "error", (choice, events))
+            self.assertFalse(os.path.exists(target))
+            self.assertFalse(any(".partial-" in name
+                                 for name in os.listdir(self.temp.name)))
+        env = os.environ.copy()
+        env["RETRODE_MOCK_MD_BAD"] = "32x"
+        target = os.path.join(self.temp.name, "blocked-32x.bin")
+        rc, events, errors = self.host([
+            {"command": "read_rom", "core": "md", "request_id": "bad",
+             "output": target,
+             "selection": selection("override", parameters={
+                 "mapping": "linear", "rom_size_bytes": 262144})}
+        ], env=env)
+        self.assertEqual(rc, 0, errors)
+        self.assertEqual(events[-1]["event"], "error")
+        self.assertFalse(os.path.exists(target))
 
     def test_real_md_and_snes_share_one_host_without_protocol_forks(self):
         self.enable()
