@@ -68,6 +68,16 @@ void init()
                 rom_chr[chr_size - 1] = 0x00;
             }
         }
+        if (mapper == 1 && prg_size >= 32768u &&
+            std::getenv("RETRODE_MOCK_NES_BATTERY_PROBE")) {
+            // The actual Sanni A Ressha de Ikou first-window CRC32
+            // A24E2D45, synthesized entirely from zeroes + four bytes.
+            std::memset(&rom_prg[0], 0, 508);
+            rom_prg[508] = 0x09;
+            rom_prg[509] = 0x85;
+            rom_prg[510] = 0x01;
+            rom_prg[511] = 0x8d;
+        }
         const char *no_safe = std::getenv("RETRODE_MOCK_NES_NO_CONFLICT_SAFE");
         if (no_safe && mapper == 2)
             for (unsigned i = prg_size - 16384u; i < prg_size; ++i)
