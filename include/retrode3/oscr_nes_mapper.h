@@ -9,6 +9,9 @@ namespace retrode3 { namespace nesmapper {
 bool geometry(unsigned mapper, unsigned submapper, unsigned prg_kib,
               unsigned chr_kib);
 bool runtime_writes_enabled();
+/* MMC1 only: explicitly confirmed no-PRG-RAM lab cartridge. */
+bool mmc1_lab_enabled();
+bool runtime_mapper_enabled(unsigned mapper);
 void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
           unsigned chr_kib, const retrode3_host_io_v1 *io);
 } }
