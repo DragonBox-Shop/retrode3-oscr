@@ -328,5 +328,113 @@ class TestRealNesAdapter(unittest.TestCase):
             self.assertIn(b"review required", error)
             self.assertFalse(os.path.exists(output))
 
+
+    def test_generic_v3_capabilities_and_selection(self):
+        self.enable()
+        output = os.path.join(self.temp.name, "generic.nes")
+        rc, events, errors = self.host([
+            {"command": "get_capabilities", "core": "nes", "request_id": "cap"},
+            {"command": "probe", "core": "nes", "request_id": "probe"},
+            {"command": "read_rom", "core": "nes", "request_id": "read",
+             "output": output, "selection": {
+                 "version": 1, "schema_id": "nes-layout-v1", "mode": "candidate",
+                 "candidate_id": "nrom-0000"}}
+        ])
+        self.assertEqual(rc, 0, errors)
+        cap = [x for x in events if x["event"] == "capabilities"][0]
+        self.assertEqual(cap["selection_schema"]["schema_version"], 1)
+        self.assertEqual(cap["selection_schema"]["schema_id"], "nes-layout-v1")
+        self.assertIn("override", cap["selection_schema"]["selection_modes"])
+        probe = [x for x in events if x["event"] == "probe_result"][0]
+        self.assertEqual(probe["ambiguity"], "none")
+        self.assertEqual(probe["selection_schema_id"], "nes-layout-v1")
+        result = events[-1]
+        self.assertEqual(result["event"], "result", events)
+        self.assertEqual(result["selection_mode"], "candidate")
+        self.assertEqual(result["read_configuration"]["mapper"], 0)
+        self.assertEqual(result["verification"]["status"], "verified")
+        self.assertTrue(result["verification"]["verified"])
+        with io.open(output, "rb") as handle:
+            self.assertEqual(handle.read(), expected_rom())
+
+    def test_generic_v3_manual_unknown_and_unverified(self):
+        self.enable()
+        output = os.path.join(self.temp.name, "unverified.nes")
+        env = os.environ.copy()
+        env["RETRODE_MOCK_NES_UNKNOWN"] = "1"
+        selection = {"version": 1, "schema_id": "nes-layout-v1",
+                     "mode": "override", "parameters": {
+                         "mapper": 0, "submapper": 0, "prg_kib": 16,
+                         "chr_kib": 8, "mirroring": "horizontal",
+                         "battery": False}}
+        rc, events, errors = self.host([
+            {"command": "read_rom", "core": "nes", "request_id": "manual",
+             "output": output, "selection": selection}
+        ], env=env)
+        self.assertEqual(rc, 0, errors)
+        result = events[-1]
+        self.assertEqual(result["event"], "result", events)
+        self.assertEqual(result["selection_mode"], "override")
+        self.assertFalse(result["verified"])
+        self.assertIn(result["verification"]["status"],
+                      ("not_found", "mismatch"))
+        self.assertTrue(os.path.exists(output))
+
+    def test_generic_v3_rejects_invalid_selections_and_unsupported_mapper(self):
+        self.enable()
+        valid = {"version": 1, "schema_id": "nes-layout-v1",
+                 "mode": "override", "parameters": {
+                     "mapper": 0, "submapper": 0, "prg_kib": 16,
+                     "chr_kib": 8, "mirroring": "horizontal",
+                     "battery": False}}
+        bad = [
+            dict(valid, mode="auto"),
+            dict(valid, mode="candidate"),
+            dict(valid, schema_id="nes-layout-v999"),
+            dict(valid, parameters=dict(valid["parameters"], mapper=123)),
+            dict(valid, parameters=dict(valid["parameters"], prg_kib=512)),
+            dict(valid, parameters=dict(valid["parameters"], unexpected=True)),
+            dict(valid, parameters=dict(valid["parameters"], battery="false")),
+            {"version": 1, "schema_id": "nes-layout-v1",
+             "mode": "candidate", "candidate_id": "not-in-probe"},
+            {"version": 1, "schema_id": "nes-layout-v1",
+             "mode": "layout", "layout_id": "unsupported"},
+            {"version": 2, "schema_id": "nes-layout-v1", "mode": "auto"}
+        ]
+        for i, sel in enumerate(bad):
+            output = os.path.join(self.temp.name, "invalid-%s.nes" % i)
+            rc, events, errors = self.host([
+                {"command": "read_rom", "core": "nes",
+                 "request_id": "invalid%s" % i, "output": output,
+                 "selection": sel}
+            ])
+            self.assertEqual(rc, 0, (i, errors))
+            self.assertEqual(events[-1]["event"], "error", (i, events))
+            self.assertFalse(os.path.exists(output))
+        output = os.path.join(self.temp.name, "mixed.nes")
+        rc, events, errors = self.host([
+            {"command": "read_rom", "core": "nes", "request_id": "mixed",
+             "output": output, "selection": valid, "mapper": 0}
+        ])
+        self.assertEqual(events[-1]["code"], "invalid_command")
+        self.assertFalse(os.path.exists(output))
+
+    def test_generic_v3_cancel_removes_partial_output(self):
+        self.enable()
+        output = os.path.join(self.temp.name, "v3-cancel.nes")
+        rc, events, errors = self.host([
+            {"command": "read_rom", "core": "nes", "request_id": "job",
+             "output": output,
+             "selection": {"version": 1, "schema_id": "nes-layout-v1",
+                           "mode": "auto"}},
+            {"command": "cancel", "request_id": "job"}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertTrue(any(x.get("code") == "cancelled" for x in events), events)
+        self.assertFalse(os.path.exists(output))
+        self.assertFalse(any(n.startswith("v3-cancel.nes.partial-")
+                             for n in os.listdir(self.temp.name)))
+
+
 if __name__ == "__main__":
     unittest.main()
