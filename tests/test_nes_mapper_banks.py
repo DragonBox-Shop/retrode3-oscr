@@ -261,6 +261,29 @@ class TestNesMapperBanks(unittest.TestCase):
         self.assertTrue(os.path.isfile(job["output"]))
         self.assertTrue(os.path.isfile(writes))
 
+    def test_mmc1_manual_override_cannot_bypass_known_battery_fingerprint(self):
+        # Synthetic first-window CRC A24E2D45 is the pinned MMC1 entry
+        # for A Ressha de Ikou, which has battery-backed PRG-RAM.
+        # Deliberately lie with battery=0: no register writes are allowed.
+        job = self.cmd(1, 128, 16, "mmc1-known-battery")
+        write_log = os.path.join(self.temp.name, "mmc1-known-battery-writes")
+        probe = {"command": "probe", "core": "nes", "request_id": "battery-probe"}
+        env = {"RETRODE_MOCK_NES_PRG_KIB": "128",
+               "RETRODE_MOCK_NES_CHR_KIB": "16",
+               "RETRODE_MOCK_NES_BATTERY_PROBE": "1",
+               "RETRODE_MOCK_NES_WRITELOG": write_log}
+        events = self.run_cli(1, [probe], env)
+        self.assertEqual(events[-1]["event"], "probe_result", events)
+        match = [c for c in events[-1]["candidates"]
+                 if c["title"] == "A Ressha de Ikou (Japan)"]
+        self.assertEqual(len(match), 1, events)
+        self.assertFalse(match[0]["read_supported"])
+        events = self.run_cli(1, [job], env)
+        self.assertEqual(events[-1]["event"], "error", events)
+        self.assertIn("battery-backed fingerprint", events[-1]["message"])
+        self.assertFalse(os.path.exists(job["output"]))
+        self.assertFalse(os.path.exists(write_log))
+
     def test_mmc1_battery_layout_remains_rejected(self):
         job = self.cmd(1, 128, 0, "mmc1-battery")
         job["battery"] = 1
