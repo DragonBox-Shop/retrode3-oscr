@@ -11,8 +11,9 @@ unsigned char prg[32768], chr[8192];
 unsigned prg_size = 16384, chr_size = 8192;
 unsigned mapper = 0, ux_bank = 0, cn_bank = 0, ax_bank = 0;
 unsigned mmc_mode = 0, mmc_prg_bank = 0, mmc_chr_bank = 0;
-// MMC1 serial latch, simulated for tests only. 128K PRG, CHR-RAM SGROM.
+// MMC1 serial registers and 8-KiB CHR banks, mock-only.
 unsigned mmc1_shift = 0, mmc1_bits = 0, mmc1_bank = 0;
+unsigned mmc1_chr = 0, mmc1_ctrl = 0x0cu;
 std::vector<unsigned char> rom_prg, rom_chr;
 bool initialized = false;
 unsigned char pattern_prg(unsigned i)
@@ -36,6 +37,12 @@ void init()
                    mapper == 3 ? 32768u : 131072u;
         chr_size = mapper == 3 ? 32768u :
                    mapper == 4 ? 65536u : 0u;
+        if (mapper == 1) {
+            const char *p = std::getenv("RETRODE_MOCK_NES_PRG_KIB");
+            const char *c = std::getenv("RETRODE_MOCK_NES_CHR_KIB");
+            if (p) prg_size = static_cast<unsigned>(std::atoi(p)) * 1024u;
+            if (c) chr_size = static_cast<unsigned>(std::atoi(c)) * 1024u;
+        }
         rom_prg.resize(prg_size);
         rom_chr.resize(chr_size);
         for (unsigned i = 0; i < prg_size; ++i) rom_prg[i] = pattern_prg(i);
@@ -83,6 +90,10 @@ unsigned char mapped_prg(unsigned address)
     unsigned offset = address - 0x8000u;
     if (mapper == 1) {
         unsigned bank = address < 0xc000u ? mmc1_bank : prg_size / 16384u - 1u;
+        if (prg_size == 512u * 1024u) {
+            // SUROM high half selected by CHR register bit 4.
+            bank = (bank & 15u) | ((mmc1_chr & 0x10u) ? 16u : 0u);
+        }
         return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
     }
     if (mapper == 2) {
@@ -103,6 +114,8 @@ unsigned char mapped_prg(unsigned address)
 }
 unsigned char mapped_chr(unsigned address)
 {
+    if (mapper == 1)
+        return rom_chr[((mmc1_chr & 0x1eu) * 4096u + address) % chr_size];
     if (mapper == 3)
         return rom_chr[(cn_bank * 8192u + address) % chr_size];
     if (mapper == 4 && address >= 0x1000u && address < 0x1400u)
@@ -166,7 +179,11 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
             mmc1_shift |= (value & 1u) << mmc1_bits;
             if (++mmc1_bits == 5u) {
                 if (address >= 0xe000u) mmc1_bank = mmc1_shift & 15u;
-                else if (address != 0x8000u) return -1;
+                else if (address >= 0xa000u && address < 0xc000u)
+                    mmc1_chr = mmc1_shift & 31u;
+                else if (address == 0x8000u)
+                    mmc1_ctrl = mmc1_shift & 31u;
+                else return -1;
                 mmc1_shift = mmc1_bits = 0;
             }
         }
