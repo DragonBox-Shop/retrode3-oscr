@@ -159,6 +159,29 @@ class TestNesMapperBanks(unittest.TestCase):
         self.assertEqual(data[3], 0x1a)
         self.assertEqual(data[8], 0x50)  # pinned NES2 submapper 5 header
 
+    def test_mmc1_pinned_full_payload_crc_verifies_unique_title(self):
+        # Synthetic 32/32 ROM: only 4 CHR bytes patched to the real
+        # reference CRC. No original Nintendo ROM bytes are embedded.
+        job = {"command": "read_rom", "core": "nes",
+               "request_id": "drmario-verified", "layout_id": "m1s5-32-32",
+               "output": os.path.join(self.temp.name, "drmario-verified.nes")}
+        events = self.run_cli(1, [job], {
+            "RETRODE3_MMC1_TEST_ACK": "NO_BATTERY_TEST_ONLY",
+            "RETRODE_MOCK_NES_PRG_KIB": "32",
+            "RETRODE_MOCK_NES_CHR_KIB": "32",
+            "RETRODE_MOCK_NES_DRMARIO_PROBE": "1",
+            "RETRODE_MOCK_NES_DRMARIO_CRC": "1"})
+        result = events[-1]
+        self.assertEqual(result["event"], "result", events)
+        self.assertTrue(result["verified"], events)
+        self.assertEqual(result["title"], "Dr. Mario (Europe)")
+        self.assertEqual(result["payload_crc32"], "9735D267")
+        self.assertTrue(result["matched_candidate_id"].startswith("mmc1-"))
+        with io.open(job["output"], "rb") as handle:
+            data = handle.read()
+        self.assertEqual(data[8], 0x50)  # database submapper 5
+        self.assertEqual(zlib.crc32(data[16:]) & 0xffffffff, 0x9735D267)
+
     def test_mmc1_chr_rom_and_prg_size_matrix(self):
         # Physical regression cases: 32K/32K and 128K/32K cartridges.
         # All reading happens under an explicit no-battery lab ACK.
