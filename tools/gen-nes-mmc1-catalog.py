@@ -46,13 +46,14 @@ def generate(data):
         lines.append("    {0x%su,0x%su,0x%su,%d,%d,%d,%d,%s,%s}," %
                      (r.get("id32a") or "00000000",
                       r.get("id32b") or "00000000",
-                      r["crc32"], prg * 16, chr_banks * 8,
+                      r["crc32"], prg * 16, chr_banks * 4,
                       r.get("submapper") or 0, r.get("ram") or 0,
                       q(header), q(r["name"])))
     return """// Auto-generated pinned Sanni OSCR NES mapper-1 metadata ONLY.
 // Source: oscartreader/oscr-databases data/nes.json
 // Pinned commit: 87a48948c6a04260205f148d313614cc44e05cd5
 // Source blob: b07cfd2943b986f8ffc85e61722dbb2e440cec37
+// Sanni iprg is 16-KiB units; ichr is 4-KiB units (NOT 8 KiB).
 // DO NOT edit manually; regenerate using tools/gen-nes-mmc1-catalog.py.
 // Metadata only, never copyrighted ROM bytes. Keep records without
 // fingerprints for post-dump payload CRC verification. Unsupported MMC1
