@@ -835,12 +835,23 @@ int read_rom_v3(const retrode3_selection_v3 *choice,
         const std::string status = mismatch ? "mismatch" :
             old.verified ? "verified" :
             matched.empty() ? "not_found" : "ambiguous";
+        unsigned actual_mapper = request.mapper;
+        unsigned actual_submapper = request.submapper;
+        if (!request.manual) {
+            for (unsigned i = 0; i < probe_info.layout_count; ++i) {
+                const retrode3_layout_v2 &l = probe_info.layouts[i];
+                if (std::strcmp(old.layout_id, l.id) != 0) continue;
+                actual_mapper = l.mapper;
+                actual_submapper = l.submapper;
+                break;
+            }
+        }
         char crc[9];
         std::snprintf(crc, sizeof(crc), "%08X", old.payload_crc32);
         std::string details = std::string("{\"read_configuration\":{") +
             "\"layout_id\":" + retrode3::json_quote_v3(old.layout_id) +
-            ",\"mapper\":" + std::to_string(request.manual ? request.mapper :
-                (request.candidate_id[0] ? 0u : 0u)) +
+            ",\"mapper\":" + std::to_string(actual_mapper) +
+            ",\"submapper\":" + std::to_string(actual_submapper) +
             ",\"prg_kib\":" + std::to_string(prg) +
             ",\"chr_kib\":" + std::to_string(chr) +
             "},\"identity\":{\"selected_candidate_id\":" +
