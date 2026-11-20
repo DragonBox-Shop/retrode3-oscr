@@ -1,4 +1,4 @@
-// NES shared-core adapter: NROM read-only by default; optional gated mapper labs.
+// NES shared core: normal NROM and MMC1 ROM reads, experimental mappers remain gated.
 // Original pinned Sanni OSCR NES dumpBankPRG/dumpBankCHR loops are compiled
 // separately, with only reviewed HAL/storage substitutions. Nothing here
 // implements JSON, output files, host CRC/progress, mapper writes or SRAM.
@@ -112,9 +112,8 @@ int read_rom(retrode3_probe_v1 const *info, retrode3_host_io_v1 const *io,
 }
 
 
-/* NES v2: constant-cost, read-only fingerprint search. The original OSCR
- * catalogue contains Mapper 0 only at this stage. Different game names
- * are not automatically different electrical read layouts. */
+/* NES v2: constant-cost, read-only fingerprint search over the pinned
+ * NROM and MMC1 Sanni catalogue. Mapper writes occur only during read_rom. */
 std::uint32_t fingerprint(unsigned char const *data)
 {
     std::uint32_t crc = 0xffffffffu;
@@ -384,11 +383,10 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
                 request->mirroring > 2 || request->battery > 1 ||
                 request->candidate_id[0] || request->layout_id[0])
                 return fail(error, cap, "unsupported or incomplete manual NES layout");
-            // No battery-backed configuration may enter the MMC1 lab path.
-            // Battery=0 is not proof of absent PRG-RAM: the runtime opt-in
-            // additionally requires a specifically verified SGROM cartridge.
+            // Battery-backed MMC1 is deliberately withheld until the
+            // kernel can guarantee SRAM-safe MMC1 E000 register pulses.
             if (request->mapper == 1 && request->battery)
-                return fail(error, cap, "MMC1 lab rejects battery-backed layouts");
+                return fail(error, cap, "MMC1 battery-backed layout needs SRAM-safe kernel register pulses");
             prg = request->prg_kib;
             chr = request->chr_kib;
             mapper = request->mapper;
@@ -574,7 +572,7 @@ extern "C" const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void)
     static const retrode3_core_descriptor_v1 descriptor = {
         RETRODE3_CORE_DISCOVERY_ABI_V1,
         sizeof(retrode3_core_descriptor_v1),
-        "nes", "Nintendo Entertainment System", "0.1.0-nrom-stage1", "nes"
+        "nes", "Nintendo Entertainment System", "0.2.0-nrom-mmc1", "nes"
     };
     return &descriptor;
 }
