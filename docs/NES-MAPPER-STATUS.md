@@ -30,7 +30,7 @@
 | Mapper | Auf `develop` | Mock-Tests | Physisch validiert | Normaler Build |
 | --- | --- | --- | --- | --- |
 | **0 NROM** | Linear: PRG 16/32 KiB, CHR 0/8 KiB | Vorhanden | **Stage 1 ja; v2 noch nicht** | Read-only freigegeben |
-| **1 MMC1** | Isolierter PRG-/CHR-Bankplan, ohne Busanbindung | Eigenstaendiger C++11-Test lokal bestanden; Runtime-Sperre bleibt | Nein | Gesperrt |
+| **1 MMC1** | Bankplan + abgeschotteter SGROM-Labortest mit echten Registerwrites (128 KiB PRG / CHR-RAM) | Isolierter C++11-Test lokal bestanden; neue End-to-End-Mocks/CI ausstehend | Nein | Gesperrt (Laborbuild getrennt) |
 | **2 UxROM** | 16-KiB-PRG-Bankswitch, letzte Bank fix | Vorhanden | Nein | Registerwrites gesperrt |
 | **3 CNROM** | CHR-Bankswitch je 8 KiB | Vorhanden | Nein | Registerwrites gesperrt |
 | **4 MMC3** | 8-KiB-PRG (R6), 1-KiB-CHR (R2) | Vorhanden | Nein | Registerwrites gesperrt |
@@ -44,16 +44,25 @@
   `RETRODE3_NES_MAPPER_WRITE_EXPERIMENTAL` aktiv;
   dieses Flag ist im normalen Build **nicht gesetzt**.
   `get_capabilities` muss dort `read_supported:false` melden.
-- MMC1 hat jetzt einen eigenstaendigen, bewusst **nicht in nes.so
-  gelinkten** Sanni-abgeleiteten Sequenzplan in
-  `src/retrode3/nes_mmc1_plan.cpp` (32-512 KiB PRG, 0-128 KiB CHR).
-  Der Plan gibt nur abstrakte Reset-/Serial-/PRG-/CHR-Schritte aus,
-  keine GPIO-/Kernelzugriffe. Lokal mit C++11 erfolgreich getestet
-  (`tests/nes_mmc1_plan_test.cpp`); vollstaendige CI und
-  GCC-4.9-/MIPS-Tests noch ausstehend.
-- Mapper 1 (MMC1) bleibt auch mit Experimental-Flag gesperrt:
-  die Sanni-`NES_MODE_REG`-Sequenz erfordert ungeprueftes sehr
-  kurzes Timing (ca. 33 ns). Nicht durch blindes Aktivieren testen.
+- MMC1 ist nun in einer **separaten, manuell bestaetigten
+  Labor-.so** fuer echte PRG-Registerwrites verdrahtet:
+  `make -f Makefile.migration native-nes-mmc1-lab`.
+  Nur Mapper 1/Submapper 0, PRG 128 KiB, CHR 0 KiB, Batterie 0
+  und eine **nachweislich PRG-WRAM-freie Rad-Racer-NES-SGROM-Platine**
+  sind als erstes Testziel vorgesehen.
+- Das separate `RETRODE3_NES_MMC1_LAB`-Build braucht zusaetzlich
+  `RETRODE3_MMC1_NO_PRG_RAM_ACK=RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM`.
+  `get_capabilities` bleibt fuer Mapper 1 `read_supported:false`;
+  es gibt keine Web-/Auto-Freigabe.
+- Der normale NES-Core und `stage-retrode3-runtime` bleiben ohne
+  ausfuehrbare MMC1-Schreibfreigabe. `master` ist unberuehrt.
+- Sannis spezielle `NES_REG`-/M2-/ROMSEL-Pulsfolge ist im Kernel
+  noch **nicht sicher implementiert**. Das Labor verwendet deshalb
+  nur den allgemeinen PRG-Write auf einer Cartridge **ohne PRG-WRAM**.
+  Keine anderen MMC1-Platinen ausprobieren; vor allgemeiner Freigabe
+  braucht der Kernel weiterhin einen elektrisch sicheren Registerpfad.
+- Testanleitung mit temporaerem `.so`-Swap, automatischer
+  Ruecksicherung und CRCs: [MMC1-SGROM-Labor](nes-mmc1-sgrom-lab.md).
 - UxROM/CNROM pruefen zunaechst buskonfliktfreie Adressen;
   fehlt eine sichere Adresse, wird vor jedem Registerwrite abgebrochen.
   Beim MMC3-ROM-Dump wird kein PRG-RAM-Write-Enable benutzt.
@@ -163,21 +172,27 @@ Leselayout bestimmen. Kein riskanter Versuch nur anhand des Spieletitels.
 
 ### Letzte Aenderung (2026-11-20)
 
-- Isolierten, nicht-ausfuehrbaren MMC1-PRG-/CHR-Ablaufplan samt
-  C++11-Regressionsfaellen hinzugefuegt.
-- `test-nes-mmc1-plan` in `Makefile.migration` eingebaut und als
-  Voraussetzung fuer `test-native-nes-module` aufgenommen.
-- Lokal isolierter Compile + Test **bestanden**.
-  Kein vollstaendiger Repository- oder Zielgeraet-Test ausgefuehrt.
-- **Keine** Bus-/Registerschreibzugriffe, keine Aenderung der aktiven
-  NES-Core-Capabilities, keine Freigabe von Mapper 1. `master` unangetastet.
-- Kernel-Review offen: MMC1 $E000-/ROMSEL-/M2-Timing ist ueber
-  den bisherigen Kernel-Treiber nicht als save-sicher belegt.
-  `NES_REG` darf nicht einfach durch generic GPIO ausgefuehrt werden.
+- C++11-MMC1-Bankplan im getrennten Labor-Build an den gemeinsamen
+  NES-Core und CLI angeschlossen; SGROM-128-KiB-PRG-Layout freigegeben
+  **nur nach manuellem Runtime-Opt-in**. Kein Web-/Auto-Auslesen.
+- Vollstaendigen Mock fuer MMC1-5-Bit-Schieberegister, 8 PRG-Banks und
+  Fehler-/Schutzfaelle hinzugefuegt. Tests in
+  `tests/test_nes_mapper_banks.py` stehen auf `develop`.
+- `native-nes-mmc1-lab` erzeugt eine separate, nicht paketierte
+  `build/migration/mmc1-lab/nes.so`. Die normale `nes.so` bleibt
+  MMC1-gesperrt. Automatischer Restore nach Test ueber
+  `tools/nes-mmc1-sgrom-lab.sh`.
+- GitHub Actions fuer NES laeuft nun auch auf Push nach `develop`
+  und baut die Labor-`.so` zur Compiler-Pruefung.
+- **Nachgewiesen:** isolierter C++11-Bankplan-Test lokal erfolgreich.
+  **Ausstehend:** vollstaendige GitHub-CI/Mock-Integration und
+  GCC-4.9-MIPS-Build, echter SGROM-Dump/CRC, elektrische Pruefung.
+- `master`, regulare Core-Capabilities, Pakete und Kernel nicht geaendert.
 
 ### Aktueller naechster Schritt
 
-Zunaechst die **Mapper-0-v2-Hardware-Regression** mit Excitebike
-vorbereiten und anschliessend, getrennt davon, die sicheren
-Kernel-Registerwrite-Voraussetzungen fuer Mapper 2/3/4/7 pruefen.
-Keine experimentellen Registerwrites im normalen Build.
+`make -f Makefile.migration test-native-nes-module` und
+`native-nes-mmc1-lab` auf der Retrode3 ausfuehren. Danach nur
+mit physisch bestaetigter, PRG-WRAM-freier NES-SGROM-Rad-Racer-Platine
+den dokumentierten Laborversuch machen. Danach Mapper-0-v2-
+und SNES/MD-Regression nachholen. Keine allgemeine MMC1-Freigabe.
