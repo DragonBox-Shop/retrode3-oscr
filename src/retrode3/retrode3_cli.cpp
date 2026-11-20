@@ -1503,7 +1503,7 @@ int main(int argc, char **argv)
             std::fprintf(stderr,
                 "usage: retrode3-cli --list-cores | --protocol ndjson-v1 "
                 "--interactive | --protocol ndjson-v1 --core ID "
-                "--action probe|read-rom [--output FILE]\n");
+                "--action probe|read-rom|probe-slot [--slot ID] [--output FILE]\n");
             return 2;
         }
     }
