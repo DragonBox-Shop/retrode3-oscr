@@ -116,6 +116,48 @@ class TestNesMapperBanks(unittest.TestCase):
             self.assertEqual(events[-1]["event"], "probe_result", events)
             self.assertFalse(os.path.exists(log))
 
+    def test_mmc1_chr_rom_and_prg_size_matrix(self):
+        # Physical regression cases: 32K/32K and 128K/32K cartridges.
+        # All reading happens under an explicit no-battery lab ACK.
+        for p, c in ((32, 32), (128, 32), (128, 0),
+                     (256, 64), (512, 0)):
+            name = "mmc1-%d-%d" % (p, c)
+            job = self.cmd(1, p, c, name)
+            log = os.path.join(self.temp.name, name + "-writes")
+            extra = {"RETRODE3_MMC1_TEST_ACK": "NO_BATTERY_TEST_ONLY",
+                     "RETRODE_MOCK_NES_PRG_KIB": str(p),
+                     "RETRODE_MOCK_NES_CHR_KIB": str(c),
+                     "RETRODE_MOCK_NES_WRITELOG": log}
+            events = self.run_cli(1, [job], extra)
+            result = events[-1]
+            self.assertEqual(result["event"], "result", (name, events))
+            self.assertEqual(result["layout_id"], "m1-%d-%d" % (p, c))
+            self.assertFalse(result["verified"])
+            with io.open(job["output"], "rb") as handle:
+                data = handle.read()
+            self.assertEqual(data, fixture_rom(1, p, c))
+            self.assertEqual(result["bytes_written"], len(data))
+            self.assertEqual(result["payload_crc32"],
+                             "%08X" % (zlib.crc32(data[16:]) & 0xffffffff))
+            with io.open(log, "r", encoding="utf-8") as handle:
+                writes = [tuple(int(x) for x in line.split())
+                          for line in handle if line.strip()]
+            expected = (1 if p == 32 else (p // 16) * (
+                16 if p == 512 else 11)) + (c // 8) * 6
+            self.assertEqual(len(writes), expected)
+            self.assertFalse(any(addr < 0x8000 for addr, _, _ in writes))
+
+    def test_mmc1_general_lab_requires_ack_even_for_chr_rom(self):
+        job = self.cmd(1, 32, 32, "mmc1-no-ack-chr")
+        log = os.path.join(self.temp.name, "mmc1-no-ack-chr-writes")
+        events = self.run_cli(1, [job], {
+            "RETRODE_MOCK_NES_PRG_KIB": "32",
+            "RETRODE_MOCK_NES_CHR_KIB": "32",
+            "RETRODE_MOCK_NES_WRITELOG": log})
+        self.assertEqual(events[-1]["event"], "error", events)
+        self.assertFalse(os.path.exists(job["output"]))
+        self.assertFalse(os.path.exists(log))
+
     def test_mmc1_sgrom_requires_explicit_no_wram_ack(self):
         job = self.cmd(1, 128, 0, "mmc1-no-ack")
         log = os.path.join(self.temp.name, "mmc1-no-ack-writes")
