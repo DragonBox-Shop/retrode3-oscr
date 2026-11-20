@@ -1,135 +1,94 @@
 #include "retrode3/ndjson_protocol.h"
-
 #include <cerrno>
 #include <cstdio>
 #include <limits>
-#include <map>
 #include <poll.h>
 #include <stdexcept>
 #include <unistd.h>
 
 namespace retrode3 {
 namespace {
-struct Value {
-    bool numeric;
-    std::string text;
-    Value() : numeric(false) {}
-};
-
-class Parser {
-public:
-    explicit Parser(std::string const &s) : s_(s), pos_(0) {}
-    std::map<std::string, Value> object() {
-        skip(); expect('{');
-        std::map<std::string, Value> result;
-        skip();
-        if (consume('}')) { skip(); finish(); return result; }
-        do {
-            skip();
-            std::string key = string();
-            skip(); expect(':'); skip();
-            Value val;
-            if (peek() == '"') val.text = string();
-            else {
-                val.numeric = true;
-                std::size_t start = pos_;
-                if (peek() < '0' || peek() > '9') fail();
-                if (peek() == '0') ++pos_;
-                else while (peek() >= '0' && peek() <= '9') ++pos_;
-                val.text = s_.substr(start, pos_ - start);
-            }
-            if (!result.insert(std::make_pair(key, val)).second)
-                throw std::runtime_error("duplicate JSON command field");
-            skip();
-            if (consume('}')) { skip(); finish(); return result; }
-            expect(',');
-        } while (true);
-    }
-private:
-    std::string const &s_;
-    std::size_t pos_;
-    void fail() const { throw std::runtime_error("malformed JSON command"); }
-    char peek() const { return pos_ < s_.size() ? s_[pos_] : '\0'; }
-    void skip() { while (peek() == ' ' || peek() == '\t' || peek() == '\r') ++pos_; }
-    bool consume(char x) { if (peek() != x) return false; ++pos_; return true; }
-    void expect(char x) { if (!consume(x)) fail(); }
-    void finish() { if (pos_ != s_.size()) fail(); }
-    std::string string() {
-        expect('"');
-        std::string out;
-        while (true) {
-            char c = peek();
-            if (!c) fail();
-            ++pos_;
-            if (c == '"') return out;
-            if (static_cast<unsigned char>(c) < 32) fail();
-            if (c != '\\') { out += c; continue; }
-            c = peek(); if (!c) fail(); ++pos_;
-            switch(c) {
-            case '"': case '\\': case '/': out += c; break;
-            case 'n': out += '\n'; break;
-            case 'r': out += '\r'; break;
-            case 't': out += '\t'; break;
-            case 'b': out += '\b'; break;
-            case 'f': out += '\f'; break;
-            default: throw std::runtime_error("unsupported JSON escape (use UTF-8)");
-            }
-        }
-    }
-};
-
-std::string value(std::map<std::string, Value> const &obj,
-                  std::string const &key, bool required = false) {
-    std::map<std::string, Value>::const_iterator i = obj.find(key);
-    if (i == obj.end()) {
-        if (required) throw std::runtime_error("missing command field: " + key);
+std::string field(const JsonV3 &obj, const char *key, bool required = false) {
+    if (!obj.has(key)) {
+        if (required) throw std::runtime_error(std::string("missing command field: ") + key);
         return "";
     }
-    if (i->second.numeric) throw std::runtime_error("expected string: " + key);
-    return i->second.text;
+    return obj.at(key).text();
 }
-
-std::size_t positive_size(Value const &v) {
-    if (!v.numeric) throw std::runtime_error("size_bytes must be an integer");
-    std::size_t n = 0;
-    for (std::size_t k = 0; k < v.text.size(); ++k) {
-        unsigned d = static_cast<unsigned>(v.text[k] - '0');
-        if (n > (std::numeric_limits<std::size_t>::max() - d) / 10)
-            throw std::runtime_error("size_bytes overflow");
-        n = n * 10 + d;
-    }
-    if (n < 131072 || n > 4194304)
-        throw std::runtime_error("size_bytes outside supported SNES range");
-    return n;
+unsigned integer_field(const JsonV3 &obj, const char *key, unsigned max) {
+    std::uint64_t n = obj.at(key).number();
+    if (n > max) throw std::runtime_error(std::string("out-of-range integer: ") + key);
+    return static_cast<unsigned>(n);
 }
-unsigned bounded_uint(std::map<std::string, Value> const &obj,
-                      char const *key, unsigned limit)
-{
-    std::map<std::string, Value>::const_iterator it = obj.find(key);
-    if (it == obj.end() || !it->second.numeric)
-        throw std::runtime_error(std::string("missing integer field: ") + key);
-    unsigned value = 0;
-    for (std::size_t i = 0; i < it->second.text.size(); ++i) {
-        const unsigned d = static_cast<unsigned>(it->second.text[i] - '0');
-        if (value > (limit - (d <= limit ? d : limit)) / 10u ||
-            d > limit || value * 10u + d > limit)
-            throw std::runtime_error(std::string("out-of-range integer: ") + key);
-        value = value * 10u + d;
-    }
-    return value;
-}
-bool safe_token(std::string const &s)
-{
-    if (s.empty() || s.size() > 31) return false;
+bool safe_token(const std::string &s) {
+    if (s.empty() || s.size() > 63) return false;
     for (std::size_t i = 0; i < s.size(); ++i) {
         char c = s[i];
         if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
-              c == '-')) return false;
+              (c >= 'A' && c <= 'Z') || c == '-' || c == '_' || c == '.'))
+            return false;
     }
     return true;
 }
+void check_selection(WebCommand &cmd, const JsonV3 &v) {
+    if (v.kind != JsonV3::Object)
+        throw std::runtime_error("selection must be an object");
+    for (std::map<std::string, JsonV3>::const_iterator i = v.object.begin();
+         i != v.object.end(); ++i)
+        if (i->first != "version" && i->first != "schema_id" &&
+            i->first != "mode" && i->first != "candidate_id" &&
+            i->first != "layout_id" && i->first != "parameters")
+            throw std::runtime_error("unknown selection field: " + i->first);
+    if (integer_field(v, "version", 100) != 1)
+        throw std::runtime_error("unsupported selection version");
+    cmd.selection_schema = field(v, "schema_id", true);
+    cmd.selection_mode = field(v, "mode", true);
+    if (!safe_token(cmd.selection_schema))
+        throw std::runtime_error("invalid selection schema_id");
+    cmd.selection_candidate = field(v, "candidate_id");
+    cmd.selection_layout = field(v, "layout_id");
+    if ((!cmd.selection_candidate.empty() && !safe_token(cmd.selection_candidate)) ||
+        (!cmd.selection_layout.empty() && !safe_token(cmd.selection_layout)))
+        throw std::runtime_error("invalid selection candidate/layout ID");
+    if (v.has("parameters")) {
+        const JsonV3 &params = v.at("parameters");
+        if (params.kind != JsonV3::Object || params.object.size() > 32)
+            throw std::runtime_error("invalid selection parameters");
+        for (std::map<std::string, JsonV3>::const_iterator i = params.object.begin();
+             i != params.object.end(); ++i) {
+            if (!safe_token(i->first) || i->first.size() > 47 ||
+                (i->second.kind != JsonV3::Integer &&
+                 i->second.kind != JsonV3::Boolean &&
+                 i->second.kind != JsonV3::String) ||
+                (i->second.kind == JsonV3::Integer &&
+                 i->second.integer > 0xffffffffull) ||
+                (i->second.kind == JsonV3::String &&
+                 i->second.string.size() > 127))
+                throw std::runtime_error("invalid selection parameter");
+        }
+        cmd.selection_parameters = params.object;
+    }
+    if (cmd.selection_mode == "auto") {
+        if (!cmd.selection_candidate.empty() || !cmd.selection_layout.empty() ||
+            !cmd.selection_parameters.empty() || v.has("parameters") ||
+            v.has("candidate_id") || v.has("layout_id"))
+            throw std::runtime_error("auto selection cannot contain overrides");
+    } else if (cmd.selection_mode == "candidate") {
+        if (cmd.selection_candidate.empty() || v.has("layout_id") ||
+            v.has("parameters"))
+            throw std::runtime_error("candidate selection requires only candidate_id");
+    } else if (cmd.selection_mode == "layout") {
+        if (cmd.selection_layout.empty() || v.has("candidate_id") ||
+            v.has("parameters"))
+            throw std::runtime_error("layout selection requires only layout_id");
+    } else if (cmd.selection_mode == "override") {
+        if (!v.has("parameters") || cmd.selection_parameters.empty() ||
+            v.has("candidate_id") || v.has("layout_id"))
+            throw std::runtime_error("override requires parameters and no candidate/layout ID");
+    } else throw std::runtime_error("invalid selection mode");
+    cmd.has_selection = true;
 }
-
+}
 NdjsonProtocol::NdjsonProtocol(bool interactive)
     : interactive_(interactive), cancelled_(false), eof_(false) {}
 
@@ -155,19 +114,23 @@ void NdjsonProtocol::emit(std::string const &json) {
 }
 
 WebCommand NdjsonProtocol::parse(std::string const &line) {
-    std::map<std::string, Value> obj = Parser(line).object();
-    for (std::map<std::string, Value>::const_iterator i = obj.begin(); i != obj.end(); ++i)
+    JsonV3 obj = parse_json_v3(line);
+    if (obj.kind != JsonV3::Object)
+        throw std::runtime_error("command must be a JSON object");
+    for (std::map<std::string, JsonV3>::const_iterator i = obj.object.begin();
+         i != obj.object.end(); ++i)
         if (i->first != "command" && i->first != "request_id" &&
-            i->first != "output" && i->first != "mapping" && i->first != "size_bytes" &&
-            i->first != "core" && i->first != "candidate_id" &&
-            i->first != "layout_id" && i->first != "mapper" &&
-            i->first != "submapper" && i->first != "prg_kib" &&
-            i->first != "chr_kib" && i->first != "mirroring" &&
-            i->first != "battery")
+            i->first != "output" && i->first != "mapping" &&
+            i->first != "size_bytes" && i->first != "core" &&
+            i->first != "candidate_id" && i->first != "layout_id" &&
+            i->first != "mapper" && i->first != "submapper" &&
+            i->first != "prg_kib" && i->first != "chr_kib" &&
+            i->first != "mirroring" && i->first != "battery" &&
+            i->first != "selection")
             throw std::runtime_error("unknown command field: " + i->first);
     WebCommand cmd;
-    cmd.action = value(obj, "command", true);
-    cmd.core = value(obj, "core");
+    cmd.action = field(obj, "command", true);
+    cmd.core = field(obj, "core");
     if (cmd.core.size() > 48) throw std::runtime_error("invalid core identifier");
     for (std::size_t k = 0; k < cmd.core.size(); ++k) {
         unsigned char c = static_cast<unsigned char>(cmd.core[k]);
@@ -175,7 +138,7 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
               c == '_' || c == '-'))
             throw std::runtime_error("invalid core identifier");
     }
-    cmd.request_id = value(obj, "request_id", true);
+    cmd.request_id = field(obj, "request_id", true);
     if (cmd.request_id.empty() || cmd.request_id.size() > 64)
         throw std::runtime_error("invalid request_id length");
     for (std::size_t i = 0; i < cmd.request_id.size(); ++i) {
@@ -184,44 +147,56 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
               (c >= 'a' && c <= 'z') || c == '_' || c == '-'))
             throw std::runtime_error("invalid request_id character");
     }
-
-    cmd.candidate_id = value(obj, "candidate_id");
-    cmd.layout_id = value(obj, "layout_id");
+    cmd.candidate_id = field(obj, "candidate_id");
+    cmd.layout_id = field(obj, "layout_id");
     if ((!cmd.candidate_id.empty() && !safe_token(cmd.candidate_id)) ||
-        (!cmd.layout_id.empty() && !safe_token(cmd.layout_id)))
-        throw std::runtime_error("invalid NES candidate/layout identifier");
-    const bool m = obj.count("mapper") || obj.count("submapper") ||
-                   obj.count("prg_kib") || obj.count("chr_kib") ||
-                   obj.count("mirroring") || obj.count("battery");
+        (!cmd.layout_id.empty() && !safe_token(cmd.layout_id)) ||
+        cmd.candidate_id.size() > 31 || cmd.layout_id.size() > 31)
+        throw std::runtime_error("invalid legacy candidate/layout identifier");
+    const bool m = obj.has("mapper") || obj.has("submapper") ||
+                   obj.has("prg_kib") || obj.has("chr_kib") ||
+                   obj.has("mirroring") || obj.has("battery");
     if (m) {
-        if (!obj.count("mapper") || !obj.count("submapper") ||
-            !obj.count("prg_kib") || !obj.count("chr_kib") ||
-            !obj.count("mirroring") || !obj.count("battery"))
+        if (!obj.has("mapper") || !obj.has("submapper") ||
+            !obj.has("prg_kib") || !obj.has("chr_kib") ||
+            !obj.has("mirroring") || !obj.has("battery"))
             throw std::runtime_error("manual NES layout requires all fields");
         if (!cmd.candidate_id.empty() || !cmd.layout_id.empty())
             throw std::runtime_error("manual layout cannot mix candidate/layout IDs");
-        cmd.mapper = bounded_uint(obj, "mapper", 4095);
-        cmd.submapper = bounded_uint(obj, "submapper", 255);
-        cmd.prg_kib = bounded_uint(obj, "prg_kib", 65536);
-        cmd.chr_kib = bounded_uint(obj, "chr_kib", 65536);
-        cmd.battery = bounded_uint(obj, "battery", 1);
-        cmd.mirroring = value(obj, "mirroring", true);
+        cmd.mapper = integer_field(obj, "mapper", 4095);
+        cmd.submapper = integer_field(obj, "submapper", 255);
+        cmd.prg_kib = integer_field(obj, "prg_kib", 65536);
+        cmd.chr_kib = integer_field(obj, "chr_kib", 65536);
+        cmd.battery = integer_field(obj, "battery", 1);
+        cmd.mirroring = field(obj, "mirroring", true);
         if (cmd.mirroring != "horizontal" && cmd.mirroring != "vertical" &&
             cmd.mirroring != "four_screen")
             throw std::runtime_error("invalid NES mirroring");
         cmd.has_manual = true;
     }
-    cmd.output = value(obj, "output");
-    cmd.mapping = value(obj, "mapping");
-    if (cmd.mapping.size() && cmd.mapping != "lo" && cmd.mapping != "hi")
+    if (obj.has("selection")) {
+        if (m || obj.has("candidate_id") || obj.has("layout_id") ||
+            obj.has("mapping") || obj.has("size_bytes"))
+            throw std::runtime_error("selection cannot mix legacy read fields");
+        check_selection(cmd, obj.at("selection"));
+    }
+    cmd.output = field(obj, "output");
+    cmd.mapping = field(obj, "mapping");
+    if (!cmd.mapping.empty() && cmd.mapping != "lo" && cmd.mapping != "hi")
         throw std::runtime_error("invalid mapping");
     if (cmd.output.size() > 1024 || cmd.output.find('\n') != std::string::npos ||
         cmd.output.find('\r') != std::string::npos)
         throw std::runtime_error("invalid output path");
-    std::map<std::string, Value>::const_iterator sz = obj.find("size_bytes");
-    if (sz != obj.end()) { cmd.size_bytes = positive_size(sz->second); cmd.has_size = true; }
-    if (cmd.action != "probe" && cmd.action != "read_rom" && cmd.action != "cancel"
-        && cmd.action != "get_capabilities" && cmd.action != "list_cores")
+    if (obj.has("size_bytes")) {
+        std::uint64_t n = obj.at("size_bytes").number();
+        if (n < 131072 || n > 4194304)
+            throw std::runtime_error("size_bytes outside supported SNES range");
+        cmd.size_bytes = static_cast<std::size_t>(n);
+        cmd.has_size = true;
+    }
+    if (cmd.action != "probe" && cmd.action != "read_rom" &&
+        cmd.action != "cancel" && cmd.action != "get_capabilities" &&
+        cmd.action != "list_cores")
         throw std::runtime_error("unsupported command");
     if (cmd.action == "list_cores" && !cmd.core.empty())
         throw std::runtime_error("list_cores takes no core identifier");
@@ -229,7 +204,8 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
         throw std::runtime_error("read_rom requires output");
     if (cmd.action != "read_rom" &&
         (!cmd.output.empty() || !cmd.mapping.empty() || cmd.has_size ||
-         !cmd.candidate_id.empty() || !cmd.layout_id.empty() || cmd.has_manual))
+         !cmd.candidate_id.empty() || !cmd.layout_id.empty() ||
+         cmd.has_manual || cmd.has_selection))
         throw std::runtime_error("unexpected parameters for command");
     return cmd;
 }
