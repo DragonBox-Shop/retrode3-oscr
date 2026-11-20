@@ -144,19 +144,24 @@ Sanni-abgeleitete Banklese-Sequenzen für **Mapper 2 (UxROM), 3 (CNROM),
 4 (MMC3) und 7 (AxROM)** im gemeinsamen NES-Core eingebaut. Deren
 CPU-Register-Schreibzugriffe sind im normalen Build **deaktiviert** und
 laufen nur in der Mock-CI oder einer expliziten experimentellen
-Build-Konfiguration. MMC1/Mapper 1 bleibt im **normalen Build gesperrt**, wird aber in
-`native-nes-mmc1-lab` fuer **eigene no-battery-Testcartridges**
-mit ausdruecklichem Opt-in `RETRODE3_MMC1_TEST_ACK=NO_BATTERY_TEST_ONLY`
-unterstuetzt. Die PRG-/CHR-Bankplanung in
-`src/retrode3/nes_mmc1_plan.cpp` und der `NES_MODE_PRG`-
-Register-Writer lesen nun konservative 32-512 KiB PRG- und
-0-128 KiB CHR-Layouts (CHR=0 bedeutet CHR-RAM). Die CHR-Routine
-setzt 8-KiB-Bankmodus explizit. Der separate Build ist **NICHT**
-im regulaeren Debian-/OS-Staging. Laufzeit-Sperre und
-Batterie-Layout-Block bleiben bestehen; kein SRAM-Backup/Restore.
-Das `NES_REG`-/M2-/ROMSEL-Timing fuer PRG-WRAM ist weiterhin
-unverifiziert: **niemals battery-backed Spiele damit testen**.
+Build-Konfiguration. **Mapper 1/MMC1 ist jetzt fest im regulaeren `native-nes-module`
+(`build/migration/nes.so`) integriert.** Kein separater
+Labor-Build oder Environment-Opt-in ist fuer normale MMC1-ROM-Dumps
+erforderlich. Sanni-abgeleitete Registerbankfolgen lesen PRG-ROM
+32/64/128/256/512 KiB sowie CHR-ROM 0/8/16/32/64/128 KiB
+(CHR=0 bedeutet CHR-RAM, kein CHR-Dump). MMC1-Submapper 0 sowie
+Submapper 5 mit 32KiB PRG sind abgedeckt; die CHR-Routine stellt
+den MMC1-Control-Modus explizit auf 8 KiB ein.
 
+**Sicherheitsgrenze:** Das aktuelle M2/ROMSEL-Timing fuer $E000/$F000
+ist nicht auf batteriegepufferten PRG-WRAM-Boards verifiziert.
+MMC1-Layouts mit Batterie sind noch `read_supported:false`, auch
+im normalen Core. Keine SRAM/Flash/Save-Schreibfunktion. Andere
+Mapper (2/3/4/7) bleiben hinter ihren bisherigen Schreib-Gates.
+Beim Einlegen werden weiterhin NUR zwei PRG-Fenster mit insgesamt
+1024 Bytes *ohne* Registerwrites gelesen, beim eigentlichen ROM-Dump
+wird gebankt. Vor allgemeiner Freigabe auf der echten Retrode3
+PRG+CHR-Layouts physisch verifizieren.
 Sannis gepinnte `oscartreader/oscr-databases`-NES-Datenbank
 (commit `87a48948...`) ist als `oscr_nes_mmc1_catalog.cpp`
 (695 Mapper-1-Metadatensaetze) integriert. `iprg` ist 16-KiB,
@@ -165,11 +170,14 @@ mit zwei 512-Byte-PRG-Fenstern; anschliessend exakter
 Voll-Payload-CRC-Titelvergleich. Manche Eintraege haben keine
 Fast-Probe-Fingerprints und werden erst nach erfolgreichem Dump
 erkannt; mehrdeutige Layouts verlangen manuellen Override.
-`get_capabilities` bleibt fuer Mapper 1 vorerst
-`read_supported:false` (keine Web-/Produktionsfreigabe).
-Testskript: `tools/nes-mmc1-lab.sh`, Befehle und Sicherheitsgrenzen:
-[docs/nes-mmc1-general-lab.md](docs/nes-mmc1-general-lab.md).
-
+Die CLI meldet MMC1 in `get_capabilities` als
+`read_supported:true`; der normale NES-v2-Probe liefert
+`candidates` und `read_layouts`. `retrode3/develop` Web v2
+reicht die Auswahl ueber die zentrale JobManager-API an dieselbe
+CLI weiter und zeigt die manuelle Layoutauswahl an, wenn
+der Fingerprint keinen eindeutigen Treffer liefert.
+Auf `master` ist diese neue Integration nicht freigegeben.
+Siehe [docs/NES-MAPPER-STATUS.md](docs/NES-MAPPER-STATUS.md).
 **Physisch bestanden 2026-11-20:** Rad Racer PAL MMC1/SGROM,
 128 KiB PRG/0 KiB CHR, 131088 Bytes einschliesslich iNES,
 PRG-Payload CRC32 `654F4E90` (PAL-Referenztreffer),
