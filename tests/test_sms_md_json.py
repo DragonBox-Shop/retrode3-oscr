@@ -1,0 +1,63 @@
+"""Confirm the real SMS .so exports parseable, experimental read-only v3 metadata.
+
+Python 3.4-compatible; no cartridge hardware or local CLI is touched.
+"""
+import ctypes
+import json
+import os
+import sys
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODULE = os.environ.get('RETRODE3_SMS_TEST_MODULE',
+                        os.path.join(ROOT, 'build', 'sms-md.so'))
+
+
+class OperationsV3(ctypes.Structure):
+    _fields_ = [('abi_version', ctypes.c_uint32),
+                ('struct_size', ctypes.c_uint32),
+                ('capabilities_json', ctypes.c_void_p),
+                ('fast_probe_json', ctypes.c_void_p),
+                ('plan_read', ctypes.c_void_p),
+                ('read_rom', ctypes.c_void_p)]
+
+
+class SmsCoreAbi(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.module = ctypes.CDLL(MODULE)
+        get_ops = cls.module.retrode3_core_get_operations_v3
+        get_ops.restype = ctypes.POINTER(OperationsV3)
+        cls.ops = get_ops().contents
+
+    def get_json(self, addr):
+        fn = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_size_t,
+                             ctypes.c_void_p, ctypes.c_size_t)(addr)
+        out = ctypes.create_string_buffer(8192)
+        err = ctypes.create_string_buffer(256)
+        self.assertEqual(fn(out, len(out), err, len(err)), 0, err.value)
+        return json.loads(out.value.decode('utf-8'))
+
+    def test_abi_version_and_valid_schema(self):
+        self.assertEqual(self.ops.abi_version, 3)
+        self.assertEqual(self.ops.struct_size, ctypes.sizeof(OperationsV3))
+        schema = self.get_json(self.ops.capabilities_json)
+        self.assertEqual(schema['schema_id'], 'sms-md-layout-v1')
+        self.assertEqual([p['id'] for p in schema['fields']],
+                         ['mapping', 'rom_kib'])
+        self.assertTrue(schema['rules'][0]['read_supported'])
+        self.assertFalse(schema['rules'][1]['read_supported'])
+        self.assertTrue(schema['fields'][0]['values'][0]['read_supported'])
+        self.assertFalse(schema['fields'][0]['values'][1]['read_supported'])
+
+    def test_probe_never_claims_authorized_hardware(self):
+        info = self.get_json(self.ops.fast_probe_json)
+        self.assertEqual(info['candidate_lookup'], 'hardware_disabled')
+        self.assertTrue(info['selection_required'])
+        self.assertFalse(info['read_supported'])
+        self.assertEqual(info['read_layouts'], [])
+        self.assertEqual(info['candidates'], [])
+
+
+if __name__ == '__main__':
+    unittest.main()

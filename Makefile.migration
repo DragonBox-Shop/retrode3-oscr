@@ -271,7 +271,7 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-sms-md-module
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
@@ -294,3 +294,41 @@ test-generic-selection-v3: native-core-registry
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
 	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
+
+# SMS-0007 Retrode2 adapter, 8-bit kernel mode 20, explicit read-only lab.
+# Kept out of the default release staging and normal web auto-enable.
+SMS_MD_HEADERS = include/retrode3/sms_header_v1.h include/retrode3/sms_rom_core_v1.h \
+    include/retrode3/sms_md_transport_v1.h include/retrode3/sms_md_posix_v1.h \
+    include/retrode3/core_descriptor_v1.h include/retrode3/core_operations_v1.h \
+    include/retrode3/core_operations_v3.h
+SMS_MD_SOURCES = src/retrode3/oscr_sms_md_adapter.cpp src/retrode3/sms_md_posix_v1.cpp
+
+build/migration/sms-md.so: $(SMS_MD_SOURCES) $(SMS_MD_HEADERS)
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+	    $(SMS_MD_SOURCES) -o $@
+
+.PHONY: native-sms-md-module test-sms-md-module stage-sms-md-module
+native-sms-md-module: build/migration/sms-md.so
+
+test-sms-md-module: native-sms-md-module
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) tests/sms_header_v1_test.cpp -o build/migration/sms_header_v1_test
+	./build/migration/sms_header_v1_test
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING \
+	    tests/sms_md_test.cpp $(SMS_MD_SOURCES) -o build/migration/sms_md_test
+	./build/migration/sms_md_test
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING \
+	    tests/sms_md_transport_test.cpp src/retrode3/sms_md_posix_v1.cpp \
+	    -o build/migration/sms_md_transport_test
+	./build/migration/sms_md_transport_test
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING \
+	    tests/sms_md_live_test.cpp $(SMS_MD_SOURCES) \
+	    -o build/migration/sms_md_live_test
+	./build/migration/sms_md_live_test
+	RETRODE3_SMS_TEST_MODULE=build/migration/sms-md.so python3 tests/test_sms_md_json.py
+
+# Stage only by explicit request. Never auto-install or enable on the device.
+stage-sms-md-module: native-sms-md-module
+	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
+	install -m 644 build/migration/sms-md.so build/migration/stage/usr/lib/retrode3/cores-available/sms-md.so
+	install -m 644 packaging/cores/sms-md.core build/migration/stage/usr/lib/retrode3/cores-available/sms-md.core
