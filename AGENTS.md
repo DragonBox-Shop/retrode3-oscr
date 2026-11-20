@@ -138,9 +138,21 @@ setzt den originalen DB-Header erst danach, berechnet die Dateiprüfsumme
 und veröffentlicht die fertige .nes-Datei atomar. Unbekannte oder veränderte
 ROMs werden nur als `verified:false` ausgegeben.
 
-**Nur Mapper 0/Submapper 0, PRG 16/32 KiB, CHR 0/8 KiB** ist freigegeben.
-Andere Mapper sind nicht implementiert; keine zusätzlichen Bank- oder
-Cart-Schreiboperationen. `get_capabilities` nennt nur reale Unterstützung.
+**Produktionsseitig bleibt nur Mapper 0/Submapper 0, PRG 16/32 KiB,
+CHR 0/8 KiB freigegeben.** Auf `develop` sind zusätzlich konservative,
+Sanni-abgeleitete Banklese-Sequenzen für **Mapper 2 (UxROM), 3 (CNROM),
+4 (MMC3) und 7 (AxROM)** im gemeinsamen NES-Core eingebaut. Deren
+CPU-Register-Schreibzugriffe sind im normalen Build **deaktiviert** und
+laufen nur in der Mock-CI oder einer expliziten experimentellen
+Build-Konfiguration. MMC1/Mapper 1 bleibt wegen der ungesicherten
+`NES_MODE_REG`-/33-ns-Timing-Sequenz gesperrt. Andere Mapper sind noch
+nicht implementiert. Die automatischen Fast-Probe-DB-Treffer sind weiterhin
+Mapper-0-only; für experimentelle Bankmapper braucht es ein bestätigtes
+manuelles Layout. `get_capabilities` darf die neuen Mapper bis zur
+Hardwarefreigabe nur als `read_supported:false` melden.
+
+Siehe [docs/nes-mapper-stage2.md](docs/nes-mapper-stage2.md) für die
+Sequenzen, Buskonflikt-Schutzmaßnahmen, CI-Tests und Hardware-Gates.
 Mock-/CI-Test ist **kein** Hardware-Akzeptanztest; Excitebike sowie SNES/MD
 müssen auf der Retrode3 erneut validiert werden. Web v2 im OS-Repository
 muss die neuen Probe-/Auswahl-Felder noch auswerten.

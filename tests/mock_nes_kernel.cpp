@@ -42,8 +42,12 @@ void init()
         if (no_safe && mapper == 2)
             for (unsigned i = prg_size - 16384u; i < prg_size; ++i)
                 rom_prg[i] = 0xff;
-        if (no_safe && mapper == 3)
+        if (no_safe && mapper == 3) {
             for (unsigned i = 0; i < prg_size; ++i) rom_prg[i] = 0xff;
+            // Avoid "empty slot" fast-probe while offering no safe 0..3 value.
+            rom_prg[0] = 0xfe;
+            rom_prg[0x6000] = 0xfe;
+        }
         return;
     }
     char const *geometry = std::getenv("RETRODE_MOCK_NES_SIZE");
