@@ -142,7 +142,7 @@ test-native-nes-module: test-nes-mmc1-plan verify-nes-mapper-sequences build/mig
 
 # Deliberate operator-only MMC1 lab experiment. This is NEVER staged to
 # Debian packages or copied into the normal running installation.
-# Only tested against manually confirmed Rad Racer SGROM (128K PRG / CHR-RAM /
+# Intended ONLY for manually confirmed Rad Racer SGROM (128K PRG / CHR-RAM /
 # NO PRG-WRAM). A separate runtime opt-in is required even with this build.
 .PHONY: native-nes-mmc1-lab
 native-nes-mmc1-lab: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o
