@@ -10,11 +10,43 @@ This is **not** a claim of electrical acceptance or production support.
 | Mapper | PRG/CHR strategy ported | Mock | Default production | Why |
 | --- | --- | --- | --- | --- |
 | 0 NROM | Linear 16/32K PRG, 0/8K CHR | Yes | Read-only enabled | Previous physical CRC; new v2 needs regression |
-| 1 MMC1 | NOT enabled | Blocked | Blocked | Sanni's special $E000 register sequence needs ~33 ns transitions; kernel's NES_MODE_REG is not hardware-safe/verified |
+| 1 MMC1 | Isolated PRG/CHR bank plan only (no bus execution) | Local standalone C++11 test passed; runtime still blocked | Blocked | Sanni's special $E000 register sequence needs ~33 ns transitions; kernel's NES_MODE_REG is not hardware-safe/verified |
 | 2 UxROM | Switch 16K PRG at $8000, last 16K fixed | Yes | Blocked | Bus-conflict checks and CPU register-write timing await physical review |
 | 3 CNROM | Fixed PRG, switch 8K CHR | Yes | Blocked | Bus-conflict checks and CPU register-write timing await physical review |
 | 4 MMC3 | Switch 8K PRG using R6; 1K CHR using R2 | Yes | Blocked | Bank-write timing and MMC3 variants await hardware verification |
 | 7 AxROM | Switch full 32K PRG at $8000 | Yes | Blocked | Register-write timing and mirroring variants await hardware verification |
+
+## MMC1: safely isolated plan, not a cartridge reader (2026-11-20)
+
+Source: `src/retrode3/nes_mmc1_plan.cpp` and
+`include/retrode3/nes_mmc1_plan.h`. This is a **pure abstract-step
+planner** derived from the pinned original Sanni `readPRG`,
+`readCHR` and `write_mmc1_byte` sequences (mapper 1 only, submapper 0).
+It outputs serial reset/value steps and PRG/CHR reads, **not** GPIO
+commands or an executable bus-transaction implementation. It is **not
+linked** to `nes.so` or the CLI and cannot make the current hardware
+read Mapper 1. Geometry: 32/64/128/256/512 KiB PRG and
+0/8/16/32/64/128 KiB CHR, deliberately limited. No SRAM/CHR-RAM
+reads or writes. The 512-KiB PRG case models Sanni's CHR bank
+high-bit selection; the $E000 serial values remain abstract.
+
+Standalone local C++11 compile/run succeeded. The regression test is
+`tests/nes_mmc1_plan_test.cpp`; run
+`make -f Makefile.migration test-nes-mmc1-plan` or
+`make -f Makefile.migration test-native-nes-module`.
+The full repository build and target GCC 4.9/MIPS tests have
+**not** been run for this addition. Existing physical acceptance
+is only for earlier NROM Stage 1.
+
+`NES_REG` in the examined kernel source already has an unsafe
+fallback: the intended ~33 ns hardware port pulse is behind an
+unimplemented conditional, whereas generic GPIO switching is too
+slow/unverified. Thus **do not** translate the plan's $E000
+`SerialValue` into `nes_write(..., NES_MODE_REG/PRG)` or otherwise
+expose it via an experimental build. Require a reviewed safe
+hardware/driver contract first, then mock electrical behavior and
+validate with a nonvaluable test cartridge and independently checked
+CRC/save integrity.
 
 **Never** enable MMC1 via the experimental flag; it has no executable
 register-write path in the adapter. The mapper 2/3/4/7 code runs only in
