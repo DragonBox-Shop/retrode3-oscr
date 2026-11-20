@@ -10,51 +10,56 @@ This is **not** a claim of electrical acceptance or production support.
 | Mapper | PRG/CHR strategy ported | Mock | Default production | Why |
 | --- | --- | --- | --- | --- |
 | 0 NROM | Linear 16/32K PRG, 0/8K CHR | Yes | Read-only enabled | Previous physical CRC; new v2 needs regression |
-| 1 MMC1 | Isolated PRG/CHR bank plan only (no bus execution) | Local standalone C++11 test passed; runtime still blocked | Blocked | Sanni's special $E000 register sequence needs ~33 ns transitions; kernel's NES_MODE_REG is not hardware-safe/verified |
+| 1 MMC1 | Isolated abstract bank plan + separate RAM-less SGROM lab reader (128K PRG/CHR-RAM only) | C++11 plan tested locally; full mocked suite pending | Blocked (lab build explicit opt-in only) | Generic PRG write unsafe for WRAM; the NES_REG fast edge is unverified |
 | 2 UxROM | Switch 16K PRG at $8000, last 16K fixed | Yes | Blocked | Bus-conflict checks and CPU register-write timing await physical review |
 | 3 CNROM | Fixed PRG, switch 8K CHR | Yes | Blocked | Bus-conflict checks and CPU register-write timing await physical review |
 | 4 MMC3 | Switch 8K PRG using R6; 1K CHR using R2 | Yes | Blocked | Bank-write timing and MMC3 variants await hardware verification |
 | 7 AxROM | Switch full 32K PRG at $8000 | Yes | Blocked | Register-write timing and mirroring variants await hardware verification |
 
-## MMC1: safely isolated plan, not a cartridge reader (2026-11-20)
+## MMC1: hand-operated RAM-less SGROM lab (2026-11-20)
 
-Source: `src/retrode3/nes_mmc1_plan.cpp` and
-`include/retrode3/nes_mmc1_plan.h`. This is a **pure abstract-step
-planner** derived from the pinned original Sanni `readPRG`,
-`readCHR` and `write_mmc1_byte` sequences (mapper 1 only, submapper 0).
-It outputs serial reset/value steps and PRG/CHR reads, **not** GPIO
-commands or an executable bus-transaction implementation. It is **not
-linked** to `nes.so` or the CLI and cannot make the current hardware
-read Mapper 1. Geometry: 32/64/128/256/512 KiB PRG and
-0/8/16/32/64/128 KiB CHR, deliberately limited. No SRAM/CHR-RAM
-reads or writes. The 512-KiB PRG case models Sanni's CHR bank
-high-bit selection; the $E000 serial values remain abstract.
+See [physical lab instructions](nes-mmc1-sgrom-lab.md). The pure
+`nes_mmc1_plan.cpp` remains the source of abstract bank operations.
+An additional executor in `oscr_nes_mapper.cpp` now translates its
+reset/LSB-first 5-bit writes and bank reads into the existing typed
+`nes_write(..., NES_MODE_PRG)` kernel interface, **only** when
+compiled as `RETRODE3_NES_MMC1_LAB` (or in the mock fixture) and
+when the exact per-process runtime acknowledgment is present.
+The standard `native-nes-module` and staged `nes.so` continue to
+reject all MMC1 register writes; the special lab `.so` is never
+included in `stage-retrode3-runtime`.
 
-Standalone local C++11 compile/run succeeded. The regression test is
-`tests/nes_mmc1_plan_test.cpp`; run
-`make -f Makefile.migration test-nes-mmc1-plan` or
-`make -f Makefile.migration test-native-nes-module`.
-The full repository build and target GCC 4.9/MIPS tests have
-**not** been run for this addition. Existing physical acceptance
-is only for earlier NROM Stage 1.
+The real experimental reading geometry is intentionally **only**
+MMC1/submapper 0, PRG 128 KiB, CHR 0 KiB, battery 0, with a
+**physically verified no-PRG-WRAM Rad Racer NES-SGROM**.
+The general abstract plan supports more sizes for offline tests, but
+these geometries are **not executable** on real hardware.
+The lab run is manual, never auto-probed as supported, and
+`get_capabilities` stays `read_supported:false` for Mapper 1.
+The script `tools/nes-mmc1-sgrom-lab.sh` asks the operator to confirm
+the PCB, swaps the lab `.so` only for one test, and restores the old
+one through a shell trap.
 
-`NES_REG` in the examined kernel source already has an unsafe
-fallback: the intended ~33 ns hardware port pulse is behind an
-unimplemented conditional, whereas generic GPIO switching is too
-slow/unverified. Thus **do not** translate the plan's $E000
-`SerialValue` into `nes_write(..., NES_MODE_REG/PRG)` or otherwise
-expose it via an experimental build. Require a reviewed safe
-hardware/driver contract first, then mock electrical behavior and
-validate with a nonvaluable test cartridge and independently checked
-CRC/save integrity.
+**Critical hardware constraint:** Original Sanni uses a distinct
+`write_reg_byte` for MMC1 $E000/$F000 to avoid accidental writes
+into $6000-$7FFF PRG-WRAM. The Retrode3 kernel's `NES_REG`
+mode does NOT provide a verified fast pulse on the required M2/ROMSEL
+lines. The lab route instead invokes the normal PRG write pulse
+only on a known board with **no PRG-WRAM**. Do NOT use on other MMC1
+variants or promote it to general support. No electrically verified
+MMC1 physical CRC exists yet. The expected Rad Racer PRG CRC is
+`654F4E90` (PAL) or `8B9D3E9C` (US), depending on the version.
 
-**Never** enable MMC1 via the experimental flag; it has no executable
-register-write path in the adapter. The mapper 2/3/4/7 code runs only in
-`RETRODE3_TESTING` mock builds or a deliberately separate build with
-`RETRODE3_NES_MAPPER_WRITE_EXPERIMENTAL`. That flag is **not** in the
-standard Makefile/CI Debian staging options. Production
-`get_capabilities` advertises those mappers with
-`read_supported:false`; no hidden enablement on insertion.
+`test-native-nes-module` includes mock tests for no-ack refusal,
+battery-layout refusal, exact serial write order, complete
+128 KiB PRG CRC and failed-write cleanup. CI is set up on
+`develop`; the full target-device compilation and physical testing
+are **still pending**. The separately reviewed safe kernel
+register-write implementation remains required for PRG-WRAM support.
+
+**Never** use the general `RETRODE3_NES_MAPPER_WRITE_EXPERIMENTAL`
+flag to enable MMC1. Only the dedicated `RETRODE3_NES_MMC1_LAB`
+module has this narrowly scoped exception.
 
 Bus-conflict handling for UxROM and CNROM scans the fixed PRG region for
 bytes equal to the target bank values **before** the first write.
