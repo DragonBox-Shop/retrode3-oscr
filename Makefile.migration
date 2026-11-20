@@ -271,7 +271,7 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-sms-header-v1
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
@@ -286,6 +286,15 @@ stage-retrode3-runtime: stage-shared-host stage-all-shared-cores
 
 test-release-stage: stage-retrode3-runtime
 	python3 -m unittest discover -s tests -p 'test_release_stage.py' -v
+
+# Hardware-free Sega Master System header metadata groundwork.
+# This does not enable a physical SMS-over-MD core or any cartridge writes.
+.PHONY: test-sms-header-v1
+test-sms-header-v1:
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) \
+		tests/sms_header_v1_test.cpp -o build/migration/sms_header_v1_test
+	./build/migration/sms_header_v1_test
 
 # Generic hardware-free ABI v3: selection, title/layout ambiguity, safety.
 # Keep this test target in CI even when no real cartridge fixture is available.
