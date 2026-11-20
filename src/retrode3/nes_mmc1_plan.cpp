@@ -62,6 +62,9 @@ void plan(unsigned prg_kib, unsigned chr_kib,
     // Never read or write CHR-RAM when chr_kib is zero.
     for (unsigned bank = 0; bank < chr_kib / 8u; ++bank) {
         reset(callback, context);
+        // Explicitly select 8-KiB CHR mode. Power-on register bit 4 is
+        // not a reliable assumption; MMC1 reset only forces bits 2 and 3.
+        serial(callback, context, 0x8000u, 0x0cu);
         serial(callback, context, 0xa000u, bank * 2u);
         step(callback, context, ReadChr, 0x0000u, bank, 0x2000u);
     }
