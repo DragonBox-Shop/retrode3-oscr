@@ -57,6 +57,16 @@ void init()
             rom_prg[509] = 0x73;
             rom_prg[510] = 0x12;
             rom_prg[511] = 0x9e;
+            if (std::getenv("RETRODE_MOCK_NES_DRMARIO_CRC") &&
+                prg_size == 32768u && chr_size == 32768u) {
+                // Synthetic ROM payload matched to the pinned complete
+                // Dr. Mario Europe CRC32 9735D267 using four changed
+                // CHR bytes. This is NOT the Nintendo ROM content.
+                rom_chr[chr_size - 4] = 0x03;
+                rom_chr[chr_size - 3] = 0x03;
+                rom_chr[chr_size - 2] = 0x71;
+                rom_chr[chr_size - 1] = 0x00;
+            }
         }
         const char *no_safe = std::getenv("RETRODE_MOCK_NES_NO_CONFLICT_SAFE");
         if (no_safe && mapper == 2)
