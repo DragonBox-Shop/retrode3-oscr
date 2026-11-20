@@ -5,6 +5,8 @@
 #include "retrode3/core_descriptor_v1.h"
 #include "retrode3/core_operations_v1.h"
 #include "retrode3/core_operations_v2.h"
+#include "retrode3/core_operations_v3.h"
+#include "retrode3/json_v3.h"
 #include "retrode3/ndjson_protocol.h"
 
 #include <algorithm>
@@ -36,6 +38,7 @@ struct Core {
     bool usable;
     bool can_read_rom;
     bool has_v2;
+    bool has_v3;
 };
 
 bool is_slug(std::string const &s)
@@ -129,7 +132,7 @@ Core load_manifest(std::string const &path, std::string const &expected_id)
     }
     if (input.bad()) throw std::runtime_error("core manifest read failed");
     Core c = {fields["id"], fields["name"], fields["version"],
-              fields["slot"], "disabled", false, false, false, false};
+              fields["slot"], "disabled", false, false, false, false, false};
     if (fields.size() != 4 || c.id != expected_id || !is_slug(c.id) ||
         !is_slug(c.slot) || !valid_text(c.name, 128) ||
         !valid_text(c.version, 64))
@@ -169,7 +172,7 @@ bool valid_operations(const retrode3_core_operations_v1 *api)
 
 // -1 = invalid, 0 = valid metadata only, 1 = runnable operation ABI.
 int compatible(std::string const &file, Core const &core,
-               bool &can_read_rom, bool &has_v2)
+               bool &can_read_rom, bool &has_v2, bool &has_v3)
 {
     void *handle = ::dlopen(file.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!handle) { note(core.id, "module load failed"); return -1; }
@@ -210,6 +213,21 @@ int compatible(std::string const &file, Core const &core,
                                 status = 1;
                             }
                         } else status = 1;
+                        if (status == 1) {
+                            void *v3sym = ::dlsym(handle, "retrode3_core_get_operations_v3");
+                            if (v3sym) {
+                                retrode3_core_operations_v3_fn getv3 =
+                                    reinterpret_cast<retrode3_core_operations_v3_fn>(v3sym);
+                                const retrode3_core_operations_v3 *v3 = getv3();
+                                if (!v3 ||
+                                    v3->abi_version != RETRODE3_CORE_OPERATION_ABI_V3 ||
+                                    v3->struct_size < sizeof(*v3) ||
+                                    !v3->capabilities_json || !v3->fast_probe_json ||
+                                    !v3->plan_read || !v3->read_rom)
+                                    status = -1;
+                                else { has_v3 = true; can_read_rom = true; }
+                            }
+                        }
                     } else status = -1;
                 }
             }
@@ -255,7 +273,7 @@ std::vector<Core> discover(std::string const &available,
                 core.status = "invalid_link";
                 note(id, "enablement must be a trusted link to the packaged module");
             } else if (valid) {
-                int result = compatible(base + ".so", core, core.can_read_rom, core.has_v2);
+                int result = compatible(base + ".so", core, core.can_read_rom, core.has_v2, core.has_v3);
                 core.usable = (result == 1);
                 core.status = result == 1 ? "ready" :
                     (result == 0 ? "discovered" : "incompatible");
@@ -374,7 +392,8 @@ struct OpenCore {
     void *handle;
     const retrode3_core_operations_v1 *api;
     const retrode3_core_operations_v2 *api2;
-    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL), api2(NULL) {
+    const retrode3_core_operations_v3 *api3;
+    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL), api2(NULL), api3(NULL) {
         handle = ::dlopen(module.c_str(), RTLD_NOW | RTLD_LOCAL);
         if (!handle) throw std::runtime_error("could not load enabled core");
         try {
@@ -395,6 +414,17 @@ struct OpenCore {
                     api2->struct_size < sizeof(*api2) ||
                     !api2->fast_probe || !api2->read_rom)
                     throw std::runtime_error("core v2 ABI invalid");
+            }
+            void *v3sym = ::dlsym(handle, "retrode3_core_get_operations_v3");
+            if (v3sym) {
+                retrode3_core_operations_v3_fn getv3 =
+                    reinterpret_cast<retrode3_core_operations_v3_fn>(v3sym);
+                api3 = getv3();
+                if (!api3 || api3->abi_version != RETRODE3_CORE_OPERATION_ABI_V3 ||
+                    api3->struct_size < sizeof(*api3) ||
+                    !api3->capabilities_json || !api3->fast_probe_json ||
+                    !api3->plan_read || !api3->read_rom)
+                    throw std::runtime_error("core v3 ABI invalid");
             }
         } catch (...) {
             ::dlclose(handle);
@@ -950,19 +980,29 @@ void interactive(std::string const &available, std::string const &enabled)
             std::vector<Core> cores = discover(available, enabled);
             Core core_info = find_usable(cores, command.core);
             if (command.action == "get_capabilities") {
-                emit_capabilities(stream, command.request_id, core_info);
+                if (core_info.has_v3) {
+                    OpenCore module(available + "/" + core_info.id + ".so");
+                    emit_capabilities_v3(stream, command.request_id, core_info, module);
+                } else emit_capabilities(stream, command.request_id, core_info);
                 continue;
             }
             BusLock lock(enabled);
             OpenCore module(available + "/" + core_info.id + ".so");
-            if (module.api2) {
+            if (module.api3) {
+                if (command.action == "probe")
+                    emit_probe_v3(stream, command.request_id, core_info, module);
+                else if (command.action == "read_rom")
+                    read_rom_v3(stream, command, module);
+            } else if (module.api2) {
+                if (command.has_selection)
+                    throw std::runtime_error("core does not implement generic selection ABI");
                 retrode3_probe_v2 info = fast_probe(module);
                 if (command.action == "probe")
                     emit_fast_probe(stream, command.request_id, core_info.id, info);
                 else if (command.action == "read_rom")
                     read_rom_v2(stream, command, module, info);
             } else {
-                if (command.has_manual || !command.candidate_id.empty() ||
+                if (command.has_manual || command.has_selection || !command.candidate_id.empty() ||
                     !command.layout_id.empty())
                     throw std::runtime_error("core does not support NES mapper selection");
                 retrode3_probe_v1 info = probe(module);
