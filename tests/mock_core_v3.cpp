@@ -36,7 +36,8 @@ int cap_json(char *out, size_t n, char *err, size_t ec) {
         "\"fields\":[{\"id\":\"bank_count\",\"label\":\"Banks\","
         "\"type\":\"integer\",\"minimum\":1,\"maximum\":2},"
         "{\"id\":\"safe\",\"label\":\"Safe\",\"type\":\"boolean\"}],"
-        "\"rules\":[{\"when\":{\"bank_count\":2},\"read_supported\":false}],"\n        "\"probe_voltage_mv\":3300,\"read_voltage_mv\":5000}",
+        "\"rules\":[{\"when\":{\"bank_count\":2},\"read_supported\":false}],"
+        "\"probe_voltage_mv\":3300,\"read_voltage_mv\":5000}",
         out, n, err, ec);
 }
 int probe_json(char *out, size_t n, char *err, size_t ec) {
