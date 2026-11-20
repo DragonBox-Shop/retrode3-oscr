@@ -124,7 +124,7 @@ native-nes-module: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
 		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
-		src/retrode3/oscr_nes_mapper.cpp \
+		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
 		src/retrode3/oscr_nes_adapter.cpp build/migration/retrode3-lib.pic.o \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/nes.so
 
@@ -133,12 +133,27 @@ test-native-nes-module: test-nes-mmc1-plan verify-nes-mapper-sequences build/mig
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs -DRETRODE3_TESTING $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
 		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
-		src/retrode3/oscr_nes_mapper.cpp \
+		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
 		src/retrode3/oscr_nes_adapter.cpp tests/mock_nes_kernel.cpp \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/real-nes-fixture/nes.so
 	python3 -m unittest discover -s tests -p 'test_python34_compat.py' -v
 	python3 -m unittest discover -s tests -p 'test_real_nes_adapter.py' -v
 	python3 -m unittest discover -s tests -p 'test_nes_mapper_banks.py' -v
+
+# Deliberate operator-only MMC1 lab experiment. This is NEVER staged to
+# Debian packages or copied into the normal running installation.
+# Only tested against manually confirmed Rad Racer SGROM (128K PRG / CHR-RAM /
+# NO PRG-WRAM). A separate runtime opt-in is required even with this build.
+.PHONY: native-nes-mmc1-lab
+native-nes-mmc1-lab: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o
+	mkdir -p build/migration/mmc1-lab
+	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/mmc1-lab/retrode3-lib.pic.o
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs -DRETRODE3_NES_MMC1_LAB $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
+		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
+		src/retrode3/oscr_nes_adapter.cpp build/migration/mmc1-lab/retrode3-lib.pic.o \
+		build/migration/oscr_nes_nrom.pic.o -o build/migration/mmc1-lab/nes.so
 
 # Offline image staging, never a live install or default enablement.
 stage-nes-module: native-nes-module
