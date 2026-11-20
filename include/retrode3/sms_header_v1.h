@@ -17,21 +17,19 @@ struct Header {
     std::uint8_t size_code;
 };
 
+// The actual size table is extracted verbatim from pinned OSCR SMS.cpp.
+#include "oscr_sms_size.h"
 inline bool decode_size(std::uint8_t code, std::uint32_t *bytes)
 {
     if (!bytes) return false;
+    // SMS ROM size nibbles; the upstream GG-only 0x3 and fallback are excluded.
     switch (code) {
-    case 0xA: *bytes = 8u * 1024u; return true;
-    case 0xB: *bytes = 16u * 1024u; return true;
-    case 0xC: *bytes = 32u * 1024u; return true;
-    case 0xD: *bytes = 48u * 1024u; return true;
-    case 0xE: *bytes = 64u * 1024u; return true;
-    case 0xF: *bytes = 128u * 1024u; return true;
-    case 0x0: *bytes = 256u * 1024u; return true;
-    case 0x1:
-    case 0x2: *bytes = 512u * 1024u; return true;
-    default: return false; // No guessed size or GG-specific fallback.
+    case 0xA: case 0xB: case 0xC: case 0xD: case 0xE:
+    case 0xF: case 0x0: case 0x1: case 0x2: break;
+    default: return false;
     }
+    *bytes = oscr_sms_size_hint(code);
+    return true;
 }
 
 // 'window' contains 16 bytes from a known candidate header address,
