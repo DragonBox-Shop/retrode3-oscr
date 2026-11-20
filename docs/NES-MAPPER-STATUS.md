@@ -314,11 +314,13 @@ zuletzt FF1/FF2 (nur mit geprueftem Adapter).
   Dr. Mario Europe/Mapper1/Submapper5-Datenbank-Fingerprint wird
   mit synthetischem, copyrightfreiem 512-Byte-Testblock geprüft.
   GitHub NES Workflow auf `develop` **erfolgreich am Commit
-  `7aa22f58`** ([CI-Lauf 44675688129](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44675688129)):
+  `54caadc9`** ([CI-Lauf 44675866914](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44675866914)):
   Mock-PRG/CHR-Bankfolge, Dr.-Mario-Europe-Datenbank-Fingerprint,
   `verified:true` durch synthetische komplette Payload-CRC
-  `9735D267`, regulaerer NES-Core-Build und separater Labor-Build,
-  Shell-Syntaxpruefung. GitHub Status fuer sonstige Cores separat.
+  `9735D267`, submapper-5-NES2-Header fuer unbekannte ROMs,
+  regulaerer NES-Core-Build und separater Labor-Build,
+  Shell-Syntaxpruefung. Physische MIPS-Testlauf-Protokolle folgen
+  erst nach Nutzertests.
 - Neues `tools/nes-mmc1-lab.sh`: gesperrtes Testmodul einlegen,
   no-battery-Bestaetigung, automatische DB-Erkennung oder manuelle
   PRG/CHR-Werte, temporäre `nes.so`, automatische Restore-Falle.
