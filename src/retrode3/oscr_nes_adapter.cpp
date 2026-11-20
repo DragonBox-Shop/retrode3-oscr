@@ -236,9 +236,10 @@ void hex_mmc1_header(char const *hex, unsigned prg, unsigned chr,
             (header[8] >> 4) : 0u) != sub)
         throw std::runtime_error("pinned MMC1 header/layout mismatch");
 }
-int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap,
-               std::uint32_t *first_crc = NULL,
-               std::uint32_t *last_crc = NULL)
+int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
+                                 char *error, size_t cap,
+                                 std::uint32_t *first_crc,
+                                 std::uint32_t *last_crc)
 {
     try {
         if (!out || out->struct_size != sizeof(*out))
@@ -342,6 +343,12 @@ int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap,
         return 0;
     } catch (std::exception const &e) { return fail(error, cap, e.what()); }
     catch (...) { return fail(error, cap, "unknown NES fast-probe error"); }
+}
+
+// Keep the exported NES v2 callback's exact C function-pointer ABI.
+int fast_probe(retrode3_probe_v2 *out, char *error, size_t cap)
+{
+    return fast_probe_with_fingerprints(out, error, cap, NULL, NULL);
 }
 
 struct PayloadSink {
@@ -659,7 +666,7 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
     std::memset(&result, 0, sizeof(result));
     result.struct_size = sizeof(result);
     std::uint32_t first_crc = 0, last_crc = 0;
-    if (fast_probe(&result, err, cap, &first_crc, &last_crc)) return -1;
+    if (fast_probe_with_fingerprints(&result, err, cap, &first_crc, &last_crc)) return -1;
     const bool unique_layout = result.layout_count == 1;
     const std::string ambiguity = result.candidate_count < 2 ? "none" :
         (unique_layout ? "titles_only" : "layouts");
