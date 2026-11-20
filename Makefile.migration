@@ -54,6 +54,12 @@ build/migration/oscr_md_core.o: build/migration/oscr_md_core.cpp include/retrode
 $(MD_CORE_ARCHIVE): build/migration/oscr_md_core.o
 	$(AR) rcs $@ $<
 
+.PHONY: test-md-save-layout
+test-md-save-layout:
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) tests/md_save_layout_test.cpp -o build/migration/md_save_layout_test
+	./build/migration/md_save_layout_test
+
 .PHONY: native-md test-native-md
 native-md: $(MD_CORE_ARCHIVE)
 	$(CC) -std=gnu11 -O2 -I. -c retrode3-lib.c -o build/migration/retrode3-lib.o
@@ -80,7 +86,7 @@ native-md-module: build/migration/oscr_md_core.pic.o
 
 # Run real original-OSCR adapter against a mocked MD kernel and compare its
 # bytes to the prior hardware-proven standalone acceptance reader.
-test-native-md-module: build/migration/oscr_md_core.pic.o test-native-md test-core-registry
+test-native-md-module: build/migration/oscr_md_core.pic.o test-native-md test-core-registry test-md-save-layout
 	mkdir -p build/migration/real-md-fixture
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp \

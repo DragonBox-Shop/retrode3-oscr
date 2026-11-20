@@ -120,7 +120,15 @@ int fast_probe_json_v3(char *out, size_t capacity, char *err, size_t cap)
             ",\"title\":" + retrode3::json_quote_v3(info.title.empty() ?
                 "Mega Drive cartridge" : info.title) +
             ",\"serial\":" + retrode3::json_quote_v3(info.serial) +
-            ",\"checksum\":" + retrode3::json_quote_v3(checksum) + "}";
+            ",\"checksum\":" + retrode3::json_quote_v3(checksum) +
+            ",\"save\":{\"detected\":" + (info.save.advertised ? "true" : "false") +
+            ",\"kind\":" + retrode3::json_quote_v3(retrode3::mdsave::name(info.save.kind)) +
+            ",\"geometry_valid\":" + (info.save.valid ? "true" : "false") +
+            ",\"start_address\":" + std::to_string(info.save.start) +
+            ",\"end_address\":" + std::to_string(info.save.end) +
+            ",\"size_bytes\":" + std::to_string(info.save.bytes) +
+            ",\"read_supported\":false,\"write_supported\":false," +
+            "\"reason\":\"SRAM bus operations pending hardware validation\"}}";
         if (!out || json.size() + 1 > capacity)
             return fail(err, cap, "MegaDrive v3 probe buffer too small");
         std::memcpy(out, json.c_str(), json.size() + 1);
@@ -252,7 +260,7 @@ extern "C" const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void)
         sizeof(retrode3_core_descriptor_v1),
         "md",
         "Mega Drive",
-        "0.2.0-v3",
+        "0.3.0-saveprobe",
         "md"
     };
     return &descriptor;

@@ -23,7 +23,7 @@ class TripleCoreHost(unittest.TestCase):
         os.mkdir(self.available)
         os.mkdir(self.enabled)
         for core, name, version, slot in (
-            ("md", "Mega Drive", "0.2.0-v3", "md"),
+            ("md", "Mega Drive", "0.3.0-saveprobe", "md"),
             ("nes", "Nintendo Entertainment System", "0.2.0-nrom-mmc1", "nes"),
             ("snes", "Super Nintendo", "0.2.0-v3", "snes")
         ):

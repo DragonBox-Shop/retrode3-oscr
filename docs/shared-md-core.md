@@ -138,3 +138,51 @@ physical controls were added. Mock tests exercise the v3 selection and
 automatic and override dumps. Full physical v3 regression, particularly
 Snake Rattle n Roll 524288-byte ROM CRC32 543BED30, is still required
 before master promotion.
+
+
+## MegaDrive save discovery foundation (2026-11-20, develop)
+
+**This does not enable save read or restore.** The existing read-only
+512-byte ROM header probe now decodes the RA descriptor at
+0x1B0..0x1BB into the generic `probe_result.save` field:
+`detected`, `kind`, `start_address`, `end_address`,
+`size_bytes`, `geometry_valid`, `read_supported:false`,
+`write_supported:false`, and the reason for the hardware gate.
+Cartridge header metadata alone is not hardware authorization.
+
+Conservatively recognized logical formats:
+- `F820`, odd-byte RAM from 0x200001
+- `F820`, even-byte RAM from 0x200000
+- `E020`, both-byte RAM from 0x200000
+All first-stage geometry is bounded to 0x200000..0x20FFFF.
+`F840` is parallel EEPROM and stays unsupported. Weird ranges,
+check-sum-only cases and Sonic 3 FRAM require separate review. The new
+pure, hardware-free pack/unpack helpers are tested for all three
+standard data layouts by `test-md-save-layout` (C++11).
+
+The pinned Sanni core and kernel are unchanged. No cartridge
+`md_write`, SRAM enable, mapper write, FRAM /TIME pulse or VCC
+manipulation has been added. The normal ROM dump still uses the
+existing read-only path, and `retrode3-cli` does not expose
+`read_save` or `write_save`.
+
+**Kernel and host blockers to resolve before any live writes:**
+
+1. The existing `retrode3-lib.c` `md_set_mapper(74161)` path uses
+   an uninitialized `buf[0]` and cannot safely toggle SRAM.
+2. The kernel's `MD_TIME` Sonic 3 FRAM handling documents
+   potential data loss even during reads, due to RAM-CE and timing.
+3. `md_set_voltage` contains `if (mV != 3300 || mV != 5000)`,
+   which always rejects the requested voltage; do not rely on it.
+4. The common v3 core ABI supports only ROM reads. A future
+   versioned save ABI/host command needs explicit permissions,
+   atomic, non-overwriting backups, validated restore image size,
+   independent confirmation, and full read-back verification.
+
+Suggested next gate: verify a known ordinary SRAM-equipped MegaDrive
+cartridge and the exact mapper latch/electrical timing on a
+non-valuable test cartridge. Implement read-save first; require two
+matching backups before enabling any restoration path.
+
+No assumption of hardware acceptance or production release should
+be made from mocked header/codec tests.
