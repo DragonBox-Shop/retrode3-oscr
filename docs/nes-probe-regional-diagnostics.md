@@ -1,6 +1,44 @@
 # NES v3 regional recognition: real-device investigation, 2026-11-20
 
-**develop only. Not master; no physical re-acceptance of this fix yet.**
+**develop only. Not master. PAL Mario & Yoshi ROM data physically verified; automated recognition with the newly added fingerprints still awaiting on-device confirmation.**
+
+## Verified PAL Mario & Yoshi cartridge and new fingerprint (2026-11-20)
+
+Five consecutive normal **read-only v3 probes** without moving the
+Mario & Yoshi cartridge reported the exact same CRC32 pair:
+
+- `cpu_8000_crc32 = 29D1D575`
+- `cpu_e000_crc32 = 9A78A49D`
+
+The same cartridge had previously reported `NES slot empty/unreadable`
+twice, possibly from transient contacts. The five stable probes and
+subsequent dump establish that the ROM chips are not defective.
+
+Using the ordinary `read_rom` v3 **override** for
+MMC1/submapper 0, PRG 128 KiB, CHR 32 KiB, no battery,
+a complete real-device iNES ROM of **163856 bytes** was obtained.
+Every checksum matched the original European cartridge reference:
+
+| Section | Real hardware CRC32 | Reference CRC32 | Result |
+| --- | --- | --- | --- |
+| PRG-ROM, 128 KiB | `1406783D` | `1406783D` | MATCH |
+| CHR-ROM, 32 KiB | `FC0BBA23` | `FC0BBA23` | MATCH |
+| PRG+CHR, 160 KiB | `836685C4` | `836685C4` | MATCH |
+
+This physically validates the NES-SFROM MMC1 PRG/CHR-ROM reader.
+The only confirmed recognition defect was the absent PAL probe
+fingerprints in Sanni's catalogue.
+
+The supplemental `Mario & Yoshi (Europe)` record now uses
+**both physically measured signatures**. A normal v3
+probe should offer `m1-128-32` and
+`selection_required:false`; an unmodified v3 auto read should
+verify the full CRC against `836685C4`.
+Mock tests use purely synthetic bytes adjusted to these CRCs;
+there are no copyrighted game ROM bytes in the repository.
+
+**Remaining:** Reinstall just the updated NES core and verify that
+automatic detection works on the actual cartridge.
 
 ## Symptoms on the user's Retrode3
 
@@ -52,9 +90,10 @@ Independent original cartridge references:
 - The **PAL Rad Racer** supplemental record uses the proven
   Highway Star fingerprints as *potential* common-family identifiers
   because the PAL module was misidentified as that entry on real
-  hardware. The other two regional entries deliberately have
-  **no invented fast-probe fingerprints**; they are matched
-  after a full read by exact CRC and layout.
+  hardware. Mario & Yoshi PAL now has two **real,
+  independently observed** PRG-bus probe fingerprints recorded
+  after complete verified hardware dumping. The USA Rad Racer entry
+  deliberately retains no invented fingerprint.
 - Probe with the Rad Racer prefix now offers multiple possible titles
   but **one shared supported mapper-1 128/0 layout**:
   `ambiguity:"titles_only"`, `selection_required:false`.
