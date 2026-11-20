@@ -958,6 +958,287 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
     }
 }
 
+
+/* Generic v3 has no mapper, ROM geometry, voltage or console-specific data
+ * in the host. Live adapter callbacks are the final safety authority. */
+retrode3::JsonV3 core_document_v3(retrode3_core_json_v3_fn callback)
+{
+    char payload[16384] = {};
+    char error[256] = {};
+    if (callback(payload, sizeof(payload), error, sizeof(error)) != 0)
+        throw std::runtime_error(error[0] ? safe_cstr(error, sizeof(error))
+                                          : "core JSON callback failed");
+    std::string json = safe_cstr(payload, sizeof(payload));
+    retrode3::JsonV3 doc = retrode3::parse_json_v3(json);
+    if (doc.kind != retrode3::JsonV3::Object)
+        throw std::runtime_error("core JSON document must be an object");
+    return doc;
+}
+
+retrode3::JsonV3 capability_schema_v3(OpenCore &module)
+{
+    retrode3::JsonV3 schema = core_document_v3(module.api3->capabilities_json);
+    if (schema.at("schema_version").number() != 1 ||
+        schema.at("schema_id").text().empty() ||
+        schema.at("schema_id").text().size() > 63 ||
+        schema.at("fields").kind != retrode3::JsonV3::Array ||
+        schema.at("selection_modes").kind != retrode3::JsonV3::Array)
+        throw std::runtime_error("invalid core selection schema");
+    return schema;
+}
+
+void emit_capabilities_v3(retrode3::NdjsonProtocol &stream,
+                          std::string const &id, Core const &core,
+                          OpenCore &module)
+{
+    retrode3::JsonV3 schema = capability_schema_v3(module);
+    stream.emit(prefix("capabilities", id)
+        + ",\"system\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
+        + ",\"enabled\":true,\"usable\":true,\"commands\":[\"probe\",\"read_rom\",\"cancel\",\"get_capabilities\"]"
+        + ",\"write_operations\":false,\"selection_schema\":"
+        + retrode3::stringify_json_v3(schema) + "}");
+}
+
+void emit_probe_v3(retrode3::NdjsonProtocol &stream,
+                   std::string const &id, Core const &core,
+                   OpenCore &module)
+{
+    retrode3::JsonV3 schema = capability_schema_v3(module);
+    retrode3::JsonV3 info = core_document_v3(module.api3->fast_probe_json);
+    std::string status = info.at("identification_status").text();
+    std::string ambiguity = info.at("ambiguity").text();
+    bool required = info.at("selection_required").kind == retrode3::JsonV3::Boolean &&
+                    info.at("selection_required").boolean;
+    if ((status != "unique" && status != "ambiguous" && status != "unknown") ||
+        (ambiguity != "none" && ambiguity != "titles_only" &&
+         ambiguity != "layouts") ||
+        info.at("candidates").kind != retrode3::JsonV3::Array ||
+        info.at("read_layouts").kind != retrode3::JsonV3::Array ||
+        info.at("selection_required").kind != retrode3::JsonV3::Boolean ||
+        (ambiguity == "layouts" && !required))
+        throw std::runtime_error("invalid generic probe response");
+    for (std::size_t i = 0; i < info.at("candidates").array.size(); ++i) {
+        const retrode3::JsonV3 &candidate = info.at("candidates").array[i];
+        if (candidate.at("id").text().empty() ||
+            candidate.at("title").text().empty() ||
+            candidate.at("layout_id").text().empty() ||
+            candidate.at("read_supported").kind != retrode3::JsonV3::Boolean)
+            throw std::runtime_error("invalid generic probe candidate");
+    }
+    if (status == "unknown" && !info.at("candidates").array.empty())
+        throw std::runtime_error("unknown probe cannot list candidates");
+    std::string out = prefix("probe_result", id)
+        + ",\"system\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
+        + ",\"selection_schema_id\":" +
+            retrode3::NdjsonProtocol::quote(schema.at("schema_id").text());
+    for (std::map<std::string, retrode3::JsonV3>::const_iterator it = info.object.begin();
+         it != info.object.end(); ++it) {
+        if (it->first == "system" || it->first == "core" ||
+            it->first == "slot" || it->first == "selection_schema_id" ||
+            it->first == "event" || it->first == "protocol" ||
+            it->first == "version" || it->first == "request_id")
+            throw std::runtime_error("core probe attempted envelope override");
+        out += "," + retrode3::NdjsonProtocol::quote(it->first) + ":" +
+            retrode3::stringify_json_v3(it->second);
+    }
+    stream.emit(out + "}");
+}
+
+retrode3_selection_v3 typed_selection_v3(retrode3::WebCommand const &command,
+                                        std::string const &schema_id)
+{
+    retrode3_selection_v3 choice;
+    std::memset(&choice, 0, sizeof(choice));
+    choice.struct_size = sizeof(choice);
+    choice.protocol_version = 1;
+    const std::string selected_schema =
+        command.has_selection ? command.selection_schema : schema_id;
+    if (selected_schema != schema_id)
+        throw std::runtime_error("stale or mismatched selection schema");
+    std::snprintf(choice.schema_id, sizeof(choice.schema_id), "%s",
+                  selected_schema.c_str());
+    if (!command.has_selection || command.selection_mode == "auto")
+        choice.mode = RETRODE3_SELECT_AUTO_V3;
+    else if (command.selection_mode == "candidate")
+        choice.mode = RETRODE3_SELECT_CANDIDATE_V3;
+    else if (command.selection_mode == "layout")
+        choice.mode = RETRODE3_SELECT_LAYOUT_V3;
+    else if (command.selection_mode == "override")
+        choice.mode = RETRODE3_SELECT_OVERRIDE_V3;
+    else throw std::runtime_error("invalid selection mode");
+    std::snprintf(choice.candidate_id, sizeof(choice.candidate_id), "%s",
+                  command.selection_candidate.c_str());
+    std::snprintf(choice.layout_id, sizeof(choice.layout_id), "%s",
+                  command.selection_layout.c_str());
+    for (std::map<std::string, retrode3::JsonV3>::const_iterator i =
+         command.selection_parameters.begin();
+         i != command.selection_parameters.end(); ++i) {
+        if (choice.parameter_count >= RETRODE3_MAX_PARAMETERS_V3)
+            throw std::runtime_error("too many override parameters");
+        retrode3_parameter_v3 &p = choice.parameters[choice.parameter_count++];
+        std::snprintf(p.id, sizeof(p.id), "%s", i->first.c_str());
+        if (i->second.kind == retrode3::JsonV3::Integer) {
+            p.type = RETRODE3_PARAMETER_INTEGER_V3;
+            p.integer_value = static_cast<std::uint32_t>(i->second.integer);
+        } else if (i->second.kind == retrode3::JsonV3::Boolean) {
+            p.type = RETRODE3_PARAMETER_BOOLEAN_V3;
+            p.integer_value = i->second.boolean ? 1u : 0u;
+        } else if (i->second.kind == retrode3::JsonV3::String) {
+            p.type = RETRODE3_PARAMETER_STRING_V3;
+            std::snprintf(p.string_value, sizeof(p.string_value), "%s",
+                          i->second.string.c_str());
+        } else throw std::runtime_error("invalid parameter type");
+    }
+    return choice;
+}
+
+void read_rom_v3(retrode3::NdjsonProtocol &stream,
+                 retrode3::WebCommand const &command, OpenCore &module)
+{
+    if (command.has_manual || !command.candidate_id.empty() ||
+        !command.layout_id.empty() || command.has_size || !command.mapping.empty())
+        throw std::runtime_error("v3 reads require generic selection only");
+    const retrode3::JsonV3 schema = capability_schema_v3(module);
+    const retrode3_selection_v3 selection =
+        typed_selection_v3(command, schema.at("schema_id").text());
+    const std::string &output = command.output;
+    if (output.empty() || output[0] != '/' || output.size() > 1024 ||
+        output.find("/../") != std::string::npos ||
+        output.find("/./") != std::string::npos ||
+        (output.size() >= 3 && output.compare(output.size()-3, 3, "/..") == 0))
+        throw std::runtime_error("invalid absolute output path");
+    retrode3_read_plan_v3 plan;
+    std::memset(&plan, 0, sizeof(plan));
+    plan.struct_size = sizeof(plan);
+    char error[256] = {};
+    if (module.api3->plan_read(&selection, &plan, error, sizeof(error)))
+        throw std::runtime_error(error[0] ? safe_cstr(error, sizeof(error))
+                                          : "core rejected read configuration");
+    if (plan.struct_size != sizeof(plan) ||
+        plan.payload_bytes == 0 || plan.payload_bytes > 128ull * 1024 * 1024 ||
+        plan.prefix_bytes > RETRODE3_MAX_PREFIX_V3)
+        throw std::runtime_error("invalid v3 read plan");
+    const std::size_t total = static_cast<std::size_t>(
+        plan.payload_bytes + plan.prefix_bytes);
+    if (::access(output.c_str(), F_OK) == 0)
+        throw std::runtime_error("output already exists");
+    std::string pattern = output + ".partial-XXXXXX";
+    std::vector<char> temp(pattern.begin(), pattern.end());
+    temp.push_back('\0');
+    int fd = ::mkstemp(temp.data());
+    if (fd < 0) throw std::runtime_error("cannot create output file");
+    std::FILE *file = ::fdopen(fd, "w+b");
+    if (!file) {
+        ::close(fd);
+        ::unlink(temp.data());
+        throw std::runtime_error("cannot open temporary ROM");
+    }
+    try {
+        unsigned char zeros[RETRODE3_MAX_PREFIX_V3] = {};
+        if (std::fwrite(zeros, 1, plan.prefix_bytes, file) != plan.prefix_bytes)
+            throw std::runtime_error("cannot reserve ROM prefix");
+        std::size_t step = total / 100;
+        if (step < 4096) step = 4096;
+        OutputSink ctx = {file, &stream, command.request_id,
+                          total, plan.prefix_bytes, step, step, 0xffffffffu, ""};
+        stream.reset_cancel();
+        emit_progress(ctx, 0);
+        retrode3_host_io_v1 io = {RETRODE3_CORE_OPERATION_ABI_V1,
+                                  sizeof(io), &ctx, output_bytes, is_cancelled};
+        retrode3_read_result_v3 result;
+        std::memset(&result, 0, sizeof(result));
+        result.struct_size = sizeof(result);
+        std::memset(error, 0, sizeof(error));
+        int rc = module.api3->read_rom(&selection, &io, &result,
+                                        error, sizeof(error));
+        if (rc != 0) {
+            if (ctx.failure.empty())
+                ctx.failure = stream.cancelled() ? "cancelled" :
+                    error[0] ? safe_cstr(error, sizeof(error)) : "core read failed";
+            throw std::runtime_error(ctx.failure);
+        }
+        if (result.struct_size != sizeof(result) || result.prefix_bytes != plan.prefix_bytes ||
+            ctx.done != total || result.payload_crc_known > 1 ||
+            (result.payload_crc_known && result.payload_crc32 != ~ctx.crc))
+            throw std::runtime_error("v3 core read size/checksum mismatch");
+        retrode3::JsonV3 details = retrode3::parse_json_v3(
+            safe_cstr(result.details_json, sizeof(result.details_json)));
+        if (details.kind != retrode3::JsonV3::Object ||
+            details.at("read_configuration").kind != retrode3::JsonV3::Object ||
+            details.at("identity").kind != retrode3::JsonV3::Object ||
+            details.at("verification").kind != retrode3::JsonV3::Object)
+            throw std::runtime_error("invalid core result details");
+        const retrode3::JsonV3 &verification = details.at("verification");
+        std::string status = verification.at("status").text();
+        if (status != "verified" && status != "mismatch" &&
+            status != "not_found" && status != "ambiguous" &&
+            status != "not_checked")
+            throw std::runtime_error("unknown verification status");
+        if (verification.at("verified").kind != retrode3::JsonV3::Boolean ||
+            verification.at("verified").boolean != (status == "verified"))
+            throw std::runtime_error("inconsistent core verification");
+        if (std::fseek(file, 0, SEEK_SET) ||
+            std::fwrite(result.prefix, 1, plan.prefix_bytes, file) != plan.prefix_bytes ||
+            std::fflush(file) || std::fseek(file, 0, SEEK_SET))
+            throw std::runtime_error("cannot finalize ROM prefix");
+        std::uint32_t file_crc = 0xffffffffu;
+        std::size_t seen = 0;
+        unsigned char buffer[4096];
+        while (true) {
+            std::size_t count = std::fread(buffer, 1, sizeof(buffer), file);
+            for (std::size_t i = 0; i < count; ++i) {
+                file_crc ^= buffer[i];
+                for (unsigned bit = 0; bit < 8; ++bit)
+                    file_crc = (file_crc >> 1) ^
+                        ((file_crc & 1u) ? 0xedb88320u : 0u);
+            }
+            seen += count;
+            if (count != sizeof(buffer)) {
+                if (std::ferror(file))
+                    throw std::runtime_error("cannot verify output file");
+                break;
+            }
+        }
+        if (seen != total || ::fsync(::fileno(file)))
+            throw std::runtime_error("incomplete v3 output file");
+        if (std::fclose(file)) {
+            file = NULL;
+            throw std::runtime_error("cannot close ROM output");
+        }
+        file = NULL;
+        if (::link(temp.data(), output.c_str()))
+            throw std::runtime_error("cannot publish ROM without overwrite");
+        ::unlink(temp.data());
+        emit_progress(ctx, 100);
+        char crc_hex[9], payload_hex[9];
+        std::snprintf(crc_hex, sizeof(crc_hex), "%08X", ~file_crc);
+        std::snprintf(payload_hex, sizeof(payload_hex), "%08X", ~ctx.crc);
+        stream.emit(prefix("result", command.request_id)
+            + ",\"ok\":true,\"system\":" +
+                retrode3::NdjsonProtocol::quote(command.core)
+            + ",\"bytes_written\":" + std::to_string(total)
+            + ",\"crc32\":" + retrode3::NdjsonProtocol::quote(crc_hex)
+            + ",\"payload_crc32\":" + retrode3::NdjsonProtocol::quote(payload_hex)
+            + ",\"output\":" + retrode3::NdjsonProtocol::quote(output)
+            + ",\"selection_mode\":" + retrode3::NdjsonProtocol::quote(
+                command.has_selection ? command.selection_mode : "auto")
+            + ",\"read_configuration\":" +
+                retrode3::stringify_json_v3(details.at("read_configuration"))
+            + ",\"identity\":" + retrode3::stringify_json_v3(details.at("identity"))
+            + ",\"verification\":" +
+                retrode3::stringify_json_v3(details.at("verification"))
+            + ",\"verified\":" + (status == "verified" ? "true" : "false") + "}");
+    } catch (...) {
+        if (file) std::fclose(file);
+        ::unlink(temp.data());
+        throw;
+    }
+}
+
 void interactive(std::string const &available, std::string const &enabled)
 {
     retrode3::NdjsonProtocol stream(true);
