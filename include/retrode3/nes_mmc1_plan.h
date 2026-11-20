@@ -2,9 +2,10 @@
 #include <cstdint>
 
 /* Pure MMC1 ROM-dump operation plan. NO bus or kernel writes here.
- * In particular, a SerialValue step to $E000 must never be dispatched
- * via the generic NES_MODE_PRG write path: a safe, reviewed atomic kernel
- * operation and physical validation are prerequisites for any execution.
+ * A SerialValue step to $E000 is unsafe for cartridges with PRG-WRAM
+ * using the existing Linux kernel write pulse. The separately gated
+ * RAM-less SGROM lab build is a deliberate exception for physical testing;
+ * production MMC1 remains blocked until the timing has been reviewed.
  */
 namespace retrode3 { namespace nesmmc1 {
 
