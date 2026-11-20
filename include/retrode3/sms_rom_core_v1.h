@@ -77,49 +77,9 @@ inline Probe bounded_probe(Bus &bus)
     return probe;
 }
 
-// Mirrors the tested logical loop structure in Sanni's readROM_SMS():
-// <=32 KiB uses CPU 0..size-1, larger ROMs select 16 KiB banks in page 2
-// ($8000..$BFFF). Unlike Sanni's Arduino code, all mapper operations
-// remain behind the reviewed Bus interface and are only exercised in mocks.
-inline void stream_rom(Bus &bus, Layout layout, void *context, WriteFn write)
-{
-    if (!valid_layout(layout)) throw std::runtime_error("unsupported SMS layout");
-    if (!write) throw std::runtime_error("SMS output callback missing");
-    if (!bus.approved()) throw std::runtime_error("SMS adapter bus unapproved");
-    const std::uint32_t length = layout.rom_kib * 1024u;
-    const bool banked = layout.mapping == Sega16k;
-    bool initialized = false;
-    try {
-        if (banked) {
-            if (!bus.begin_sega_banked()) {
-                // A partial failed setup may already have touched registers.
-                (void)bus.end_sega_banked();
-                throw std::runtime_error("SMS mapper init failed");
-            }
-            initialized = true;
-        }
-        std::uint8_t bytes[512];
-        const std::uint32_t window_size = banked ? 16384u : length;
-        for (std::uint32_t page = 0; page < length / window_size; ++page) {
-            if (banked && !bus.select_page2(static_cast<std::uint8_t>(page)))
-                throw std::runtime_error("SMS bank select failed");
-            for (std::uint32_t offset = 0; offset < window_size; offset += sizeof(bytes)) {
-                if (bus.cancelled()) throw std::runtime_error("cancelled");
-                const std::uint16_t address = static_cast<std::uint16_t>(
-                    (banked ? 0x8000u : 0u) + offset);
-                if (!bus.read(address, bytes, sizeof(bytes)))
-                    throw std::runtime_error("SMS ROM bus read failed");
-                if (write(context, bytes, sizeof(bytes)))
-                    throw std::runtime_error("SMS host output rejected data");
-            }
-        }
-    } catch (...) {
-        if (initialized) (void)bus.end_sega_banked();
-        throw;
-    }
-    if (initialized && !bus.end_sega_banked())
-        throw std::runtime_error("SMS mapper cleanup failed");
-}
+// Generated from the actual pinned OSCR::Cores::SMS::readROM bank and
+// buffer loops. This header must be regenerated, not hand-edited.
+#include "oscr_sms_read.h"
 
 } } // namespace retrode3::sms
 #endif
