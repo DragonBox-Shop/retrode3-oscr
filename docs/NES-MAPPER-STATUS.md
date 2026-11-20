@@ -9,6 +9,37 @@
 > Der aktuelle Quellcode hat bei Widerspruechen Vorrang vor historischen
 > Abschnitten. **Implementiert != physisch verifiziert != freigegeben.**
 
+## Physisch abgenommen: Mario & Yoshi PAL MMC1 mit CHR-ROM (2026-11-20)
+
+**Mit der echten Retrode3 und der regulaeren NES-v3-Ausleseroutine
+erfolgreich bestaetigt:** PRG-ROM 128 KiB, CHR-ROM 32 KiB,
+iNES-Dateigroesse 163856 Bytes. Die CRC32 stimmt in allen
+drei Teilpruefungen exakt mit der dokumentierten Referenz ueberein:
+
+- **PRG-ROM:** `1406783D` (MATCH)
+- **CHR-ROM:** `FC0BBA23` (MATCH)
+- **PRG+CHR:** `836685C4` (MATCH)
+
+Damit ist neben Rad Racer (128KiB PRG/CHR-RAM) nun auch
+ein echtes MMC1-Spiel mit CHR-ROM hardwarevalidiert.
+Mario & Yoshi war zuvor zweimal `empty/unreadable`, aber
+fuenf aufeinanderfolgende Probes ohne Cartridge-Bewegung
+lieferten reproduzierbar `$8000:29D1D575` und
+`$E000:9A78A49D`. Nach komplett CRC-validiertem Dump
+sind diese **echten Hardware-Fingerprints** jetzt in der
+regionale Zusatzdatenbank hinterlegt. Kein Sanni-DB-Umbau,
+keine Aenderung am gemeinsamen CLI oder Web-v3-Vertrag.
+
+**Code und Regressionstests auf `develop` implementiert, CI
+NES und Core-Registry gruen am Commit `2435f2af`.**
+Das erneute **automatische** Probe auf echter Hardware mit dem
+aktualisierten NES-Core steht noch aus. Erwartet:
+`Mario & Yoshi (Europe)`, Layout `m1-128-32`,
+`selection_required:false`; anschliessendes v3-`auto`
+sollte `verified:true` ausgeben.
+
+Siehe [regional diagnosis & physical CRC proof](nes-probe-regional-diagnostics.md).
+
 ## Hardware-Rueckmeldung NES v3: Regionaltitel und Probe-Diagnose (2026-11-20)
 
 Der Nutzer hat auf der echten Retrode3 Folgendes beobachtet:
