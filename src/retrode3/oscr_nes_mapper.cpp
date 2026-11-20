@@ -1,11 +1,10 @@
 // NES mapper bank sequencing derived from pinned original Sanni NES.cpp,
 // e5a08326dfc8fff67193f7fc5a7bc36b5282b28c, readPRG/readCHR cases
 // 2 (UxROM), 3 (CNROM), 4 (MMC3), 7 (AxROM). Never edit upstream sources.
-// MMC1 has a SEPARATE opt-in lab path for 32-512 KiB PRG and 0-128 KiB
-// CHR. No cartridge save/flash/CHR-RAM data writes; bank registers are
-// CPU PRG mode only. The normal core never executes MMC1 register writes.
-// The lab is for cartridges with NO battery, with deliberate operator opt-in.
-// Kernel register-write pulse timing is NOT validated for PRG-WRAM saves.
+// Mapper-1 MMC1 PRG/CHR ROM dumping is part of the regular NES core.
+// Never write cartridge save/flash/CHR-RAM data; bank registers use CPU PRG.
+// MMC1 register pulses at E000/F000 are not yet SRAM-safe on this kernel:
+// battery-backed MMC1 layouts must not be read until kernel timing is fixed.
 #include "retrode3/oscr_nes_mapper.h"
 #include "retrode3/oscr_nes_compat.h"
 #include "retrode3/nes_mmc1_plan.h"
@@ -36,6 +35,17 @@ void prg_register(uint16_t address, uint8_t data)
     (void)data;
     throw std::runtime_error("NES bank switching not hardware-approved");
 #endif
+}
+void mmc1_register(uint16_t address, uint8_t data)
+{
+    // MMC1 serial register writes are required by *ordinary ROM reads*,
+    // including CHR-ROM. Keep this separate from the experimental gates
+    // for other NES mappers; never permit writes below $8000.
+    if (address != 0x8000u && address != 0xa000u &&
+        address != 0xe000u)
+        throw std::runtime_error("invalid MMC1 register address");
+    if (nes_write(address, &data, 1, NES_MODE_PRG) != 1)
+        throw std::runtime_error("MMC1 serial register write failed");
 }
 void safe_conflict_addresses(uint16_t begin, unsigned count,
                              uint16_t *addresses, const retrode3_host_io_v1 *io)
@@ -81,7 +91,7 @@ void execute_mmc1_step(void *opaque, nesmmc1::Step const &step)
     if (step.kind == nesmmc1::ResetSerial) {
         if (step.address != 0x8000u || step.value != 0x80u)
             throw std::runtime_error("unexpected MMC1 reset step");
-        prg_register(0x8000u, 0x80u);
+        mmc1_register(0x8000u, 0x80u);
     } else if (step.kind == nesmmc1::SerialValue) {
         if (step.length != 5u || step.value > 31u ||
             (step.address != 0x8000u && step.address != 0xa000u &&
@@ -89,7 +99,7 @@ void execute_mmc1_step(void *opaque, nesmmc1::Step const &step)
             throw std::runtime_error("invalid MMC1 serial step");
         for (unsigned i = 0; i < 5; ++i) {
             check_cancel(context.io);
-            prg_register(step.address, static_cast<uint8_t>((step.value >> i) & 1u));
+            mmc1_register(step.address, static_cast<uint8_t>((step.value >> i) & 1u));
         }
     } else if (step.kind == nesmmc1::ReadPrg) {
         if (step.address != 0x8000u ||
@@ -122,35 +132,15 @@ bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
 }
 bool mmc1_lab_enabled()
 {
-#if defined(RETRODE3_TESTING) || defined(RETRODE3_NES_MMC1_LAB)
-    // This does NOT detect the cartridge hardware. Requires explicit
-    // operator verification that the test PCB has NO PRG-RAM.
-    const char *ack = std::getenv("RETRODE3_MMC1_TEST_ACK");
-    const char *old = std::getenv("RETRODE3_MMC1_NO_PRG_RAM_ACK");
-    return (ack && std::strcmp(ack, "NO_BATTERY_TEST_ONLY") == 0) ||
-           (old && std::strcmp(old,
-             "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM") == 0);
-#else
-    return false;
-#endif
+    // Kept for source ABI compatibility; mapper 1 is normal ROM-read support.
+    return true;
 }
 bool mmc1_layout_enabled(unsigned submapper, unsigned prg,
                          unsigned chr, bool battery)
 {
-#if defined(RETRODE3_TESTING) || defined(RETRODE3_NES_MMC1_LAB)
-    if (battery || !geometry(1u, submapper, prg, chr))
-        return false;
-    const char *ack = std::getenv("RETRODE3_MMC1_TEST_ACK");
-    if (ack && std::strcmp(ack, "NO_BATTERY_TEST_ONLY") == 0)
-        return true;
-    // Compatibility only for the previously validated Rad Racer experiment.
-    const char *old = std::getenv("RETRODE3_MMC1_NO_PRG_RAM_ACK");
-    return submapper == 0 && prg == 128u && chr == 0u && old &&
-           std::strcmp(old, "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM") == 0;
-#else
-    (void)submapper; (void)prg; (void)chr; (void)battery;
-    return false;
-#endif
+    // Battery-backed MMC1 boards require an SRAM-safe M2/ROMSEL write
+    // pulse not yet provided by the kernel. No manual override bypass.
+    return !battery && geometry(1u, submapper, prg, chr);
 }
 bool runtime_writes_enabled()
 {
@@ -163,7 +153,7 @@ bool runtime_writes_enabled()
 
 bool runtime_mapper_enabled(unsigned mapper)
 {
-    return mapper == 1 ? mmc1_lab_enabled() : runtime_writes_enabled();
+    return mapper == 1 ? true : runtime_writes_enabled();
 }
 
 void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
@@ -175,8 +165,8 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
         throw std::runtime_error("NES mapper layout not approved for register writes");
     check_cancel(io);
     if (mapper == 1) {
-        // Deliberate no-battery lab exception. No save-RAM access here.
-        // The caller must reject battery-backed layouts before reaching us.
+        // Normal MMC1 ROM read; never touch save RAM data. Battery layouts
+        // are rejected by read_rom_v2 before this function is called.
         Mmc1Context context = {io};
         nesmmc1::plan(prg_kib, chr_kib, execute_mmc1_step, &context);
         return;
