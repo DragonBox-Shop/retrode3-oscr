@@ -144,27 +144,41 @@ Sanni-abgeleitete Banklese-Sequenzen für **Mapper 2 (UxROM), 3 (CNROM),
 4 (MMC3) und 7 (AxROM)** im gemeinsamen NES-Core eingebaut. Deren
 CPU-Register-Schreibzugriffe sind im normalen Build **deaktiviert** und
 laufen nur in der Mock-CI oder einer expliziten experimentellen
-Build-Konfiguration. MMC1/Mapper 1 bleibt im **normalen Build gesperrt**. Nur die
-gesonderte, nicht paketierte `native-nes-mmc1-lab`-`.so` kann nach
-explizitem Runtime-Opt-in mit **manuell bestaetigtem** NES-SGROM
-(Rad Racer, 128 KiB PRG, CHR-RAM, **kein PRG-WRAM**) einen echten
-MMC1-Bankdump versuchen. Dieser Pfad fuehrt reale CPU-Registerwrites
-mit dem vorhandenen `NES_MODE_PRG` aus. Die `NES_REG`-/
-33-ns-Timing-Sicherheit fuer PRG-WRAM-Cartridges ist **nicht**
-implementiert; solche Cartridges bleiben strikt gesperrt.
-`src/retrode3/nes_mmc1_plan.cpp` bleibt die eigenstaendige
-Ablaufplanung. `tools/nes-mmc1-sgrom-lab.sh` fuehrt den Versuch nach
-Board-Bestaetigung mit temporaerer `.so`-Installation und Restore aus.
-Details: [docs/nes-mmc1-sgrom-lab.md](docs/nes-mmc1-sgrom-lab.md).
-**Echter Retrode3-Labor-Dump vom 2026-11-20 erfolgreich:**
-Rad Racer PAL, Mapper 1 / SGROM (128 KiB PRG-ROM, 0 KiB CHR-ROM),
-131088 Bytes inklusive Header; **Payload-CRC32 `654F4E90` stimmt mit
-der PAL-Referenz ueberein**, Datei-CRC32 `B78FDA39`. Die
-Laborskript-Ausgabe bestaetigt die Wiederherstellung des normalen
-NES-Cores. `verified:false` betrifft nur den Mapper-0-only-
-Erkennungskatalog. Diese **einzelne physische SGROM-Leseabnahme**
-bedeutet **keine** allgemeine Mapper-1-Freigabe oder PRG-WRAM-Sicherheit;
-Signal-Timing/PCB-Verifikation/CI-Protokolle bleiben eigenstaendige Gates. Andere Mapper sind noch
+Build-Konfiguration. MMC1/Mapper 1 bleibt im **normalen Build gesperrt**, wird aber in
+`native-nes-mmc1-lab` fuer **eigene no-battery-Testcartridges**
+mit ausdruecklichem Opt-in `RETRODE3_MMC1_TEST_ACK=NO_BATTERY_TEST_ONLY`
+unterstuetzt. Die PRG-/CHR-Bankplanung in
+`src/retrode3/nes_mmc1_plan.cpp` und der `NES_MODE_PRG`-
+Register-Writer lesen nun konservative 32-512 KiB PRG- und
+0-128 KiB CHR-Layouts (CHR=0 bedeutet CHR-RAM). Die CHR-Routine
+setzt 8-KiB-Bankmodus explizit. Der separate Build ist **NICHT**
+im regulaeren Debian-/OS-Staging. Laufzeit-Sperre und
+Batterie-Layout-Block bleiben bestehen; kein SRAM-Backup/Restore.
+Das `NES_REG`-/M2-/ROMSEL-Timing fuer PRG-WRAM ist weiterhin
+unverifiziert: **niemals battery-backed Spiele damit testen**.
+
+Sannis gepinnte `oscartreader/oscr-databases`-NES-Datenbank
+(commit `87a48948...`) ist als `oscr_nes_mmc1_catalog.cpp`
+(695 Mapper-1-Metadatensaetze) integriert. `iprg` ist 16-KiB,
+`ichr` ist **4-KiB-Einheit**. Der Fast-Probe bleibt read-only,
+mit zwei 512-Byte-PRG-Fenstern; anschliessend exakter
+Voll-Payload-CRC-Titelvergleich. Manche Eintraege haben keine
+Fast-Probe-Fingerprints und werden erst nach erfolgreichem Dump
+erkannt; mehrdeutige Layouts verlangen manuellen Override.
+`get_capabilities` bleibt fuer Mapper 1 vorerst
+`read_supported:false` (keine Web-/Produktionsfreigabe).
+Testskript: `tools/nes-mmc1-lab.sh`, Befehle und Sicherheitsgrenzen:
+[docs/nes-mmc1-general-lab.md](docs/nes-mmc1-general-lab.md).
+
+**Physisch bestanden 2026-11-20:** Rad Racer PAL MMC1/SGROM,
+128 KiB PRG/0 KiB CHR, 131088 Bytes einschliesslich iNES,
+PRG-Payload CRC32 `654F4E90` (PAL-Referenztreffer),
+volle Datei-CRC32 `B78FDA39`; regulaere NES-`.so` wiederhergestellt.
+Die **neuen** 32/32- und 128/32-KiB PRG/CHR-Routinen sind
+**nur mock-/CI-getestet, nicht physisch abgenommen**. Beide vom
+Benutzer gemeldeten alten CRCs `F378619E`/`9FB32DEA` basierten
+auf dem falschen 128/0-Layout und sind keine Referenzen.
+Andere Mapper sind noch
 nicht implementiert. Die automatischen Fast-Probe-DB-Treffer sind weiterhin
 Mapper-0-only; für experimentelle Bankmapper braucht es ein bestätigtes
 manuelles Layout. `get_capabilities` darf die neuen Mapper bis zur
