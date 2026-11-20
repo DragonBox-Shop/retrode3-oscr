@@ -186,7 +186,7 @@ class TestNesMapperBanks(unittest.TestCase):
                 writes = [tuple(int(x) for x in line.split())
                           for line in handle if line.strip()]
             expected = (1 if p == 32 else (p // 16) * (
-                16 if p == 512 else 11)) + (c // 8) * 6
+                16 if p == 512 else 11)) + (c // 8) * 11
             self.assertEqual(len(writes), expected)
             self.assertFalse(any(addr < 0x8000 for addr, _, _ in writes))
 
