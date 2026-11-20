@@ -145,7 +145,11 @@ Sanni-abgeleitete Banklese-Sequenzen für **Mapper 2 (UxROM), 3 (CNROM),
 CPU-Register-Schreibzugriffe sind im normalen Build **deaktiviert** und
 laufen nur in der Mock-CI oder einer expliziten experimentellen
 Build-Konfiguration. MMC1/Mapper 1 bleibt wegen der ungesicherten
-`NES_MODE_REG`-/33-ns-Timing-Sequenz gesperrt. Andere Mapper sind noch
+`NES_MODE_REG`-/33-ns-Timing-Sequenz gesperrt. Die reine MMC1-
+Bankplanungslogik in `src/retrode3/nes_mmc1_plan.cpp` ist seit
+2026-11-20 nur ein **isolierter, lokal C++11-getesteter Ablaufplan**.
+Sie ist nicht in `nes.so` gelinkt, hat keinen Bus-Writer und gibt
+Mapper 1 auch mit experimentellem Flag nicht frei. Andere Mapper sind noch
 nicht implementiert. Die automatischen Fast-Probe-DB-Treffer sind weiterhin
 Mapper-0-only; für experimentelle Bankmapper braucht es ein bestätigtes
 manuelles Layout. `get_capabilities` darf die neuen Mapper bis zur
