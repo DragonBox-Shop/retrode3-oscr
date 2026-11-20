@@ -322,6 +322,9 @@ zuletzt FF1/FF2 (nur mit geprueftem Adapter).
 - Neues `tools/nes-mmc1-lab.sh`: gesperrtes Testmodul einlegen,
   no-battery-Bestaetigung, automatische DB-Erkennung oder manuelle
   PRG/CHR-Werte, temporäre `nes.so`, automatische Restore-Falle.
+- Synthetische Header fuer unbekannte, manuell gewaehlte NES-2.0
+  MMC1-Submapper werden korrekt codiert (insbesondere Submapper 5,
+  32KiB PRG/32KiB CHR); eigener Mock-Test vorhanden.
 - **Echtgeraet bisher**: Rad Racer PAL 128/0, Payload `654F4E90`,
   Gesamt `B78FDA39`, temporaere `.so` wiederhergestellt.
   **Echtgeraet ausstehend**: PRG 128+CHR 32, PRG 32+CHR 32.
