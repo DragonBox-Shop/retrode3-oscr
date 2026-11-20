@@ -47,6 +47,17 @@ void init()
         rom_chr.resize(chr_size);
         for (unsigned i = 0; i < prg_size; ++i) rom_prg[i] = pattern_prg(i);
         for (unsigned i = 0; i < chr_size; ++i) rom_chr[i] = pattern_chr(i);
+        if (mapper == 1 && prg_size >= 32768u &&
+            std::getenv("RETRODE_MOCK_NES_TETRIS_PROBE")) {
+            // 508 zero bytes + CRC32 patch = 0x96D6696B, the pinned
+            // Tetris Europe MMC1 (submapper 5) first-bank fingerprint.
+            // Emulates a DB match without bundling a copyrighted ROM.
+            std::memset(&rom_prg[0], 0, 508);
+            rom_prg[508] = 0xe3;
+            rom_prg[509] = 0x10;
+            rom_prg[510] = 0x79;
+            rom_prg[511] = 0xc3;
+        }
         const char *no_safe = std::getenv("RETRODE_MOCK_NES_NO_CONFLICT_SAFE");
         if (no_safe && mapper == 2)
             for (unsigned i = prg_size - 16384u; i < prg_size; ++i)
