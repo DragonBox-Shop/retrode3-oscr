@@ -134,31 +134,72 @@ class TestNesMapperBanks(unittest.TestCase):
         self.assertEqual(events[-1]["identity"]["title"], "Rad Racer (Europe)")
         self.assertEqual(events[-1]["verification"]["expected"], "02589598")
 
-    def test_v3_mario_and_yoshi_europe_crc_after_manual_layout(self):
+    def test_v3_mario_and_yoshi_europe_detects_and_verifies_auto(self):
+        # Five identical live $8000/$E000 CRCs plus an actual PRG+CHR dump
+        # prove the cartridge is readable and establish stable fingerprints.
+        # Synthetic ROM bytes reproduce the two probe CRCs and total CRC.
         env = {"RETRODE_MOCK_NES_PRG_KIB": "128",
                "RETRODE_MOCK_NES_CHR_KIB": "32",
                "RETRODE_MOCK_NES_MARIO_YOSHI_EU": "1"}
         probe = {"command": "probe", "core": "nes", "request_id": "yoshi-probe"}
-        events = self.run_cli(1, [probe], env)
+        read_log = os.path.join(self.temp.name, "yoshi-probe-writes")
+        events = self.run_cli(1, [probe],
+                              dict(env, RETRODE_MOCK_NES_WRITELOG=read_log))
         self.assertEqual(events[-1]["event"], "probe_result", events)
-        # A new full payload CRC reference cannot magically produce
-        # the missing first/last-512-byte probe signatures.
-        self.assertEqual(events[-1]["identification_status"], "unknown")
+        info = events[-1]
+        self.assertEqual(info["probe_fingerprints"]["cpu_8000_crc32"],
+                         "29D1D575")
+        self.assertEqual(info["probe_fingerprints"]["cpu_e000_crc32"],
+                         "9A78A49D")
+        self.assertFalse(os.path.exists(read_log),
+                         "Fast-probe must never change MMC1 registers")
+        self.assertEqual(info["identification_status"], "unique", events)
+        self.assertEqual(info["mapping"], "mmc1")
+        self.assertFalse(info["selection_required"])
+        self.assertEqual(info["ambiguity"], "none")
+        self.assertEqual(len(info["candidates"]), 1)
+        candidate = info["candidates"][0]
+        self.assertEqual(candidate["title"], "Mario & Yoshi (Europe)")
+        self.assertTrue(candidate["read_supported"])
+        self.assertEqual(candidate["layout_id"], "m1-128-32")
+        self.assertEqual(candidate["payload_crc32_expected"], "836685C4")
+        self.assertEqual(len(info["read_layouts"]), 1)
+        self.assertEqual(info["read_layouts"][0]["id"], "m1-128-32")
+        self.assertEqual(info["size_bytes"], 163856)
         job = {"command": "read_rom", "core": "nes",
                "request_id": "yoshi-eu",
                "output": os.path.join(self.temp.name, "mario-yoshi.nes"),
-               "selection": self.v3_override(128, 32)}
+               "selection": {"version": 1, "schema_id": "nes-layout-v1",
+                             "mode": "auto"}}
         events = self.run_cli(1, [job], env)
         result = events[-1]
         self.assertEqual(result["event"], "result", events)
         self.assertTrue(result["verified"], events)
         self.assertEqual(result["identity"]["title"], "Mario & Yoshi (Europe)")
+        self.assertEqual(result["identity"]["matched_candidate_id"],
+                         candidate["id"])
         self.assertEqual(result["verification"]["actual"], "836685C4")
+        self.assertEqual(result["read_configuration"]["mapper"], 1)
+        self.assertEqual(result["read_configuration"]["prg_kib"], 128)
+        self.assertEqual(result["read_configuration"]["chr_kib"], 32)
         self.assertEqual(result["bytes_written"], 163856)
         with io.open(job["output"], "rb") as handle:
             data = handle.read()
         self.assertEqual(data[12], 1)  # PAL
         self.assertEqual(zlib.crc32(data[16:]) & 0xffffffff, 0x836685C4)
+
+    def test_v3_mario_and_yoshi_manual_override_still_verifies(self):
+        env = {"RETRODE_MOCK_NES_PRG_KIB": "128",
+               "RETRODE_MOCK_NES_CHR_KIB": "32",
+               "RETRODE_MOCK_NES_MARIO_YOSHI_EU": "1"}
+        job = {"command": "read_rom", "core": "nes",
+               "request_id": "yoshi-manual",
+               "output": os.path.join(self.temp.name, "mario-yoshi-manual.nes"),
+               "selection": self.v3_override(128, 32)}
+        events = self.run_cli(1, [job], env)
+        self.assertEqual(events[-1]["event"], "result", events)
+        self.assertTrue(events[-1]["verified"], events)
+        self.assertEqual(events[-1]["verification"]["actual"], "836685C4")
 
     def test_v3_faxanadu_europe_known_crc_without_probe_match(self):
         env = {"RETRODE_MOCK_NES_PRG_KIB": "256",
