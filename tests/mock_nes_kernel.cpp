@@ -78,6 +78,38 @@ void init()
             rom_prg[510] = 0x01;
             rom_prg[511] = 0x8d;
         }
+        if (mapper == 1 && prg_size == 128u * 1024u &&
+            chr_size == 0u && std::getenv("RETRODE_MOCK_NES_RAD_RACER_REF")) {
+            // A synthetic first 512 bytes with Sanni's Highway Star ID32A.
+            // The PAL Rad Racer reference has the same read layout but
+            // a DIFFERENT complete PRG CRC. No game data is included.
+            std::memset(&rom_prg[0], 0, 508);
+            rom_prg[508] = 0xb4; rom_prg[509] = 0x26;
+            rom_prg[510] = 0x43; rom_prg[511] = 0x91;
+            rom_prg[prg_size - 4] = 0x5f;
+            rom_prg[prg_size - 3] = 0x0a;
+            rom_prg[prg_size - 2] = 0x3c;
+            rom_prg[prg_size - 1] = 0x07;
+        }
+        if (mapper == 1 && prg_size == 128u * 1024u &&
+            chr_size == 32u * 1024u &&
+            std::getenv("RETRODE_MOCK_NES_MARIO_YOSHI_EU")) {
+            // Correct full Europe ROM CRC, but intentionally *no* Sanni
+            // fast-probe fingerprint: the PAL title is missing there.
+            rom_chr[chr_size - 4] = 0x92;
+            rom_chr[chr_size - 3] = 0xe1;
+            rom_chr[chr_size - 2] = 0xfe;
+            rom_chr[chr_size - 1] = 0x6c;
+        }
+        if (mapper == 1 && prg_size == 256u * 1024u &&
+            chr_size == 0u && std::getenv("RETRODE_MOCK_NES_FAXANADU_EU")) {
+            // Original Sanni entry exists, but deliberately no matching
+            // fingerprint in the mock. Full ROM CRC should still verify.
+            rom_prg[prg_size - 4] = 0x4a;
+            rom_prg[prg_size - 3] = 0x0f;
+            rom_prg[prg_size - 2] = 0xd2;
+            rom_prg[prg_size - 1] = 0x99;
+        }
         const char *no_safe = std::getenv("RETRODE_MOCK_NES_NO_CONFLICT_SAFE");
         if (no_safe && mapper == 2)
             for (unsigned i = prg_size - 16384u; i < prg_size; ++i)
