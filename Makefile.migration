@@ -229,7 +229,7 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
@@ -244,3 +244,10 @@ stage-retrode3-runtime: stage-shared-host stage-all-shared-cores
 
 test-release-stage: stage-retrode3-runtime
 	python3 -m unittest discover -s tests -p 'test_release_stage.py' -v
+
+# Generic hardware-free ABI v3: selection, title/layout ambiguity, safety.
+.PHONY: test-generic-selection-v3
+test-generic-selection-v3: native-core-registry
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
+	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
