@@ -7,6 +7,22 @@ for the dated physical acceptance record and
 Old feature branches, stacked PRs and historical paragraphs in feature
 documents are **not** the current production/development status.
 
+## Verbindliche Vorabpruefung vor GitHub-Pushes
+
+Vor jedem Push, der native Cores, ABI, CLI, Tests oder Makefile aendert, im
+vollstaendigen lokalen Checkout zuerst `./tools/preflight-ci.sh` ausfuehren.
+Das Skript initialisiert das gepinnte OSCR-Submodul und prueft alle drei
+Cores, generische v3-Auswahl, MMC1-Laborbuild sowie das Debian-Staging
+ohne Zugriff auf echte Cartridge-Hardware. Ein Fehler blockiert den Push;
+erst lokal reparieren und erneut den gesamten Testlauf ausfuehren.
+
+Keine bewusst ungetesteten Compiler-/Mapper-Zwischenstaende direkt auf
+`develop` pushen. Zusammengehoerige Aenderungen vorab lokal buendeln.
+Wenn nur GitHub-Connector-Zugriff ohne lokalen Checkout/Testmoeglichkeit
+vorliegt, fuer riskante Aenderungen einen kurzlebigen PR-Branch gegen
+`develop` nutzen, Checks abwarten und erst danach squash-merge durchfuehren.
+Keine CI-Fehler durch Auskommentieren von Pruefungen oder `continue-on-error`
+unterdruecken. Hardwaretests bleiben zusaetzlich verpflichtend.
 ## Repositories and branches
 
 - [retrode3-oscr](https://github.com/DragonBox-Shop/retrode3-oscr):

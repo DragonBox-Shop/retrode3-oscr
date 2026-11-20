@@ -17,6 +17,7 @@ on:
       - 'tests/mock_nes_kernel.cpp'
       - 'tools/verify-nes-mapper-sequences.py'
       - 'third_party/oscr-firmware'
+      - 'tools/preflight-ci.sh'
       - '.github/workflows/core-registry.yml'
   pull_request:
     branches:
@@ -59,6 +60,7 @@ on:
       - 'retrode3-lib.h'
       - 'tools/build-linux-snes-core.py'
       - 'tools/build-linux-md-core.py'
+      - 'tools/preflight-ci.sh'
       - '.github/workflows/core-registry.yml'
   workflow_dispatch:
 
@@ -75,6 +77,8 @@ jobs:
           submodules: false
       - name: Initialize pinned original OSCR source
         run: git submodule update --init third_party/oscr-firmware
+      - name: Validate pre-push smoke-test script syntax
+        run: sh -n tools/preflight-ci.sh
       - name: Build genuine upstream SNES dynamic module
         run: make -f Makefile.migration native-snes-module
       - name: Build real native registry CLI
