@@ -108,6 +108,8 @@ jobs:
           cmp packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
       - name: Verify stable Debian staging filesystem layout
         run: make -f Makefile.migration test-release-stage
+      - name: Exercise SMS-0007 experimental read-only v3 adapter
+        run: make -f Makefile.migration test-sms-md-module
       - name: Verify pinned upstream checkout untouched
         run: |
           git -C third_party/oscr-firmware diff --exit-code

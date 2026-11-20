@@ -1,0 +1,4 @@
+id=sms-md
+name=Master System (SMS-0007 adapter)
+version=0.2.0-readonly-lab
+slot=md
