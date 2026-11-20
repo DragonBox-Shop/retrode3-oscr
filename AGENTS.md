@@ -144,12 +144,19 @@ Sanni-abgeleitete Banklese-Sequenzen für **Mapper 2 (UxROM), 3 (CNROM),
 4 (MMC3) und 7 (AxROM)** im gemeinsamen NES-Core eingebaut. Deren
 CPU-Register-Schreibzugriffe sind im normalen Build **deaktiviert** und
 laufen nur in der Mock-CI oder einer expliziten experimentellen
-Build-Konfiguration. MMC1/Mapper 1 bleibt wegen der ungesicherten
-`NES_MODE_REG`-/33-ns-Timing-Sequenz gesperrt. Die reine MMC1-
-Bankplanungslogik in `src/retrode3/nes_mmc1_plan.cpp` ist seit
-2026-11-20 nur ein **isolierter, lokal C++11-getesteter Ablaufplan**.
-Sie ist nicht in `nes.so` gelinkt, hat keinen Bus-Writer und gibt
-Mapper 1 auch mit experimentellem Flag nicht frei. Andere Mapper sind noch
+Build-Konfiguration. MMC1/Mapper 1 bleibt im **normalen Build gesperrt**. Nur die
+gesonderte, nicht paketierte `native-nes-mmc1-lab`-`.so` kann nach
+explizitem Runtime-Opt-in mit **manuell bestaetigtem** NES-SGROM
+(Rad Racer, 128 KiB PRG, CHR-RAM, **kein PRG-WRAM**) einen echten
+MMC1-Bankdump versuchen. Dieser Pfad fuehrt reale CPU-Registerwrites
+mit dem vorhandenen `NES_MODE_PRG` aus. Die `NES_REG`-/
+33-ns-Timing-Sicherheit fuer PRG-WRAM-Cartridges ist **nicht**
+implementiert; solche Cartridges bleiben strikt gesperrt.
+`src/retrode3/nes_mmc1_plan.cpp` bleibt die eigenstaendige
+Ablaufplanung. `tools/nes-mmc1-sgrom-lab.sh` fuehrt den Versuch nach
+Board-Bestaetigung mit temporaerer `.so`-Installation und Restore aus.
+Details: [docs/nes-mmc1-sgrom-lab.md](docs/nes-mmc1-sgrom-lab.md).
+Weder Zielhardware-Tests noch eine MMC1-CRC-Abnahme sind bisher belegt. Andere Mapper sind noch
 nicht implementiert. Die automatischen Fast-Probe-DB-Treffer sind weiterhin
 Mapper-0-only; für experimentelle Bankmapper braucht es ein bestätigtes
 manuelles Layout. `get_capabilities` darf die neuen Mapper bis zur
