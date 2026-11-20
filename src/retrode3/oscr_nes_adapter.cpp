@@ -634,7 +634,12 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
         ",\"ambiguity\":" + retrode3::json_quote_v3(ambiguity) +
         ",\"selection_required\":" + (required ? "true" : "false") +
         ",\"candidate_lookup\":\"fingerprint_only\",\"checksum\":null" +
-        ",\"mapping\":\"unknown\",\"title\":" +
+        ",\"mapping\":" + retrode3::json_quote_v3(unique_layout ?
+            (result.layouts[0].mapper == 0 ? "nrom" :
+             result.layouts[0].mapper == 1 ? "mmc1" : "unknown") : "unknown") +
+        ",\"size_bytes\":" + std::to_string(unique_layout ?
+            16u + (result.layouts[0].prg_kib + result.layouts[0].chr_kib) * 1024u : 0u) +
+        ",\"title\":" +
         retrode3::json_quote_v3(result.candidate_count == 1 ?
                                      result.candidates[0].title : "NES cartridge") +
         ",\"candidates\":[";
