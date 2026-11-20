@@ -159,6 +159,23 @@ class TestNesMapperBanks(unittest.TestCase):
         self.assertEqual(data[3], 0x1a)
         self.assertEqual(data[8], 0x50)  # pinned NES2 submapper 5 header
 
+    def test_mmc1_manual_submapper5_unknown_uses_nes2_header(self):
+        job = self.cmd(1, 32, 32, "mmc1-s5-unknown")
+        job["submapper"] = 5
+        events = self.run_cli(1, [job], {
+            "RETRODE3_MMC1_TEST_ACK": "NO_BATTERY_TEST_ONLY",
+            "RETRODE_MOCK_NES_PRG_KIB": "32",
+            "RETRODE_MOCK_NES_CHR_KIB": "32"})
+        self.assertEqual(events[-1]["event"], "result", events)
+        self.assertFalse(events[-1]["verified"])
+        self.assertEqual(events[-1]["layout_id"], "m1s5-32-32")
+        with io.open(job["output"], "rb") as handle:
+            data = handle.read()
+        self.assertEqual(data[7] & 0x0c, 0x08)
+        self.assertEqual(data[8] >> 4, 5)
+        self.assertEqual(data[4], 2)
+        self.assertEqual(data[5], 4)
+
     def test_mmc1_pinned_full_payload_crc_verifies_unique_title(self):
         # Synthetic 32/32 ROM: only 4 CHR bytes patched to the real
         # reference CRC. No original Nintendo ROM bytes are embedded.
