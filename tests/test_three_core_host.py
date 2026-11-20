@@ -25,7 +25,7 @@ class TripleCoreHost(unittest.TestCase):
         for core, name, version, slot in (
             ("md", "Mega Drive", "0.2.0-v3", "md"),
             ("nes", "Nintendo Entertainment System", "0.2.0-nrom-mmc1", "nes"),
-            ("snes", "Super Nintendo", "0.1.0-stage1", "snes")
+            ("snes", "Super Nintendo", "0.2.0-v3", "snes")
         ):
             source = os.path.join(ROOT, "build/migration/real-" + core + "-fixture", core + ".so")
             shutil.copyfile(source, os.path.join(self.available, core + ".so"))

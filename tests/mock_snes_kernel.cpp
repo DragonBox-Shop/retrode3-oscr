@@ -20,7 +20,7 @@ extern "C" int snes_read(std::uint8_t bank, std::uint16_t addr,
         std::memcpy(header + 0x10, "MOCK SNES CART", 14);
         char const *map = std::getenv("RETRODE_MOCK_MAP");
         header[0x25] = (map && std::strcmp(map, "hi") == 0) ? 0x21 : 0x20;
-        header[0x26] = 0;
+        header[0x26] = std::getenv("RETRODE_MOCK_SNES_SPECIAL") ? 4 : 0;
         header[0x27] = 9; // 2^(9+10) bytes = 512 KiB
         header[0x2c] = 0xcb;
         header[0x2d] = 0xed; // complement 0xEDCB
