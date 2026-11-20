@@ -193,7 +193,7 @@ void hex_mmc1_header(char const *hex, unsigned prg, unsigned chr,
         }
         header[i] = b;
     }
-    if (std::memcmp(header, "NES\\x1a", 4) != 0 ||
+    if ((std::memcmp(header, "NES", 3) != 0 || header[3] != 0x1au) ||
         (header[6] >> 4) != 1u || (header[7] & 0xf0u) != 0 ||
         header[4] * 16u != prg || header[5] * 8u != chr ||
         (((header[7] & 0x0cu) == 0x08u) ?
