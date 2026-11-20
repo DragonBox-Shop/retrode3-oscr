@@ -433,6 +433,73 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
         }
         result->payload_crc32 = ~sink.crc;
 
+        if (mapper == 1) {
+            // Full payload CRC can identify even Sanni catalogue entries
+            // that have no 512-byte probe fingerprint. No extra bus reads.
+            const retrode3::nesstage1::Mmc1Record *exact = NULL;
+            unsigned exact_count = 0;
+            std::size_t exact_index = 0;
+            for (std::size_t i = 0;
+                 i < retrode3::nesstage1::mmc1_record_count; ++i) {
+                const retrode3::nesstage1::Mmc1Record &r =
+                    retrode3::nesstage1::mmc1_records[i];
+                if (r.prg_bytes_kib != prg || r.chr_bytes_kib != chr ||
+                    r.submapper != submapper ||
+                    r.payload_crc32 != result->payload_crc32) continue;
+                if (exact && std::strcmp(exact->header_hex, r.header_hex))
+                    return fail(error, cap,
+                                "multiple MMC1 CRC matches with different headers");
+                if (!exact) { exact = &r; exact_index = i; }
+                ++exact_count;
+            }
+            if (exact) {
+                hex_mmc1_header(exact->header_hex, prg, chr, submapper,
+                                result->header);
+                result->verified = exact_count == 1u ? 1u : 0u;
+                if (exact_count == 1u) {
+                    mmc1_candidate_id(exact_index, result->matched_candidate_id,
+                                      sizeof(result->matched_candidate_id));
+                    std::snprintf(result->title, sizeof(result->title),
+                                  "%s", exact->title);
+                } else {
+                    std::snprintf(result->title, sizeof(result->title), "%s",
+                                  "Ambiguous MMC1 ROM (matching payload)");
+                }
+            } else if (request->manual) {
+                synthetic_header(mapper, prg, chr, request->mirroring,
+                                 request->battery, result->header);
+                std::snprintf(result->title, sizeof(result->title), "%s",
+                              "Unverified MMC1 ROM (manual layout)");
+            } else {
+                const retrode3::nesstage1::Mmc1Record *fallback = NULL;
+                if (selected) fallback = find_mmc1_record(selected->id);
+                for (unsigned i = 0; i < probe->candidate_count; ++i) {
+                    const retrode3_candidate_v2 &c = probe->candidates[i];
+                    if (c.mapper != mapper || c.submapper != submapper ||
+                        c.prg_kib != prg || c.chr_kib != chr) continue;
+                    const retrode3::nesstage1::Mmc1Record *r =
+                        find_mmc1_record(c.id);
+                    if (!r) return fail(error, cap,
+                                        "invalid MMC1 catalogue candidate ID");
+                    if (fallback &&
+                        std::strcmp(fallback->header_hex, r->header_hex))
+                        return fail(error, cap,
+                            "unverified MMC1 layout has conflicting headers; use manual");
+                    if (!fallback) fallback = r;
+                }
+                if (!fallback)
+                    return fail(error, cap, "MMC1 layout without matching record");
+                hex_mmc1_header(fallback->header_hex, prg, chr, submapper,
+                                result->header);
+                std::snprintf(result->title, sizeof(result->title), "%s",
+                              "Unverified MMC1 ROM");
+            }
+            mmc1_layout_id(submapper, prg, chr, result->layout_id,
+                           sizeof(result->layout_id));
+            return 0;
+        }
+
+
         const retrode3::nesstage1::NromRecord *match = NULL;
         char match_id[32] = {};
         for (unsigned i = 0; mapper == 0 && i < probe->candidate_count; ++i) {
