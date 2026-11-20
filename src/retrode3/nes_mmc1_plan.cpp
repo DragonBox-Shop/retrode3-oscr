@@ -16,7 +16,8 @@ void reset(StepCallback emit, void *ctx)
 void serial(StepCallback emit, void *ctx, std::uint16_t addr, unsigned value)
 {
     // Sanni write_mmc1_byte shifts exactly five bits, LSB first.
-    // The execution layer is intentionally absent: this is not a safe write.
+    // The generic PRG-write executor is only permitted in the explicitly
+    // gated no-PRG-WRAM SGROM lab build; normal production remains blocked.
     step(emit, ctx, SerialValue, addr, value & 0x1fu, 5u);
 }
 }
