@@ -94,12 +94,23 @@ void init()
         if (mapper == 1 && prg_size == 128u * 1024u &&
             chr_size == 32u * 1024u &&
             std::getenv("RETRODE_MOCK_NES_MARIO_YOSHI_EU")) {
-            // Correct full Europe ROM CRC, but intentionally *no* Sanni
-            // fast-probe fingerprint: the PAL title is missing there.
-            rom_chr[chr_size - 4] = 0x92;
-            rom_chr[chr_size - 3] = 0xe1;
-            rom_chr[chr_size - 2] = 0xfe;
-            rom_chr[chr_size - 1] = 0x6c;
+            // Synthetic ROM with the EXACT five-times-stable hardware
+            // probe pair measured on the PAL NES-SFROM cartridge:
+            // 512-byte CRCs at CPU $8000 = 29D1D575, $E000 = 9A78A49D.
+            // Final 4 CHR bytes preserve its full payload CRC 836685C4.
+            // The reference PRG/CHR game data is NOT included.
+            std::memset(&rom_prg[0], 0, 508);
+            rom_prg[508] = 0x17; rom_prg[509] = 0xf0;
+            rom_prg[510] = 0x59; rom_prg[511] = 0xd8;
+            std::memset(&rom_prg[prg_size - 8192u], 0, 508);
+            rom_prg[prg_size - 8192u + 508] = 0x2a;
+            rom_prg[prg_size - 8192u + 509] = 0xda;
+            rom_prg[prg_size - 8192u + 510] = 0x07;
+            rom_prg[prg_size - 8192u + 511] = 0x38;
+            rom_chr[chr_size - 4] = 0x22;
+            rom_chr[chr_size - 3] = 0x63;
+            rom_chr[chr_size - 2] = 0x37;
+            rom_chr[chr_size - 1] = 0x4f;
         }
         if (mapper == 1 && prg_size == 256u * 1024u &&
             chr_size == 0u && std::getenv("RETRODE_MOCK_NES_FAXANADU_EU")) {
