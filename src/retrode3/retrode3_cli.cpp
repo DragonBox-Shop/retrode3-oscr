@@ -1269,7 +1269,8 @@ void interactive(std::string const &available, std::string const &enabled)
             }
             BusLock lock(enabled);
             OpenCore module(available + "/" + core_info.id + ".so");
-            if (module.api3) {
+            if (module.api3 && (command.action == "probe" ||
+                                command.has_selection || !module.api2)) {
                 if (command.action == "probe")
                     emit_probe_v3(stream, command.request_id, core_info, module);
                 else if (command.action == "read_rom")
