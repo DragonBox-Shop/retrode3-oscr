@@ -498,12 +498,17 @@ void emit_fast_probe(retrode3::NdjsonProtocol &stream,
         + ",\"system\":" + retrode3::NdjsonProtocol::quote(system)
         + ",\"identification_status\":"
         + retrode3::NdjsonProtocol::quote(info.identification_status)
-        + ",\"mapping\":" + retrode3::NdjsonProtocol::quote(one ? "nrom" : "unknown")
+        + ",\"mapping\":" + retrode3::NdjsonProtocol::quote(
+            one ? (info.layouts[0].mapper == 0 ? "nrom" :
+                   info.layouts[0].mapper == 1 ? "mmc1" : "unknown")
+                : "unknown")
         + ",\"title\":" + retrode3::NdjsonProtocol::quote(title)
         + ",\"size_bytes\":" + std::to_string(
             one ? (16u + (info.layouts[0].prg_kib + info.layouts[0].chr_kib) * 1024u) : 0u)
         + ",\"checksum\":null,\"candidate_lookup\":\"fingerprint_only\""
-        + ",\"selection_required\":" + (info.layout_count > 1 ? "true" : "false")
+        + ",\"selection_required\":" +
+            (info.layout_count != 1 || !info.layouts[0].read_supported ?
+             "true" : "false")
         + ",\"candidates\":[";
     for (unsigned i = 0; i < info.candidate_count; ++i) {
         if (i) json += ",";
@@ -550,7 +555,14 @@ void emit_capabilities(retrode3::NdjsonProtocol &stream, std::string const &id,
            ? ",\"fast_probe\":true,\"manual_layout\":true,"
              "\"supported_mappers\":[{\"mapper\":0,\"submapper\":0,"
              "\"prg_kib\":[16,32],\"chr_kib\":[0,8],\"read_supported\":true},"
-             "{\"mapper\":1,\"submapper\":0,\"read_supported\":false},"
+             "{\"mapper\":1,\"submapper\":0,"
+             "\"prg_kib\":[32,64,128,256,512],"
+             "\"chr_kib\":[0,8,16,32,64,128],"
+             "\"read_supported\":true},"
+             "{\"mapper\":1,\"submapper\":5,"
+             "\"prg_kib\":[32],"
+             "\"chr_kib\":[8,16,32,64,128],"
+             "\"read_supported\":true},"
              "{\"mapper\":2,\"submapper\":0,\"read_supported\":false},"
              "{\"mapper\":3,\"submapper\":0,\"read_supported\":false},"
              "{\"mapper\":4,\"submapper\":0,\"read_supported\":false},"
