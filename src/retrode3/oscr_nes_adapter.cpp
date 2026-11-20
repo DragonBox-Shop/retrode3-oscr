@@ -759,8 +759,10 @@ void selection_to_nes_v3(const retrode3_selection_v3 *choice,
     } else if (choice->mode == RETRODE3_SELECT_LAYOUT_V3) {
         if (!choice->layout_id[0] || choice->candidate_id[0])
             throw std::runtime_error("invalid layout selection");
-        std::snprintf(request.layout_id, sizeof(request.layout_id), "%s",
-                      choice->layout_id);
+        if (std::strlen(choice->layout_id) >= sizeof(request.layout_id))
+            throw std::runtime_error("NES layout ID too long");
+        std::memcpy(request.layout_id, choice->layout_id,
+                    std::strlen(choice->layout_id) + 1);
     } else if (choice->mode != RETRODE3_SELECT_AUTO_V3)
         throw std::runtime_error("unknown NES selection mode");
     for (unsigned i = 0; i < probe.layout_count; ++i) {
