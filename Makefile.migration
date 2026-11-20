@@ -94,6 +94,16 @@ stage-md-module: native-md-module
 	install -m 644 build/migration/md.so build/migration/stage/usr/lib/retrode3/cores-available/md.so
 	install -m 644 packaging/cores/md.core build/migration/stage/usr/lib/retrode3/cores-available/md.core
 
+# Isolated MMC1 control-sequence planner: no kernel/GPIO linkage, no
+# executable MMC1 cartridge writes, and no production-core feature exposure.
+.PHONY: test-nes-mmc1-plan
+test-nes-mmc1-plan:
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) \
+		src/retrode3/nes_mmc1_plan.cpp tests/nes_mmc1_plan_test.cpp \
+		-o build/migration/nes_mmc1_plan_test
+	./build/migration/nes_mmc1_plan_test
+
 # Stage-1 NES NROM: original pinned Sanni dumpBankPRG/CHR loops only,
 # with reviewed 512-byte read-only HAL substitution for per-byte AVR calls.
 # A pinned OSCR mapper-0 fingerprint catalog uniquely identifies ROM layout.
@@ -118,7 +128,7 @@ native-nes-module: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic
 		src/retrode3/oscr_nes_adapter.cpp build/migration/retrode3-lib.pic.o \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/nes.so
 
-test-native-nes-module: verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o test-core-registry
+test-native-nes-module: test-nes-mmc1-plan verify-nes-mapper-sequences build/migration/oscr_nes_nrom.pic.o test-core-registry
 	mkdir -p build/migration/real-nes-fixture
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs -DRETRODE3_TESTING $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
