@@ -76,7 +76,7 @@ int main()
 
     // Full Sanni sequence for a 64-KiB PRG with one CHR bank.
     const std::vector<Step> s = make(64, 8);
-    assert(s.size() == 4u * 4u + 3u);
+    assert(s.size() == 4u * 4u + 4u);
     for (unsigned bank = 0; bank < 4; ++bank) {
         const unsigned i = bank * 4u;
         assert(s[i].kind == ResetSerial);
@@ -84,8 +84,9 @@ int main()
         assert(s[i+2].kind == SerialValue && s[i+2].address == 0xe000u && s[i+2].value == bank);
         assert(s[i+3].kind == ReadPrg && s[i+3].value == bank);
     }
-    assert(s[16].kind == ResetSerial && s[17].address == 0xa000u);
-    assert(s[17].value == 0u && s[18].kind == ReadChr);
+    assert(s[16].kind == ResetSerial && s[17].address == 0x8000u);
+    assert(s[17].value == 0x0cu && s[18].address == 0xa000u);
+    assert(s[18].value == 0u && s[19].kind == ReadChr);
     const std::vector<Step> upper = make(512, 16);
     // PRG bank 15 and 16: the 512-KiB high bit comes from CHR register.
     assert(upper[15u*5u+2u].address == 0xa000u && upper[15u*5u+2u].value == 0u);
