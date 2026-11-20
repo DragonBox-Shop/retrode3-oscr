@@ -7,6 +7,28 @@ Simulation und kein neues Produktionsfeature. Der Standardbuild von
 `nes.so` aktiviert MMC1 nicht. Die separate Labor-`.so` ist **nicht**
 Teil von `stage-retrode3-runtime` und nicht fuer Debian-Pakete vorgesehen.
 
+## Echthardware-Ergebnis: Rad Racer PAL erfolgreich (2026-11-20)
+
+Der Projektinhaber hat den separaten Laborbuild auf der echten Retrode3
+ausgefuehrt und die vollstaendige NDJSON-Ausgabe zurueckgemeldet:
+
+- `event:"result"`, `ok:true`; `bytes_written:131088`
+  (16-Byte-iNES-Header + 131072 Bytes PRG)
+- `payload_crc32:"654F4E90"` **exakt wie die PAL-Rad-Racer-Referenz**
+- `crc32:"B78FDA39"` fuer die vollstaendige .nes-Datei
+- `layout_id:"m1-128-0"`, `verified:false`
+  (der automatisierte Katalog enthaelt weiterhin nur Mapper 0)
+- `/tmp/retrode3-rad-racer-mmc1-20261120-040057.nes`
+- Das Skript meldete nach dem Dump: `Original NES core restored.`
+
+**Abnahmeumfang:** Der gesamte MMC1-PRG-Payload wurde fuer **diese
+eine PAL-SGROM-Cartridge** mit passender Referenz-CRC gelesen.
+Die manuelle SGROM-/No-WRAM-Bestaetigung erfolgte ueber das Laborskript;
+eine unabhaengige PCB-Fotopruefung liegt nicht vor.
+Kein Oszilloskop-Timing, kein Langzeittest und keine Freigabe
+fuer MMC1-Cartridges mit PRG-WRAM. Die normale `nes.so` bleibt gesperrt.
+Eine vollstaendige CI-Logausgabe wurde nicht uebermittelt.
+
 ## Warum nur Rad Racer auf NES-SGROM?
 
 Belegte Originalboards fuer Rad Racer (PAL-EEC/PAL-NOE/USA) verwenden
@@ -30,9 +52,9 @@ fuer `NES_REG` keine verifizierte schnelle Umschaltung; der
 Diese Laborversion benutzt bewusst **nur** die vorhandene
 `nes_write(..., NES_MODE_PRG)`-Schreibfolge und ist darum **auf
 nachweislich PRG-WRAM-freie SGROM-Boards beschraenkt**. Das Signal-Timing
-selbst ist noch nicht mit Oszilloskop/GPIO-Tracing validiert. Der Versuch
-kann technisch fehlschlagen; die Laborversion ist nicht fuer normale
-Cartridge-Besitzer vorgesehen.
+selbst ist noch nicht mit Oszilloskop/GPIO-Tracing validiert. Der
+**erste Versuch war fuer Rad Racer PAL erfolgreich**. Die Laborversion
+ist weiterhin nicht fuer normale Cartridge-Besitzer vorgesehen.
 
 ## Implementierung und Schutzgrenzen
 
@@ -115,9 +137,9 @@ oder mehrfaches Wiederholen an einer wertvollen Cartridge
 - `tests/mock_nes_kernel.cpp` emuliert MMC1-Register und 16-KiB-Banks.
 - GitHub Actions `native-nes-migration.yml` prueft auf `develop`
   die NES-Suite und kompiliert die eigene Labor-`.so`, **ohne Installation**.
-- Ein erfolgreiches Mock-Ergebnis ist noch **keine** physische Abnahme.
-  Nur dokumentierte Echtgeraete-CRC und PCB-Identifikation erlauben
-  eine Aussage ueber funktionierendes MMC1-Auslesen.
+- Ein erfolgreicher **Echtgeraete-CRC-Dump fuer Rad Racer PAL** ist nun
+  dokumentiert; er belegt den MMC1-Lesepfad fuer diesen einen SGROM-Fall,
+  ersetzt jedoch weder PCB-/Signalpruefung noch allgemeine Freigabe.
 - Vor allgemeiner MMC1-Freigabe weiterhin notwendig:
   verifizierte sichere Kernel-Bussequenz fuer PRG-WRAM-Boards,
   physische Timinganalyse, Regression und Freigabe je Board-Variante.
