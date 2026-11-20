@@ -69,9 +69,13 @@ save-safe timing.
 **Physically verified:** Rad Racer PAL SGROM on the real Retrode3,
 131088 bytes, payload CRC32 `654F4E90` exactly matching reference,
 file CRC32 `B78FDA39`, core restored. Other layouts **not**
-hardware-proven. **GitHub Actions CI** passed the mapper tests,
-C++11 compilation and lab build on `develop` at `31d9ab02`;
-new documentation/tool commits follow afterward.
+hardware-proven. **GitHub Actions CI** passed the NES mapper tests,
+C++11 compilation, general MMC1 lab build and full-Catalog-CRC
+verification on `develop` at commit `7aa22f58` (NES job
+[44675688129](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44675688129));
+shared core-registry regression also passed (job
+[44675688142](https://github.com/DragonBox-Shop/retrode3-oscr/actions/runs/44675688142)).
+Documentation commits follow afterward.
 
 **Never** enable MMC1 through general
 `RETRODE3_NES_MAPPER_WRITE_EXPERIMENTAL`; use the separate
