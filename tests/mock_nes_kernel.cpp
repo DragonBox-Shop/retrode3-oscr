@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 
 namespace {
 unsigned char prg[32768], chr[8192];
@@ -50,6 +51,16 @@ extern "C" int nes_read(std::uint16_t address, void *buf,
 {
     init();
     if (!buf) return -1;
+    char const *log = std::getenv("RETRODE_MOCK_NES_READLOG");
+    if (log) {
+        std::FILE *out = std::fopen(log, "a");
+        if (out) {
+            std::fprintf(out, "%u %u %d\n",
+                         static_cast<unsigned>(address),
+                         static_cast<unsigned>(size), mode);
+            std::fclose(out);
+        }
+    }
     if (mode == NES_MODE_PRG) {
         if (address < 0x8000 || static_cast<unsigned>(address) + size > 0x10000u)
             return -1;

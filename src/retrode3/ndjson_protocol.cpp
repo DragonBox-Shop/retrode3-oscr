@@ -102,6 +102,32 @@ std::size_t positive_size(Value const &v) {
         throw std::runtime_error("size_bytes outside supported SNES range");
     return n;
 }
+unsigned bounded_uint(std::map<std::string, Value> const &obj,
+                      char const *key, unsigned limit)
+{
+    std::map<std::string, Value>::const_iterator it = obj.find(key);
+    if (it == obj.end() || !it->second.numeric)
+        throw std::runtime_error(std::string("missing integer field: ") + key);
+    unsigned value = 0;
+    for (std::size_t i = 0; i < it->second.text.size(); ++i) {
+        const unsigned d = static_cast<unsigned>(it->second.text[i] - '0');
+        if (value > (limit - (d <= limit ? d : limit)) / 10u ||
+            d > limit || value * 10u + d > limit)
+            throw std::runtime_error(std::string("out-of-range integer: ") + key);
+        value = value * 10u + d;
+    }
+    return value;
+}
+bool safe_token(std::string const &s)
+{
+    if (s.empty() || s.size() > 31) return false;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        char c = s[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+              c == '-')) return false;
+    }
+    return true;
+}
 }
 
 NdjsonProtocol::NdjsonProtocol(bool interactive)
@@ -133,7 +159,11 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     for (std::map<std::string, Value>::const_iterator i = obj.begin(); i != obj.end(); ++i)
         if (i->first != "command" && i->first != "request_id" &&
             i->first != "output" && i->first != "mapping" && i->first != "size_bytes" &&
-            i->first != "core")
+            i->first != "core" && i->first != "candidate_id" &&
+            i->first != "layout_id" && i->first != "mapper" &&
+            i->first != "submapper" && i->first != "prg_kib" &&
+            i->first != "chr_kib" && i->first != "mirroring" &&
+            i->first != "battery")
             throw std::runtime_error("unknown command field: " + i->first);
     WebCommand cmd;
     cmd.action = value(obj, "command", true);
@@ -154,6 +184,33 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
               (c >= 'a' && c <= 'z') || c == '_' || c == '-'))
             throw std::runtime_error("invalid request_id character");
     }
+
+    cmd.candidate_id = value(obj, "candidate_id");
+    cmd.layout_id = value(obj, "layout_id");
+    if ((!cmd.candidate_id.empty() && !safe_token(cmd.candidate_id)) ||
+        (!cmd.layout_id.empty() && !safe_token(cmd.layout_id)))
+        throw std::runtime_error("invalid NES candidate/layout identifier");
+    const bool m = obj.count("mapper") || obj.count("submapper") ||
+                   obj.count("prg_kib") || obj.count("chr_kib") ||
+                   obj.count("mirroring") || obj.count("battery");
+    if (m) {
+        if (!obj.count("mapper") || !obj.count("submapper") ||
+            !obj.count("prg_kib") || !obj.count("chr_kib") ||
+            !obj.count("mirroring") || !obj.count("battery"))
+            throw std::runtime_error("manual NES layout requires all fields");
+        if (!cmd.candidate_id.empty() || !cmd.layout_id.empty())
+            throw std::runtime_error("manual layout cannot mix candidate/layout IDs");
+        cmd.mapper = bounded_uint(obj, "mapper", 4095);
+        cmd.submapper = bounded_uint(obj, "submapper", 255);
+        cmd.prg_kib = bounded_uint(obj, "prg_kib", 65536);
+        cmd.chr_kib = bounded_uint(obj, "chr_kib", 65536);
+        cmd.battery = bounded_uint(obj, "battery", 1);
+        cmd.mirroring = value(obj, "mirroring", true);
+        if (cmd.mirroring != "horizontal" && cmd.mirroring != "vertical" &&
+            cmd.mirroring != "four_screen")
+            throw std::runtime_error("invalid NES mirroring");
+        cmd.has_manual = true;
+    }
     cmd.output = value(obj, "output");
     cmd.mapping = value(obj, "mapping");
     if (cmd.mapping.size() && cmd.mapping != "lo" && cmd.mapping != "hi")
@@ -171,7 +228,8 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     if (cmd.action == "read_rom" && cmd.output.empty())
         throw std::runtime_error("read_rom requires output");
     if (cmd.action != "read_rom" &&
-        (!cmd.output.empty() || !cmd.mapping.empty() || cmd.has_size))
+        (!cmd.output.empty() || !cmd.mapping.empty() || cmd.has_size ||
+         !cmd.candidate_id.empty() || !cmd.layout_id.empty() || cmd.has_manual))
         throw std::runtime_error("unexpected parameters for command");
     return cmd;
 }
