@@ -1362,7 +1362,18 @@ int main(int argc, char **argv)
                 Core const &c = find_usable(installed, core_id);
                 BusLock lock(enabled);
                 OpenCore module(available + "/" + c.id + ".so");
-                if (module.api2) {
+                if (module.api3 && !module.api2) {
+                    if (action == "probe") {
+                        emit_probe_v3(stream, "cli", c, module);
+                    } else {
+                        retrode3::WebCommand command;
+                        command.action = "read_rom";
+                        command.core = c.id;
+                        command.request_id = "cli";
+                        command.output = output;
+                        read_rom_v3(stream, command, module);
+                    }
+                } else if (module.api2) {
                     retrode3_probe_v2 info = fast_probe(module);
                     if (action == "probe") {
                         emit_fast_probe(stream, "cli", c.id, info);
