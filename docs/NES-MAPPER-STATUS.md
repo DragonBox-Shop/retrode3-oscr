@@ -9,6 +9,47 @@
 > Der aktuelle Quellcode hat bei Widerspruechen Vorrang vor historischen
 > Abschnitten. **Implementiert != physisch verifiziert != freigegeben.**
 
+## Hardware-Rueckmeldung NES v3: Regionaltitel und Probe-Diagnose (2026-11-20)
+
+Der Nutzer hat auf der echten Retrode3 Folgendes beobachtet:
+**Rad Racer PAL** wird als *Highway Star (Japan) (Famicom 3D
+System)* gemeldet und anschliessend unpassend ausgelesen;
+**Mario & Yoshi PAL** und **Faxanadu PAL** werden nicht erkannt;
+**Dr. Mario PAL** wird korrekt erkannt.
+
+**Auf `retrode3-oscr/develop` bereits korrigiert,
+noch NICHT erneut physisch getestet:**
+
+- `Rad Racer (Europe)` 128 KiB PRG / 0 KiB CHR, exakte
+  Payload-CRC `654F4E90`, als weitere **moegliche**
+  128/0-MMC1-Kandidatvariante zum Highway-Star-Fingerprint.
+  `Rad Racer (USA)` 128/0, CRC `8B9D3E9C`, nur
+  Post-Dump-Verifikation (kein erfundener Fingerprint).
+- `Mario & Yoshi (Europe)` 128 KiB PRG / 32 KiB CHR,
+  CRC `836685C4`, nur Post-Dump-Verifikation nach manueller
+  Layoutwahl; Sannis gepinntes DB hat diese PAL-Version nicht.
+- **Faxanadu Europe** ist bereits in Sannis DB
+  (256 KiB PRG / 0 KiB CHR, CRC `76C161E3`).
+  Fehlende automatische Erkennung **noch nicht geklaert**.
+- Der **v3-Probe** liefert die OHNE zusaetzliche Lesezugriffe
+  ermittelten `probe_fingerprints.cpu_8000_crc32` und
+  `cpu_e000_crc32`. Der v2-Callback behaelt unveraendert
+  seine alte C-ABI. Auto-Erkennung bleibt schreibfrei;
+  eindeutige PRG+CHR-CRC nach vollem Dump entscheidet erst die
+  **verifizierte** ROM-Identitaet.
+- NES- und Core-Registry-GitHub-Actions **gruen** auf
+  `4ec3cd327e02d28cb2b854f8b0f52b6aecf34524`.
+  Regressionstests decken synthetische CRC-Treffer fuer alle
+  drei Spiele plus falsch gewaehlten JP-Kandidaten ab.
+- **Keine** NES-v3-CLI oder Weboberflaechen-Aenderung fuer
+  diesen Fix notwendig; nur den regulären NES-Plugin-Core
+  aus `develop` aktualisieren, nicht den alten Labor-Build.
+
+Ausfuehrliche Analyse, Quellen, Referenz-CRCs und der interaktive
+Hardware-Probe-Aufruf stehen in
+[nes-probe-regional-diagnostics.md](nes-probe-regional-diagnostics.md).
+`master` bleibt unberuehrt.
+
 ## Jetzt tatsaechlich im normalen Core / Web v2 (2026-11-20)
 
 **Neue Entwicklungsimplementierung, noch NICHT auf echter Retrode3 physisch
