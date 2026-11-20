@@ -271,7 +271,7 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-sms-md-module
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
@@ -294,6 +294,21 @@ test-generic-selection-v3: native-core-registry
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
 	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
+
+# Two independent v3 adapters sharing one mock physical slot.
+.PHONY: test-slot-autoprobe
+test-slot-autoprobe: build/migration/retrode3-cli-mock
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		-DRETRODE3_TEST_MOCK_ID='"mock-a"' \
+		-DRETRODE3_TEST_MOCK_NAME='"Adapter A"' \
+		-DRETRODE3_TEST_MOCK_SLOT='"md"' \
+		tests/mock_core_v3.cpp -o build/migration/mock-slot-a.so
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		-DRETRODE3_TEST_MOCK_ID='"mock-z"' \
+		-DRETRODE3_TEST_MOCK_NAME='"Adapter Z"' \
+		-DRETRODE3_TEST_MOCK_SLOT='"md"' \
+		tests/mock_core_v3.cpp -o build/migration/mock-slot-z.so
+	python3 -m unittest discover -s tests -p 'test_slot_autoprobe.py' -v
 
 # SMS-0007 Retrode2 adapter, 8-bit kernel mode 20, explicit read-only lab.
 # Generate real pinned OSCR SMS.cpp size table and ROM bank/buffer loops.
