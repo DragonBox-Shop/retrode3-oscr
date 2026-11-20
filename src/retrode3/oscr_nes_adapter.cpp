@@ -855,12 +855,28 @@ int read_rom_v3(const retrode3_selection_v3 *choice,
         }
         char crc[9];
         std::snprintf(crc, sizeof(crc), "%08X", old.payload_crc32);
+        std::string expected = "null";
+        if (!selected.empty()) {
+            for (unsigned i = 0; i < probe_info.candidate_count; ++i) {
+                const retrode3_candidate_v2 &c = probe_info.candidates[i];
+                if (selected != c.id) continue;
+                char hex[9];
+                std::snprintf(hex, sizeof(hex), "%08X", c.payload_crc32);
+                expected = retrode3::json_quote_v3(hex);
+                break;
+            }
+        }
+        const std::string mirroring =
+            (old.header[6] & 8u) ? "four_screen" :
+            (old.header[6] & 1u) ? "vertical" : "horizontal";
         std::string details = std::string("{\"read_configuration\":{") +
             "\"layout_id\":" + retrode3::json_quote_v3(old.layout_id) +
             ",\"mapper\":" + std::to_string(actual_mapper) +
             ",\"submapper\":" + std::to_string(actual_submapper) +
             ",\"prg_kib\":" + std::to_string(prg) +
             ",\"chr_kib\":" + std::to_string(chr) +
+            ",\"mirroring\":" + retrode3::json_quote_v3(mirroring) +
+            ",\"battery\":" + ((old.header[6] & 2u) ? "true" : "false") +
             "},\"identity\":{\"selected_candidate_id\":" +
                 (selected.empty() ? "null" : retrode3::json_quote_v3(selected)) +
             ",\"matched_candidate_id\":" +
@@ -868,8 +884,8 @@ int read_rom_v3(const retrode3_selection_v3 *choice,
             ",\"title\":" + retrode3::json_quote_v3(title) +
             "},\"verification\":{\"status\":" + retrode3::json_quote_v3(status) +
             ",\"verified\":" + (status == "verified" ? "true" : "false") +
-            ",\"method\":\"payload_crc32\",\"actual\":" +
-                retrode3::json_quote_v3(crc) + "}}";
+            ",\"method\":\"payload_crc32\",\"expected\":" + expected +
+            ",\"actual\":" + retrode3::json_quote_v3(crc) + "}}";
         if (details.size() >= sizeof(result->details_json))
             return fail(err, cap, "NES v3 result metadata too large");
         std::memcpy(result->details_json, details.c_str(), details.size() + 1);
