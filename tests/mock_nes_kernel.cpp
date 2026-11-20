@@ -46,7 +46,8 @@ void init()
     if (bad && std::strcmp(bad, "unknown") == 0) {
         // Corrupt BOTH fingerprint windows so the mock remains unidentified.
         prg[0] ^= 0x5a;
-        prg[0x6000] ^= 0x5a;
+        prg[0x2000] ^= 0x5a; // mirrored at CPU $E000 for 16 KiB NROM
+        prg[0x6000] ^= 0x5a; // native $E000 window for 32 KiB NROM
     }
 }
 }

@@ -569,7 +569,7 @@ void emit_progress(OutputSink &ctx, unsigned percent)
 {
     ctx.stream->emit(prefix("progress", ctx.request_id)
         + ",\"phase\":\"read_rom\",\"bytes_done\":"
-        + std::to_string(ctx.done)
+        + std::to_string(percent == 0 ? 0u : ctx.done)
         + ",\"bytes_total\":" + std::to_string(ctx.total)
         + ",\"percent\":" + std::to_string(percent) + "}");
 }
