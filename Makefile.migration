@@ -246,6 +246,7 @@ test-release-stage: stage-retrode3-runtime
 	python3 -m unittest discover -s tests -p 'test_release_stage.py' -v
 
 # Generic hardware-free ABI v3: selection, title/layout ambiguity, safety.
+# Keep this test target in CI even when no real cartridge fixture is available.
 .PHONY: test-generic-selection-v3
 test-generic-selection-v3: native-core-registry
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
