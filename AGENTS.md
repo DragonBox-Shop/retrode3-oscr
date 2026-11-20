@@ -1,6 +1,6 @@
 # Retrode3 OSCR: current development contract
 
-**Current as of 2026-11-19.** This file is the first entry point for
+**Current as of 2026-11-20.** This file is the first entry point for
 contributors and assistant chats. Also read [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 for the dated physical acceptance record and
 [docs/branching-and-builds.md](docs/branching-and-builds.md) for releases.
@@ -125,15 +125,29 @@ Integrate its changes with OS `develop`, test on the actual MIPS
 Retrode3 (incl. SNES/MD/NES, auto-insertion/removal, cancellation,
 permissions, reboot), then squash-promote to OS `master`.
 
-## Geplante NES-Mapper-Auswahl und Fast-Probe
+## NES v2 Fast-Probe auf develop (2026-11-20)
 
-Die verbindlichen **noch nicht implementierten** Anforderungen für
-schnelle Fingerprint-Erkennung, Kandidaten-Dropdown nur bei unterschiedlichen
-sicheren Leselayouts, manuellen Mapper-/Größen-Override, CLI/Core-ABI,
-Einmal-Dump und erst nach CRC gewählten iNES-Header stehen in
+Das gemeinsame CLI und der NES-Core besitzen jetzt eine **additive v2-C-ABI**
+in `include/retrode3/core_operations_v2.h`. Der vorhandene v1-Pfad
+für SNES/MD bleibt erhalten. Der NES-Fast-Probe liest **genau 1024 Bytes**
+(erste und letzte 512 Bytes PRG) statt des kompletten ROMs und meldet
+`identification_status`, Kandidaten und erforderliche Leselayouts.
+Unbekannte ROMs sind mit einem expliziten, validierten manuellen NROM-Layout
+lesbar. `read_rom` streamt den PRG-/CHR-Payload einmal, ermittelt CRC,
+setzt den originalen DB-Header erst danach, berechnet die Dateiprüfsumme
+und veröffentlicht die fertige .nes-Datei atomar. Unbekannte oder veränderte
+ROMs werden nur als `verified:false` ausgegeben.
+
+**Nur Mapper 0/Submapper 0, PRG 16/32 KiB, CHR 0/8 KiB** ist freigegeben.
+Andere Mapper sind nicht implementiert; keine zusätzlichen Bank- oder
+Cart-Schreiboperationen. `get_capabilities` nennt nur reale Unterstützung.
+Mock-/CI-Test ist **kein** Hardware-Akzeptanztest; Excitebike sowie SNES/MD
+müssen auf der Retrode3 erneut validiert werden. Web v2 im OS-Repository
+muss die neuen Probe-/Auswahl-Felder noch auswerten.
+
+Die Detailanforderungen und CLI-Kommandos stehen in
 [docs/nes-fast-probe-mapper-selection.md](docs/nes-fast-probe-mapper-selection.md).
-Der derzeitige NROM-Core liest beim Probe noch vollständige ROM-Daten;
-keinen neuen Mapper als bereits getestet deklarieren.
+Vorherige Stand-1-NROM-Beschreibungen gelten nur für den Legacy-v1-Pfad.
 
 ## Safety and change discipline
 

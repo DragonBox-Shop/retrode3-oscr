@@ -1,6 +1,40 @@
 # NES: schneller Probe, Mapper-Auswahl und manueller Override
 
-**Status 2026-11-20: Anforderung / Design, noch nicht implementiert.**
+**Status 2026-11-20: NROM-Fast-Probe und Auswahl im gemeinsamen CLI
+auf `develop` implementiert; zusätzliche Mapper und Web-v2-Auswahl
+noch offen. Hardware-Revalidierung nach dieser Änderung ausstehend.**
+
+### Tatsächlich implementierte NDJSON-v1-Erweiterung (NES v2 Core-ABI)
+
+Der `probe`-Befehl liefert im NES-Core
+`identification_status` (`unique`/`ambiguous`/`unknown`),
+`candidates` mit `id`, `title`, `layout_id`, `mapper`,
+`submapper`, `prg_kib`, `chr_kib`, `read_supported` und
+`payload_crc32_expected`, sowie `read_layouts`. Hinzu kommen
+`selection_required`, `candidate_lookup:"fingerprint_only"` und
+`checksum:null` (vor dem Dump absichtlich nicht bekannt).
+Der Ergebnis-Event enthält `verified`, `payload_crc32`, `crc32`,
+`layout_id` und `matched_candidate_id`.
+
+Für `read_rom` sind `candidate_id` oder `layout_id` optional
+(wenn nur eine sichere Konfiguration existiert). Ein manueller Override
+benötigt **alle** Integer-Felder `mapper`, `submapper`,
+`prg_kib`, `chr_kib`, `battery` (0/1) und den String
+`mirroring` (`horizontal`/`vertical`/`four_screen`).
+Nur NROM-Layouts mit PRG 16/32 KiB und CHR 0/8 KiB bestehen
+die aktuelle physische Support-Validierung. Keine freie Bankumschaltung.
+Die manuelle Option ist auch bei `unknown` zulässig.
+
+Bei v2-Clients muss die Weboberfläche `checksum:null` akzeptieren und
+Datenbanktreffer erst nach der tatsächlichen Dump-CRC als verifiziert
+anzeigen. Der Payload wird einmal gelesen; der finale Header wird nur
+in der privaten Ausgabedatei korrigiert. Tests prüfen die exakte Zahl
+der Bus-Lesebytes. Versionierter ABI-Zusatz:
+`include/retrode3/core_operations_v2.h`. Die untenstehenden
+Spezifikationsabschnitte sind die übergeordneten Ziele, soweit sie noch
+nicht umgesetzt oder hardwarevalidiert sind.
+
+
 Ziel: automatische Web-Erkennung darf nicht das gesamte NES-ROM
 lesen. Die spätere NES-Core-Erweiterung geschieht im gemeinsamen
 `retrode3-cli`/`nes.so`, nicht als separater NES-Reader. Web UI
