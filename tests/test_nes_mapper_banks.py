@@ -135,11 +135,11 @@ class TestNesMapperBanks(unittest.TestCase):
         self.assertEqual(drmario[0]["submapper"], 5)
         self.assertEqual(drmario[0]["prg_kib"], 32)
         self.assertEqual(drmario[0]["chr_kib"], 32)
-        self.assertFalse(drmario[0]["read_supported"])
+        self.assertTrue(drmario[0]["read_supported"])
+        self.assertEqual(events[-1]["mapping"], "mmc1")
         self.assertFalse(os.path.exists(log))
 
-        opted = dict(base, RETRODE3_MMC1_TEST_ACK="NO_BATTERY_TEST_ONLY")
-        events = self.run_cli(1, [probe], opted)
+        events = self.run_cli(1, [probe], base)
         drmario = [c for c in events[-1]["candidates"]
                   if c["title"] == "Dr. Mario (Europe)"]
         self.assertEqual(len(drmario), 1)
@@ -147,7 +147,7 @@ class TestNesMapperBanks(unittest.TestCase):
         job = {"command": "read_rom", "core": "nes",
                "request_id": "drmario-db", "layout_id": "m1s5-32-32",
                "output": os.path.join(self.temp.name, "drmario-db.nes")}
-        events = self.run_cli(1, [job], opted)
+        events = self.run_cli(1, [job], base)
         self.assertEqual(events[-1]["event"], "result", events)
         self.assertFalse(events[-1]["verified"])
         self.assertEqual(events[-1]["layout_id"], "m1s5-32-32")
@@ -201,14 +201,13 @@ class TestNesMapperBanks(unittest.TestCase):
 
     def test_mmc1_chr_rom_and_prg_size_matrix(self):
         # Physical regression cases: 32K/32K and 128K/32K cartridges.
-        # All reading happens under an explicit no-battery lab ACK.
+        # No separate laboratory build or environment acknowledgement.
         for p, c in ((32, 32), (128, 32), (128, 0),
                      (256, 64), (512, 0)):
             name = "mmc1-%d-%d" % (p, c)
             job = self.cmd(1, p, c, name)
             log = os.path.join(self.temp.name, name + "-writes")
-            extra = {"RETRODE3_MMC1_TEST_ACK": "NO_BATTERY_TEST_ONLY",
-                     "RETRODE_MOCK_NES_PRG_KIB": str(p),
+            extra = {"RETRODE_MOCK_NES_PRG_KIB": str(p),
                      "RETRODE_MOCK_NES_CHR_KIB": str(c),
                      "RETRODE_MOCK_NES_WRITELOG": log}
             events = self.run_cli(1, [job], extra)
@@ -230,32 +229,23 @@ class TestNesMapperBanks(unittest.TestCase):
             self.assertEqual(len(writes), expected)
             self.assertFalse(any(addr < 0x8000 for addr, _, _ in writes))
 
-    def test_mmc1_general_lab_requires_ack_even_for_chr_rom(self):
-        job = self.cmd(1, 32, 32, "mmc1-no-ack-chr")
-        log = os.path.join(self.temp.name, "mmc1-no-ack-chr-writes")
+    def test_mmc1_chr_rom_is_available_without_lab_ack(self):
+        job = self.cmd(1, 32, 32, "mmc1-normal")
+        writes = os.path.join(self.temp.name, "mmc1-normal-writes")
         events = self.run_cli(1, [job], {
             "RETRODE_MOCK_NES_PRG_KIB": "32",
             "RETRODE_MOCK_NES_CHR_KIB": "32",
-            "RETRODE_MOCK_NES_WRITELOG": log})
-        self.assertEqual(events[-1]["event"], "error", events)
-        self.assertFalse(os.path.exists(job["output"]))
-        self.assertFalse(os.path.exists(log))
+            "RETRODE_MOCK_NES_WRITELOG": writes})
+        self.assertEqual(events[-1]["event"], "result", events)
+        self.assertEqual(events[-1]["layout_id"], "m1-32-32")
+        self.assertTrue(os.path.isfile(job["output"]))
+        self.assertTrue(os.path.isfile(writes))
 
-    def test_mmc1_sgrom_requires_explicit_no_wram_ack(self):
-        job = self.cmd(1, 128, 0, "mmc1-no-ack")
-        log = os.path.join(self.temp.name, "mmc1-no-ack-writes")
-        events = self.run_cli(1, [job],
-                              {"RETRODE_MOCK_NES_WRITELOG": log})
-        self.assertEqual(events[-1]["event"], "error", events)
-        self.assertFalse(os.path.exists(job["output"]))
-        self.assertFalse(os.path.exists(log))
-
+    def test_mmc1_battery_layout_remains_rejected(self):
         job = self.cmd(1, 128, 0, "mmc1-battery")
         job["battery"] = 1
-        events = self.run_cli(1, [job], {
-            "RETRODE3_MMC1_NO_PRG_RAM_ACK":
-                "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM",
-            "RETRODE_MOCK_NES_WRITELOG": log})
+        log = os.path.join(self.temp.name, "mmc1-battery-writes")
+        events = self.run_cli(1, [job], {"RETRODE_MOCK_NES_WRITELOG": log})
         self.assertEqual(events[-1]["event"], "error", events)
         self.assertFalse(os.path.exists(job["output"]))
         self.assertFalse(os.path.exists(log))
@@ -300,12 +290,13 @@ class TestNesMapperBanks(unittest.TestCase):
         self.assertEqual(events[-1]["event"], "error", events)
         self.assertFalse(os.path.exists(job["output"]))
 
-    def test_mmc1_is_fail_closed_even_with_manual_override(self):
-        job = self.cmd(1, 128, 64, "mmc1")
-        log = os.path.join(self.temp.name, "mmc1-writes")
+    def test_mmc1_unsupported_submapper_remains_closed(self):
+        job = self.cmd(1, 128, 64, "mmc1-invalid-submapper")
+        job["submapper"] = 7
+        log = os.path.join(self.temp.name, "mmc1-invalid-writes")
         events = self.run_cli(1, [job],
                               {"RETRODE_MOCK_NES_WRITELOG": log})
-        self.assertEqual(events[-1]["event"], "error")
+        self.assertEqual(events[-1]["event"], "error", events)
         self.assertFalse(os.path.exists(job["output"]))
         self.assertFalse(os.path.exists(log))
 
