@@ -170,7 +170,8 @@ void mmc1_layout_id(unsigned sub, unsigned prg, unsigned chr,
 }
 // Supplementary cartridge references are CRC/geometry metadata, never ROMs.
 // Sanni's pinned data lacks these regional titles. Do not guess fingerprints:
-// only PAL Rad Racer shares the experimentally observed Highway Star probe.
+// PAL Rad Racer shares the observed Highway Star probe family; Mario & Yoshi
+// has independently measured, stable PRG-bus signatures on real hardware.
 // CRC sources: nesCartDB profiles 2124/2698 (Rad Racer EU), NES-RC-USA,
 // and profile 1997 (Mario & Yoshi Europe). The PAL Rad Racer CRC was also
 // physically matched on this Retrode3 on 2026-11-20.
@@ -180,7 +181,11 @@ const retrode3::nesstage1::Mmc1Record regional_mmc1_records[] = {
      "4E45531A08001008000000070100001D", "Rad Racer (Europe)"},
     {0u, 0u, 0x8B9D3E9Cu, 128u, 0u, 0u, 0u,
      "4E45531A08001008000000070000001D", "Rad Racer (USA)"},
-    {0u, 0u, 0x836685C4u, 128u, 32u, 0u, 0u,
+    // Confirmed on a real PAL cartridge: 5 identical no-write probes
+    // ($8000: 29D1D575, $E000: 9A78A49D), followed by a complete
+    // 128-KiB PRG + 32-KiB CHR dump: 1406783D / FC0BBA23,
+    // combined 836685C4. These are genuine hardware observations.
+    {0x29D1D575u, 0x9A78A49Du, 0x836685C4u, 128u, 32u, 0u, 0u,
      "4E45531A080410080000000001000001", "Mario & Yoshi (Europe)"}
 };
 const std::size_t regional_mmc1_record_count =
