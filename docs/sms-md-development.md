@@ -40,23 +40,28 @@ Userspace uses `open(O_RDONLY)`, `lseek` and `read`; there is **no write(2)**
 call to `/dev/slot-md`, no `/dev/mem`, no GPIO poking, and no voltage change.
 Read windows never cross $8000 or $C000 boundaries.
 
-## Electrical limitation to resolve before routine use
+## Adapter bus sequencing and hot swap
 
-The current kernel's generic mode 20 calls `select_slot()` **before** setting
-its new GPIO address. If the bus held an older A21=0, selecting SMS /CE before
-A21 becomes high can transiently assert SMS /WR. This does not mean the
-userspace module intentionally writes, but does mean that the current Linux
-module alone does **not** guarantee a glitch-free /WR signal on first select.
-For a proper hardware-safe release, use a kernel adapter read cycle which
-prepositions /WR high and other address/control signals while /CE is inactive,
-then selects /CE and reads. Verify also timing of /RD and /CE on an actual
-adapter. Do not assume a good mock dump makes this electrically safe.
+SMS-0007 connects MegaDrive A21 to SMS /WR and A22 to SMS /RD.
+The paired `retrode3-kernel/develop` fix prepositions the full
+address, including A21 high (/WR inactive), while /CE is still inactive.
+Only then is the slot selected. Both fixed 8-bit adapter modes get this
+sequence, while normal SNES/MD/NES reads retain their existing logic.
+The new adapter read loop also checks the cartridge sense line to stop
+streaming if the cartridge is removed.
 
-Power: SMS plug-in is a 5 V device. On the device, the driver exposes
-`/sys/class/retrode3/slot-md/vcc` with `5000mV` or `3300mV`. The core checks
-for the exact `5000mV` value before both probing and every 512-byte chunk.
-It never writes to vcc itself. Insert/remove hardware only when powered off.
-The kernel may reset MD VCC to 3.3 V on cartridge removal.
+The Retrode3 is designed for cartridge exchange while powered on.
+Slot sense events already exist, and MD removal returns VCC to 3.3 V.
+**3.3 V is not power-off**. The generic CLI's event cancellation,
+cross-core autodetection and voltage policy are being implemented
+separately, not in this SMS module.
+
+The initial header probe works at 3.3 V without an operator opt-in.
+The ROM dump still requires confirmed 5 V and an explicit opt-in;
+the SMS core itself never changes voltage. No writes to mapper, SRAM
+or flash are enabled. Oscilloscope confirmation of /WR, /CE, /RD
+timing and hot-swap electrical behavior is required before considering
+this hardware-safe or promoting changes to master.
 
 ## Capability and opt-in boundary
 
@@ -68,9 +73,13 @@ The kernel may reset MD VCC to 3.3 V on cartridge removal.
 - 3 bounded 16-byte reads at $1FF0, $3FF0, $7FF0 recognize `TMR SEGA` for a
   ROM-size *hint*. There is no title database, and final ROM is reported as
   `verification.status=not_checked`, `verified=false` until external CRC check.
-- If `RETRODE3_SMS_MD_EXPERIMENT` is absent, `fast_probe` does no device I/O,
-  even if a plugin-enabled browser automatically calls `probe`.
-- The exact experimental opt-in is:
+- `fast_probe` is read-only and may inspect the header at 3.3 V
+  without `RETRODE3_SMS_MD_EXPERIMENT`. The response includes
+  `header_found` and `system_detected`; the latter is true only for
+  an unambiguous `TMR SEGA` signature. No system is inferred from slot sense.
+- The capability JSON exposes `probe_voltage_mv: 3300` and
+  `read_voltage_mv: 5000` for generic CLI orchestration.
+- The exact experimental opt-in **for ROM reading only** is:
 
     RETRODE3_SMS_MD_EXPERIMENT=enable-readonly-v1
 
@@ -95,11 +104,16 @@ staging or `master`.
 
 ## Explicit experimental CLI workflow
 
-First inspect actual `vcc` path/value on the Retrode3 and set the appropriate
-5 V using the existing driver's sysfs interface, with the *hardware powered
-off during insertion* and before any SMS read. Since this is unverified
-hardware, check voltage and /WR timing externally before plugging in any
-valuable SMS cart. Then run the common CLI manually (not the Web autoprober):
+The intended sequence is hot-swap at 3.3 V, plugin-owned read-only
+header probe, generic CLI-selected 5 V only after identifying the system,
+then the ROM dump. The CLI voltage controller is being implemented in a
+separate change. Until it is integrated, use only an operator-approved lab
+procedure for raising VCC. Never test SMS on a kernel without the
+preselect fix and verified /WR timing.
+
+For the manual CLI lab test, start the shared interactive CLI with
+`RETRODE3_SMS_MD_EXPERIMENT=enable-readonly-v1`; this permits only
+a 5 V ROM dump, not mapper or save writes:
 
     RETRODE3_SMS_MD_EXPERIMENT=enable-readonly-v1 \
       /usr/bin/retrode3-cli --protocol ndjson-v1 --interactive
@@ -114,7 +128,8 @@ Probe may yield `read_layouts:[{"id":"linear-32",...}]` where a valid
 SMS header declares 32 KiB. A smaller header may represent a larger ROM:
 verify the PCB and use an explicitly chosen safe ROM size. CRC matching
 against a separate known-good image is needed before calling a dump correct.
-If no 5 V is present or opt-in is missing, read is denied. Failed reads must
+If no 5 V is present or ROM read opt-in is missing, the full read is denied.
+The 3.3 V header probe remains available. Failed reads must
 never publish partial output via the common CLI.
 
 ## Validation
@@ -122,4 +137,5 @@ never publish partial output via the common CLI.
 Generated Sanni bank/size algorithms, ABI-v3 callbacks, mocked kernel
 transport, cancellation and CRC-facing output are tested in CI, including a
 GCC 8 build. These are **not** physical-cartridge electrical acceptance tests.
-The kernel must first guarantee /WR inactive before /CE selection.
+The paired kernel preselect patch must first be built for the running kernel
+and /WR versus /CE timing validated electrically.
