@@ -1,11 +1,11 @@
 // NES mapper bank sequencing derived from pinned original Sanni NES.cpp,
 // e5a08326dfc8fff67193f7fc5a7bc36b5282b28c, readPRG/readCHR cases
 // 2 (UxROM), 3 (CNROM), 4 (MMC3), 7 (AxROM). Never edit upstream sources.
-// MMC1 has a SEPARATE opt-in lab path, restricted to RAM-less SGROM 128K.
-// No save/flash/CHR-RAM writes. Bank registers are CPU PRG mode only.
-// The normal build never writes MMC1. The opt-in lab build deliberately
-// uses the existing PRG write pulse ONLY on verified no-PRG-WRAM boards;
-// this is NOT safe for battery-backed or other PRG-RAM cartridges.
+// MMC1 has a SEPARATE opt-in lab path for 32-512 KiB PRG and 0-128 KiB
+// CHR. No cartridge save/flash/CHR-RAM data writes; bank registers are
+// CPU PRG mode only. The normal core never executes MMC1 register writes.
+// The lab is for cartridges with NO battery, with deliberate operator opt-in.
+// Kernel register-write pulse timing is NOT validated for PRG-WRAM saves.
 #include "retrode3/oscr_nes_mapper.h"
 #include "retrode3/oscr_nes_compat.h"
 #include "retrode3/nes_mmc1_plan.h"
@@ -106,11 +106,10 @@ void execute_mmc1_step(void *opaque, nesmmc1::Step const &step)
 
 bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
 {
-    if (submapper != 0) return false;
-    // The first physical lab probe is ONLY 128-KiB PRG / CHR-RAM SGROM
-    // (Rad Racer). Other MMC1 variants remain unsupported.
     if (mapper == 1)
-        return prg == 128u && chr == 0u && nesmmc1::geometry(prg, chr);
+        return (submapper == 0 || (submapper == 5 && prg == 32u)) &&
+               nesmmc1::geometry(prg, chr);
+    if (submapper != 0) return false;
     switch (mapper) {
     case 2: return power_two(prg) && prg >= 64 && prg <= 256 && chr == 0;
     case 3: return (prg == 16 || prg == 32) &&
@@ -126,10 +125,30 @@ bool mmc1_lab_enabled()
 #if defined(RETRODE3_TESTING) || defined(RETRODE3_NES_MMC1_LAB)
     // This does NOT detect the cartridge hardware. Requires explicit
     // operator verification that the test PCB has NO PRG-RAM.
-    const char *ack = std::getenv("RETRODE3_MMC1_NO_PRG_RAM_ACK");
-    return ack && std::strcmp(ack,
-        "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM") == 0;
+    const char *ack = std::getenv("RETRODE3_MMC1_TEST_ACK");
+    const char *old = std::getenv("RETRODE3_MMC1_NO_PRG_RAM_ACK");
+    return (ack && std::strcmp(ack, "NO_BATTERY_TEST_ONLY") == 0) ||
+           (old && std::strcmp(old,
+             "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM") == 0);
 #else
+    return false;
+#endif
+}
+bool mmc1_layout_enabled(unsigned submapper, unsigned prg,
+                         unsigned chr, bool battery)
+{
+#if defined(RETRODE3_TESTING) || defined(RETRODE3_NES_MMC1_LAB)
+    if (battery || !geometry(1u, submapper, prg, chr))
+        return false;
+    const char *ack = std::getenv("RETRODE3_MMC1_TEST_ACK");
+    if (ack && std::strcmp(ack, "NO_BATTERY_TEST_ONLY") == 0)
+        return true;
+    // Compatibility only for the previously validated Rad Racer experiment.
+    const char *old = std::getenv("RETRODE3_MMC1_NO_PRG_RAM_ACK");
+    return submapper == 0 && prg == 128u && chr == 0u && old &&
+           std::strcmp(old, "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM") == 0;
+#else
+    (void)submapper; (void)prg; (void)chr; (void)battery;
     return false;
 #endif
 }
@@ -151,12 +170,13 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
           unsigned chr_kib, const retrode3_host_io_v1 *io)
 {
     if (!geometry(mapper, submapper, prg_kib, chr_kib) ||
-        !runtime_mapper_enabled(mapper))
+        !(mapper == 1 ? mmc1_layout_enabled(submapper, prg_kib, chr_kib, false)
+                       : runtime_mapper_enabled(mapper)))
         throw std::runtime_error("NES mapper layout not approved for register writes");
     check_cancel(io);
     if (mapper == 1) {
-        // Explicit lab exception only: kernel's generic PRG write strobe is
-        // not SRAM-safe. No other MMC1 PCB is supported by this build.
+        // Deliberate no-battery lab exception. No save-RAM access here.
+        // The caller must reject battery-backed layouts before reaching us.
         Mmc1Context context = {io};
         nesmmc1::plan(prg_kib, chr_kib, execute_mmc1_step, &context);
         return;
