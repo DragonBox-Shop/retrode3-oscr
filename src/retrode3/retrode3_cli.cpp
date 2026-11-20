@@ -712,10 +712,15 @@ void read_rom(retrode3::NdjsonProtocol &stream,
 bool nes_power_two(unsigned n) { return n != 0 && !(n & (n-1)); }
 bool nes_manual_geometry(unsigned m, unsigned sub, unsigned p, unsigned c)
 {
+    if (m == 1)
+        return (sub == 0 || (sub == 5 && p == 32)) &&
+               (p == 32 || p == 64 || p == 128 ||
+                p == 256 || p == 512) &&
+               (c == 0 || c == 8 || c == 16 || c == 32 ||
+                c == 64 || c == 128);
     if (sub != 0) return false;
     switch (m) {
     case 0: return (p == 16 || p == 32) && (c == 0 || c == 8);
-    case 1: return p == 128 && c == 0; // manual SGROM lab shape only; core enforces opt-in
     case 2: return nes_power_two(p) && p >= 64 && p <= 256 && c == 0;
     case 3: return (p == 16 || p == 32) &&
                    nes_power_two(c) && c >= 8 && c <= 32;
@@ -781,12 +786,12 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
             layout = &entry;
         }
         if (!layout || !layout->read_supported ||
-            layout->mapper != 0 || layout->submapper != 0 ||
-            (layout->prg_kib != 16 && layout->prg_kib != 32) ||
-            (layout->chr_kib != 0 && layout->chr_kib != 8))
+            !nes_manual_geometry(layout->mapper, layout->submapper,
+                                 layout->prg_kib, layout->chr_kib))
             throw std::runtime_error("NES layout unavailable or unsupported");
         prg = layout->prg_kib;
         chr = layout->chr_kib;
+        mapper = layout->mapper;
     }
     const std::size_t total = 16u + (prg + chr) * 1024u;
     std::string const &output = command.output;
