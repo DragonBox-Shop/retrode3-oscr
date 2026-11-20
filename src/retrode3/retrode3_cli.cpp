@@ -722,7 +722,7 @@ bool nes_manual_geometry(unsigned m, unsigned sub, unsigned p, unsigned c)
     case 4: return nes_power_two(p) && p >= 32 && p <= 512 &&
                    (c == 0 || (nes_power_two(c) && c >= 8 && c <= 256));
     case 7: return nes_power_two(p) && p >= 64 && p <= 256 && c == 0;
-    default: return false; // MMC1 unsafe with current kernel REG timing
+    default: return false; // all other layouts remain blocked
     }
 }
 
