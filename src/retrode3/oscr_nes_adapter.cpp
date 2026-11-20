@@ -1,4 +1,4 @@
-// Strictly read-only NES/NROM adapter for the SINGLE Retrode3 NDJSON host.
+// NES shared-core adapter: NROM read-only by default; optional gated mapper labs.
 // Original pinned Sanni OSCR NES dumpBankPRG/dumpBankCHR loops are compiled
 // separately, with only reviewed HAL/storage substitutions. Nothing here
 // implements JSON, output files, host CRC/progress, mapper writes or SRAM.
@@ -262,10 +262,15 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
                   valid_geometry(request->prg_kib, request->chr_kib) :
                   retrode3::nesmapper::geometry(request->mapper, request->submapper,
                         request->prg_kib, request->chr_kib) &&
-                  retrode3::nesmapper::runtime_writes_enabled()) ||
+                  retrode3::nesmapper::runtime_mapper_enabled(request->mapper)) ||
                 request->mirroring > 2 || request->battery > 1 ||
                 request->candidate_id[0] || request->layout_id[0])
-                return fail(error, cap, "unsupported or incomplete manual NROM layout");
+                return fail(error, cap, "unsupported or incomplete manual NES layout");
+            // No battery-backed configuration may enter the MMC1 lab path.
+            // Battery=0 is not proof of absent PRG-RAM: the runtime opt-in
+            // additionally requires a specifically verified SGROM cartridge.
+            if (request->mapper == 1 && request->battery)
+                return fail(error, cap, "MMC1 lab rejects battery-backed layouts");
             prg = request->prg_kib;
             chr = request->chr_kib;
             mapper = request->mapper;
@@ -297,7 +302,7 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
         }
         if (!(mapper == 0 && valid_geometry(prg, chr)) &&
             !(request->manual && retrode3::nesmapper::geometry(mapper, 0, prg, chr) &&
-              retrode3::nesmapper::runtime_writes_enabled()))
+              retrode3::nesmapper::runtime_mapper_enabled(mapper)))
             return fail(error, cap, "unsupported NES mapper PRG/CHR sizes");
         if (io->cancelled(io->context))
             return fail(error, cap, "cancelled");
