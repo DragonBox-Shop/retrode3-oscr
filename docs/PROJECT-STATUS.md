@@ -51,6 +51,19 @@
   boards, PRG-WRAM writes, or automated Web activation.
   See [NES mapper handoff](NES-MAPPER-STATUS.md) and
   [MMC1 lab acceptance](nes-mmc1-sgrom-lab.md).
+- **NES Mapper 1 DB/CHR lab expansion (2026-11-20, develop-only):**
+  The new `native-nes-mmc1-lab` now supports PRG-ROM
+  32/64/128/256/512 KiB and CHR-ROM 0/8/16/32/64/128 KiB
+  (CHR=0 means CHR-RAM). All 695 pinned Sanni MMC1 metadata
+  records are compiled in; the 1024-byte fast probe never
+  performs register writes, and post-dump payload CRC can verify
+  game titles. `tools/nes-mmc1-lab.sh` supports auto-detection
+  or explicit manual PRG/CHR layouts, only with no-battery test
+  acknowledgement; the existing NES core is restored afterward.
+  The **32+32 KiB and 128+32 KiB test cartridges remain physically
+  unverified** pending new user CRCs. Battery-backed FF1/FF2 must
+  wait for tested SRAM backup/restore and kernel timing.
+  See [MMC1 full lab](nes-mmc1-general-lab.md).
 - **Immediate work:** finish tested Web v2 path/privilege and
   cartridge-presence handling in OS `develop`, verify against
   real Retrode3 and only then squash-merge to OS `master`.
