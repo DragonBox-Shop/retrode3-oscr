@@ -332,8 +332,9 @@ const retrode3::nesstage1::NromRecord *find_record(char const *id)
     }
     return NULL;
 }
-void synthetic_header(unsigned mapper, unsigned prg, unsigned chr,
-                      unsigned mirroring, unsigned battery, unsigned char *header)
+void synthetic_header(unsigned mapper, unsigned submapper,
+                      unsigned prg, unsigned chr, unsigned mirroring,
+                      unsigned battery, unsigned char *header)
 {
     std::memset(header, 0, 16);
     std::memcpy(header, "NES\x1a", 4);
@@ -343,6 +344,14 @@ void synthetic_header(unsigned mapper, unsigned prg, unsigned chr,
         (mirroring == 1 ? 1u : 0u) | (battery ? 2u : 0u) |
         (mirroring == 2 ? 8u : 0u));
     header[7] = static_cast<unsigned char>(mapper & 0xf0u);
+    if (submapper) {
+        // iNES 1.0 cannot store an NES 2.0 submapper. Preserve it
+        // even for an unverified manually configured homebrew ROM.
+        if (submapper > 15u)
+            throw std::runtime_error("invalid NES submapper");
+        header[7] |= 0x08u; // NES 2.0 marker
+        header[8] = static_cast<unsigned char>(submapper << 4);
+    }
 }
 int read_rom_v2(retrode3_probe_v2 const *probe,
                 retrode3_read_request_v2 const *request,
@@ -466,7 +475,7 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
                                   "Ambiguous MMC1 ROM (matching payload)");
                 }
             } else if (request->manual) {
-                synthetic_header(mapper, prg, chr, request->mirroring,
+                synthetic_header(mapper, submapper, prg, chr, request->mirroring,
                                  request->battery, result->header);
                 std::snprintf(result->title, sizeof(result->title), "%s",
                               "Unverified MMC1 ROM (manual layout)");
@@ -519,8 +528,8 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
                           sizeof(result->matched_candidate_id), "%s", match_id);
             std::snprintf(result->title, sizeof(result->title), "%s", match->title);
         } else if (request->manual) {
-            synthetic_header(mapper, prg, chr, request->mirroring, request->battery,
-                             result->header);
+            synthetic_header(mapper, submapper, prg, chr, request->mirroring,
+                             request->battery, result->header);
             std::snprintf(result->title, sizeof(result->title), "%s",
                           "Unverified NES ROM (manual layout)");
         } else {
