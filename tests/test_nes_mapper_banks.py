@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOST = os.path.join(ROOT, "build/migration/retrode3-cli-mock")
 MODULE = os.path.join(ROOT, "build/migration/real-nes-fixture/nes.so")
 MANIFEST = os.path.join(ROOT, "packaging/cores/nes.core")
+PRODUCTION_MODULE = os.path.join(ROOT, "build/migration/real-nes-production-fixture/nes.so")
 
 
 def fixture_rom(mapper, prg_kib, chr_kib):
@@ -69,6 +70,25 @@ class TestNesMapperBanks(unittest.TestCase):
                 "output": os.path.join(self.temp.name, name + ".nes"),
                 "mapper": mapper, "submapper": 0, "prg_kib": prg,
                 "chr_kib": chr_size, "mirroring": "horizontal", "battery": 0}
+
+    def test_mmc1_in_regular_production_core_no_lab_switch(self):
+        # This .so is compiled WITHOUT RETRODE3_TESTING, MMC1_LAB or
+        # any experimental mapper-writes build flags.
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
+        job = self.cmd(1, 128, 32, "normal-core-mmc1")
+        events = self.run_cli(1, [job], {
+            "RETRODE_MOCK_NES_PRG_KIB": "128",
+            "RETRODE_MOCK_NES_CHR_KIB": "32"})
+        self.assertEqual(events[-1]["event"], "result", events)
+        self.assertEqual(events[-1]["layout_id"], "m1-128-32")
+        with io.open(job["output"], "rb") as handle:
+            self.assertEqual(handle.read(), fixture_rom(1, 128, 32))
+
+        # The same non-experimental binary still rejects mapper 2.
+        old = self.cmd(2, 64, 0, "normal-core-uxrom")
+        events = self.run_cli(2, [old])
+        self.assertEqual(events[-1]["event"], "error", events)
+        self.assertFalse(os.path.exists(old["output"]))
 
     def test_bank_order_and_crc_for_mappers_2_3_4_7(self):
         for mapper, p, c in ((2, 64, 0), (3, 32, 32),
