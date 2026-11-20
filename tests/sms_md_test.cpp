@@ -153,7 +153,7 @@ int main() {
         assert(std::strstr(json, "sms-md-layout-v1") != NULL);
         assert(std::strstr(json, "read_supported\":true") != NULL);
         assert(v3->fast_probe_json(json, sizeof(json), err, sizeof(err)) == 0);
-        assert(std::strstr(json, "hardware_disabled") != NULL);
+        assert(std::strstr(json, "hardware_unavailable") != NULL);
         retrode3_selection_v3 selection = retrode3_selection_v3();
         selection.struct_size = sizeof(selection);
         selection.protocol_version = 1;

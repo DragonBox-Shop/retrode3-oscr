@@ -58,17 +58,23 @@ int main()
 
     assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
     SmsMdPosixBus bus;
+    SmsMdPosixBus probe_bus(NULL, NULL, SmsMdHeaderProbe);
+    assert(probe_bus.approved()); // 3.3V header reads need no opt-in.
+    const Probe low_voltage_probe = bounded_probe(probe_bus);
+    assert(low_voltage_probe.header_found && !low_voltage_probe.conflicting_headers);
+    assert(low_voltage_probe.header.declared_rom_bytes == 32768u);
     assert(!bus.approved());
     assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT", "wrong", 1) == 0);
     assert(!bus.approved());
     assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT", "enable-readonly-v1", 1) == 0);
-    assert(!bus.approved()); // 3.3V is never accepted
+    assert(!bus.approved()); // 3.3V is never accepted for ROM streaming
     assert(::ftruncate(vf, 0) == 0);
     assert(::lseek(vf, 0, SEEK_SET) == 0);
     const char volt5[] = "5000mV\n";
     assert(::write(vf, volt5, sizeof(volt5) - 1) == static_cast<ssize_t>(sizeof(volt5)-1));
     ::close(vf);
     assert(bus.approved());
+    assert(probe_bus.approved());
 
     const Probe probe = bounded_probe(bus);
     assert(probe.header_found && !probe.conflicting_headers);
@@ -81,6 +87,9 @@ int main()
     assert(!bus.begin_sega_banked()); // no mapper writes
     assert(!bus.select_page2(1));
     assert(!bus.end_sega_banked());
+    assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
+    assert(!bus.approved());
+    assert(probe_bus.approved()); // Same header path remains available.
     ::unlink(device);
     ::unlink(vcc);
     ::unsetenv("RETRODE3_SMS_MD_EXPERIMENT");
