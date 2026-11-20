@@ -116,6 +116,65 @@ class TestNesMapperBanks(unittest.TestCase):
             self.assertEqual(events[-1]["event"], "probe_result", events)
             self.assertFalse(os.path.exists(log))
 
+    def test_mmc1_sgrom_requires_explicit_no_wram_ack(self):
+        job = self.cmd(1, 128, 0, "mmc1-no-ack")
+        log = os.path.join(self.temp.name, "mmc1-no-ack-writes")
+        events = self.run_cli(1, [job],
+                              {"RETRODE_MOCK_NES_WRITELOG": log})
+        self.assertEqual(events[-1]["event"], "error", events)
+        self.assertFalse(os.path.exists(job["output"]))
+        self.assertFalse(os.path.exists(log))
+
+        job = self.cmd(1, 128, 0, "mmc1-battery")
+        job["battery"] = 1
+        events = self.run_cli(1, [job], {
+            "RETRODE3_MMC1_NO_PRG_RAM_ACK":
+                "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM",
+            "RETRODE_MOCK_NES_WRITELOG": log})
+        self.assertEqual(events[-1]["event"], "error", events)
+        self.assertFalse(os.path.exists(job["output"]))
+        self.assertFalse(os.path.exists(log))
+
+    def test_mmc1_sgrom_bank_dump_crc_and_serial_order(self):
+        job = self.cmd(1, 128, 0, "mmc1-sgrom")
+        log = os.path.join(self.temp.name, "mmc1-sgrom-writes")
+        events = self.run_cli(1, [job], {
+            "RETRODE3_MMC1_NO_PRG_RAM_ACK":
+                "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM",
+            "RETRODE_MOCK_NES_WRITELOG": log})
+        result = events[-1]
+        self.assertEqual(result["event"], "result", events)
+        self.assertFalse(result["verified"])
+        self.assertEqual(result["layout_id"], "m1-128-0")
+        with io.open(job["output"], "rb") as handle:
+            data = handle.read()
+        self.assertEqual(data, fixture_rom(1, 128, 0))
+        self.assertEqual(result["crc32"],
+                         "%08X" % (zlib.crc32(data) & 0xffffffff))
+        self.assertEqual(result["payload_crc32"],
+                         "%08X" % (zlib.crc32(data[16:]) & 0xffffffff))
+        with io.open(log, "r", encoding="utf-8") as handle:
+            writes = [tuple(int(v) for v in row.split())
+                      for row in handle if row.strip()]
+        self.assertEqual(len(writes), 8 * 11)
+        for bank in range(8):
+            seq = writes[bank * 11:(bank + 1) * 11]
+            self.assertEqual(seq[0], (0x8000, 0x80, 10))
+            self.assertEqual(seq[1:6],
+                [(0x8000, (0x0c >> i) & 1, 10) for i in range(5)])
+            self.assertEqual(seq[6:],
+                [(0xe000, (bank >> i) & 1, 10) for i in range(5)])
+        self.assertFalse(any(addr < 0x8000 for addr, value, mode in writes))
+
+    def test_mmc1_sgrom_failed_write_does_not_publish(self):
+        job = self.cmd(1, 128, 0, "mmc1-fault")
+        events = self.run_cli(1, [job], {
+            "RETRODE3_MMC1_NO_PRG_RAM_ACK":
+                "RAD_RACER_SGROM_128K_CHRRAM_NO_WRAM",
+            "RETRODE_MOCK_NES_WRITE_FAIL": "1"})
+        self.assertEqual(events[-1]["event"], "error", events)
+        self.assertFalse(os.path.exists(job["output"]))
+
     def test_mmc1_is_fail_closed_even_with_manual_override(self):
         job = self.cmd(1, 128, 64, "mmc1")
         log = os.path.join(self.temp.name, "mmc1-writes")
