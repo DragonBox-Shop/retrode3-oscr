@@ -138,6 +138,14 @@ test-native-nes-module: test-nes-mmc1-plan verify-nes-mapper-sequences build/mig
 		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
 		src/retrode3/oscr_nes_adapter.cpp tests/mock_nes_kernel.cpp \
 		build/migration/oscr_nes_nrom.pic.o -o build/migration/real-nes-fixture/nes.so
+	mkdir -p build/migration/real-nes-production-fixture
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_nes_posix.cpp \
+		src/retrode3/oscr_nes_stage1.cpp src/retrode3/oscr_nes_catalog.cpp \
+		src/retrode3/oscr_nes_mmc1_catalog.cpp \
+		src/retrode3/oscr_nes_mapper.cpp src/retrode3/nes_mmc1_plan.cpp \
+		src/retrode3/oscr_nes_adapter.cpp tests/mock_nes_kernel.cpp \
+		build/migration/oscr_nes_nrom.pic.o -o build/migration/real-nes-production-fixture/nes.so
 	python3 -m unittest discover -s tests -p 'test_python34_compat.py' -v
 	python3 -m unittest discover -s tests -p 'test_real_nes_adapter.py' -v
 	python3 -m unittest discover -s tests -p 'test_nes_mapper_banks.py' -v
