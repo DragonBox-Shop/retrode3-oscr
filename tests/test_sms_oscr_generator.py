@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Pinned-upstream and no-manual-SMS-logic checks. Python 3.4 compatible."""
 import hashlib
-import importlib.util
 import io
 import os
+import types
 import unittest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 GENERATE = os.path.join(ROOT, 'tools', 'build-linux-sms-core.py')
-_SPEC = importlib.util.spec_from_file_location('sms_oscr_generator', GENERATE)
-GEN = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(GEN)
+# Python 3.4 has neither importlib.util.module_from_spec nor modern
+# importlib module execution helpers. Execute the reviewed, pinned generator
+# as a regular named module without triggering its __main__ entry point.
+GEN = types.ModuleType('sms_oscr_generator')
+GEN.__file__ = GENERATE
+with io.open(GENERATE, 'r', encoding='utf-8') as generator_file:
+    exec(compile(generator_file.read(), GENERATE, 'exec'), GEN.__dict__)
 UPSTREAM = os.path.join(ROOT, 'third_party', 'oscr-firmware',
                         'src', 'cores', 'SMS.cpp')
 
