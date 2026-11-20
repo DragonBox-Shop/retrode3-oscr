@@ -89,6 +89,8 @@ jobs:
         run: make -f Makefile.migration test-native-nes-module
       - name: Validate all three original-derived Cores share one host
         run: make -f Makefile.migration test-three-core-host
+      - name: Exercise generic v3 selection and override contract
+        run: make -f Makefile.migration test-generic-selection-v3
       - name: Prepare offline core image staging without installing or enabling
         run: |
           make -f Makefile.migration stage-snes-module
