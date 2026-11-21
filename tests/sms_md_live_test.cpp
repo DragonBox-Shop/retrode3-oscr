@@ -131,6 +131,48 @@ int main()
     std::strcpy(s.layout_id, "linear-32");
     assert(ops->plan_read(&s, &p, error, sizeof(error)) != 0);
 
+    // A fresh, independent header-only fixture simulates Action Fighter's
+    // MAME-listed product code 5055 / 128 KiB without copying any game ROM.
+    // The probe reads ONLY the header windows and does not bank or write.
+    unsigned char header[16] = {};
+    std::memcpy(header, "TMR SEGA", 8);
+    header[12] = 0x55; header[13] = 0x50;
+    header[14] = 1; header[15] = 0x4f;
+    unsigned char doubled[32] = {};
+    for (unsigned i = 0; i < 16; ++i) {
+        doubled[i*2] = header[i];
+        doubled[i*2+1] = header[i];
+    }
+    assert(retrode3::sms::sms_read_offset(0x7ff0u, 16, &offset));
+    const int edit = ::open(device, O_RDWR);
+    assert(edit >= 0);
+    assert(::pwrite(edit, doubled, sizeof(doubled), offset) ==
+           static_cast<ssize_t>(sizeof(doubled)));
+    assert(::close(edit) == 0);
+    assert(!ops->fast_probe_json(response, sizeof(response), error, sizeof(error)));
+    assert(std::strstr(response, "\"identification_status\":\"ambiguous\"") != NULL);
+    assert(std::strstr(response, "\"ambiguity\":\"titles_only\"") != NULL);
+    assert(std::strstr(response, "\"candidate_lookup\":\"header_product_code\"") != NULL);
+    assert(std::strstr(response, "\"title\":\"Action Fighter\"") != NULL);
+    assert(std::strstr(response, "\"selection_required\":false") != NULL);
+    assert(std::strstr(response, "sms-crc-3658F3E0") != NULL);
+    assert(std::strstr(response, "sms-crc-D91B340D") != NULL);
+    assert(std::strstr(response, "\"product_code\":5055") != NULL);
+    assert(std::strstr(response, "sega16k-128") != NULL);
+
+    // Candidate selection is validated against the current read-only header
+    // (and still fails before mapper I/O with the experimental gate absent).
+    s.mode = RETRODE3_SELECT_CANDIDATE_V3;
+    s.layout_id[0] = '\0';
+    std::strcpy(s.candidate_id, "sms-crc-3658F3E0");
+    assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT", "enable-readonly-v1") == 0);
+    assert(ops->plan_read(&s, &p, error, sizeof(error)) != 0);
+    assert(std::strstr(error, "mapper needs explicit opt-in") != NULL);
+    std::strcpy(s.candidate_id, "sms-crc-00000000");
+    assert(ops->plan_read(&s, &p, error, sizeof(error)) != 0);
+    assert(std::strstr(error, "candidate no longer matches") != NULL);
+    assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
+
     ::unlink(device); ::unlink(vcc);
     ::unsetenv("RETRODE3_SMS_MD_TEST_DEVICE");
     ::unsetenv("RETRODE3_SMS_MD_TEST_VCC");
