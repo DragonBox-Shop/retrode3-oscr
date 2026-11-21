@@ -105,7 +105,7 @@ int main()
     s.parameters[1].integer_value = 128;
     assert(ops->read_rom(&s, &io, &result, error, sizeof(error)) != 0);
     assert(sink.bytes.empty());
-    assert(std::strstr(error, "bank-switch writes") != NULL);
+    assert(std::strstr(error, "mapper needs explicit opt-in") != NULL);
 
     // Removing opt-in blocks ROM reads but NOT the header probe.
     assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
