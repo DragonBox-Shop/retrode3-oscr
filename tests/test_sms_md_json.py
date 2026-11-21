@@ -22,6 +22,15 @@ class OperationsV3(ctypes.Structure):
                 ('read_rom', ctypes.c_void_p)]
 
 
+class DescriptorV1(ctypes.Structure):
+    _fields_ = [('abi_version', ctypes.c_uint32),
+                ('struct_size', ctypes.c_uint32),
+                ('id', ctypes.c_char_p),
+                ('name', ctypes.c_char_p),
+                ('version', ctypes.c_char_p),
+                ('slot', ctypes.c_char_p)]
+
+
 class SmsCoreAbi(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -37,6 +46,24 @@ class SmsCoreAbi(unittest.TestCase):
         err = ctypes.create_string_buffer(256)
         self.assertEqual(fn(out, len(out), err, len(err)), 0, err.value)
         return json.loads(out.value.decode('utf-8'))
+
+    def test_discovery_descriptor_matches_installed_manifest_source(self):
+        # CLI discovery requires exact equality of all four strings.
+        # This test is metadata-only: no actual cartridge or bus I/O.
+        get_desc = self.module.retrode3_core_describe_v1
+        get_desc.restype = ctypes.POINTER(DescriptorV1)
+        desc = get_desc().contents
+        manifest = {}
+        path = os.path.join(ROOT, 'packaging', 'cores', 'sms-md.core')
+        with open(path, 'r') as handle:
+            for line in handle:
+                key, val = line.rstrip('\n').split('=', 1)
+                manifest[key] = val
+        self.assertEqual(set(manifest), set(['id', 'name', 'version', 'slot']))
+        self.assertEqual(desc.abi_version, 1)
+        self.assertEqual(desc.struct_size, ctypes.sizeof(DescriptorV1))
+        for key in ['id', 'name', 'version', 'slot']:
+            self.assertEqual(getattr(desc, key).decode('utf-8'), manifest[key])
 
     def test_abi_version_and_valid_schema(self):
         self.assertEqual(self.ops.abi_version, 3)
