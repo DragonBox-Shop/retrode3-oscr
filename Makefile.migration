@@ -189,7 +189,7 @@ REGISTRY_CLI_SOURCES = src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protoco
 REGISTRY_CLI_HEADERS = include/retrode3/core_descriptor_v1.h \
 	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v2.h \
 	include/retrode3/core_operations_v3.h include/retrode3/json_v3.h \
-	include/retrode3/ndjson_protocol.h
+	include/retrode3/ndjson_protocol.h include/retrode3/hardware_scope_v1.h
 
 build/migration/retrode3-cli: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
 	mkdir -p build/migration
@@ -291,6 +291,9 @@ test-release-stage: stage-retrode3-runtime
 # Keep this test target in CI even when no real cartridge fixture is available.
 .PHONY: test-generic-selection-v3
 test-generic-selection-v3: native-core-registry
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING \
+		tests/hardware_scope_v1_test.cpp -o build/migration/hardware_scope_v1_test
+	./build/migration/hardware_scope_v1_test
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
 	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
@@ -313,9 +316,11 @@ test-slot-autoprobe: build/migration/retrode3-cli-mock
 # SMS-0007 Retrode2 adapter, 8-bit kernel mode 20, explicit read-only lab.
 # Generate real pinned OSCR SMS.cpp size table and ROM bank/buffer loops.
 # Only reviewed AVR-to-kernel and SD-to-host replacements; no CLI rebuild.
-build/migration/oscr_sms_generated.stamp: tools/build-linux-sms-core.py third_party/oscr-firmware/src/cores/SMS.cpp
+build/migration/oscr_sms_generated.stamp: tools/build-linux-sms-core.py third_party/oscr-firmware/src/cores/SMS.cpp \
+    tools/build-linux-sms-catalog.py third_party/oscr-sms-db.json
 	mkdir -p build/migration
 	python3 tools/build-linux-sms-core.py --size-output build/migration/oscr_sms_size.h --read-output build/migration/oscr_sms_read.h
+	python3 tools/build-linux-sms-catalog.py --output build/migration/oscr_sms_catalog.h
 	touch $@
 
 # Kept out of the default release staging and normal web auto-enable.
@@ -334,6 +339,7 @@ build/migration/sms-md.so: $(SMS_MD_SOURCES) $(SMS_MD_HEADERS) build/migration/o
 native-sms-md-module: build/migration/sms-md.so
 
 test-sms-md-module: native-sms-md-module
+	python3 -m unittest discover -s tests -p 'test_sms_catalog_generator.py' -v
 	python3 -m unittest discover -s tests -p 'test_sms_oscr_generator.py' -v
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -Ibuild/migration tests/sms_header_v1_test.cpp -o build/migration/sms_header_v1_test
 	./build/migration/sms_header_v1_test

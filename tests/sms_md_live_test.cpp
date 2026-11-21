@@ -41,9 +41,17 @@ int main()
     expected[0x7fff] = 0x4c;
     std::uint32_t offset = 0;
     assert(retrode3::sms::sms_read_offset(0, 512, &offset));
+    // Physical MD A0 is unused by the SMS ROM: every cartridge byte
+    // appears at two consecutive MD bus offsets. The production SMS
+    // adapter reads 2*N positions and deinterleaves back to N bytes.
+    std::vector<unsigned char> physical(expected.size() * 2u);
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        physical[2u * i] = expected[i];
+        physical[2u * i + 1u] = expected[i];
+    }
     assert(::lseek(fd, offset, SEEK_SET) == static_cast<off_t>(offset));
-    assert(::write(fd, expected.data(), expected.size()) ==
-           static_cast<ssize_t>(expected.size()));
+    assert(::write(fd, physical.data(), physical.size()) ==
+           static_cast<ssize_t>(physical.size()));
     ::close(fd);
 
     const retrode3_core_operations_v3 *ops = retrode3_core_get_operations_v3();
@@ -53,6 +61,7 @@ int main()
     assert(std::strstr(response, "linear-32") != NULL);
     assert(std::strstr(response, "header_found\":true") != NULL);
     assert(std::strstr(response, "system_detected\":true") != NULL);
+    assert(std::strstr(response, "selection_required\":false") != NULL);
 
     retrode3_selection_v3 s = retrode3_selection_v3();
     s.struct_size = sizeof(s); s.protocol_version = 1;
@@ -81,8 +90,23 @@ int main()
     result.struct_size = sizeof(result);
     assert(!ops->read_rom(&s, &io, &result, error, sizeof(error)));
     assert(sink.bytes == expected);
-    assert(std::strstr(result.details_json, "\"status\":\"not_checked\"") != NULL);
+    assert(std::strstr(result.details_json, "\"status\":\"not_found\"") != NULL);
     assert(std::strstr(result.details_json, "\"verified\":false") != NULL);
+    assert(result.payload_crc_known == 1);
+
+    // Auto mode uses the same bounded header decoder and NEVER needs
+    // an SMS-specific selection flag from the generic host.
+    s.mode = RETRODE3_SELECT_AUTO_V3;
+    s.layout_id[0] = '\0';
+    assert(!ops->plan_read(&s, &p, error, sizeof(error)));
+    assert(p.payload_bytes == 32768);
+    Sink auto_sink;
+    io.context = &auto_sink;
+    assert(!ops->read_rom(&s, &io, &result, error, sizeof(error)));
+    assert(auto_sink.bytes == expected);
+    io.context = &sink;
+    s.mode = RETRODE3_SELECT_LAYOUT_V3;
+    std::strcpy(s.layout_id, "linear-32");
 
     // Invalid/unapproved mapping must fail before writing anything.
     sink.bytes.clear();
@@ -97,7 +121,7 @@ int main()
     s.parameters[1].integer_value = 128;
     assert(ops->read_rom(&s, &io, &result, error, sizeof(error)) != 0);
     assert(sink.bytes.empty());
-    assert(std::strstr(error, "bank-switch writes") != NULL);
+    assert(std::strstr(error, "mapper needs explicit opt-in") != NULL);
 
     // Removing opt-in blocks ROM reads but NOT the header probe.
     assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
