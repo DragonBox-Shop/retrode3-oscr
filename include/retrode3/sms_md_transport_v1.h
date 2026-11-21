@@ -25,6 +25,32 @@ static const std::uint32_t md_mcf_inactive = (1u << 17);
 static const std::uint32_t md_m8b_inactive = (1u << 18);
 static const std::uint32_t md_rd_active = 0u; // physical MD A23=0
 static const std::uint32_t adapter_mode_d0_d7 = 20u;
+static const std::uint32_t adapter_mode_sms_mapper_write = 22u;
+static const std::uint32_t md_rd_inactive = (1u << 23);
+
+/*
+ * Only Sanni's four Sega mapper registers can be sent to the 7.3
+ * experimental kernel write primitive. MD CE/WR/RD sequencing is entirely
+ * kernel-owned, not recreated in the userspace cartridge core.
+ */
+inline bool sms_mapper_write_offset(std::uint16_t register_address,
+                                    std::uint8_t value,
+                                    std::uint32_t *file_offset)
+{
+    if (!file_offset || register_address < 0xfffcu ||
+        register_address > 0xffffu)
+        return false;
+    if ((register_address == 0xfffcu && value != 0u) ||
+        (register_address == 0xfffdu && value != 0u) ||
+        (register_address == 0xfffeu && value != 1u) ||
+        (register_address == 0xffffu && value >= 64u))
+        return false;
+    const std::uint32_t address =
+        md_rd_inactive | md_wr_inactive | md_mcf_inactive |
+        (static_cast<std::uint32_t>(register_address) << 1);
+    *file_offset = (adapter_mode_sms_mapper_write << 24) | address;
+    return true;
+}
 
 inline bool sms_read_offset(std::uint16_t cpu_address, std::size_t size,
                             std::uint32_t *file_offset)
