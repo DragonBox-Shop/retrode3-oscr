@@ -1,3 +1,64 @@
+# Sega 16-KiB mapper extension: experimental integration (2026-11-21)
+
+**Current feature branch only:** `feature/sms-sega16k-generated-mapper-hal`.
+This section supersedes the older status and disabled-mapper descriptions
+below **on this feature branch only**. The stable core, CLI and kernel remain
+unchanged.
+
+The pinned Sanni `SMS.cpp` is still the sole bank-switching algorithm
+source. `tools/build-linux-sms-core.py` extracts `readROM()` as before,
+including its `select_page2(currBank)` calls. **Neither Sanni's file nor the
+generator was modified.** Only the existing POSIX adapter HAL, v3 layout
+approval and mock tests have been connected.
+
+- `Sega16k` sizes 48/64/128/256/512/1024 KiB can be selected. A 128-KiB
+  header now offers `sega16k-128` in `read_layouts`, initially marked
+  `read_supported:false` until the explicit bench gates are present.
+- Kernel 7.3 branch
+  `feature/sms-sega16k-generated-mapper-7.3` adds dedicated write mode
+  **22**, limited to the four Sega mapper registers `$FFFC..$FFFF`.
+  It requires BOTH load-time params `legacy_bridge_hiz_test=1` and
+  `sms_mapper_write_test=1`. Every other write remains blocked.
+- Userspace requires `RETRODE3_SMS_MD_EXPERIMENT=enable-readonly-v1`
+  AND `RETRODE3_SMS_MD_MAPPER_EXPERIMENT=enable-sega16k-v1`. The kernel
+  module parameters are checked read-only through sysfs. Both the mapper
+  permission checks and the actual kernel write require **5000mV**.
+- Sanni's initial register values are preserved: disable SRAM via
+  `$FFFC=0`, map pages 0 and 1 with `$FFFD=0` and `$FFFE=1`, start
+  page 2 at `$FFFF=2`, then bank page 2 as the generated code directs;
+  the HAL restores page 2 to bank 2 after reading. No user-space
+  replacement mapper loop, generic cart writes or SRAM save operations.
+- The v3 capabilities and probe show the banked layout only as writable
+  when these authorization gates plus the 5-V status are satisfied.
+  The core does **not** change the supply voltage automatically.
+- The read-only 3.3-V header probe and all existing linear-layout
+  restrictions remain unchanged.
+
+**SAFETY: NOT APPROVED FOR A LIVE CARTRIDGE YET.** The original 3.3-V
+header probes prove the shifted address mapping for reads, not the A23
+SMS /RD control level or safe A22 /WR pulse timing during write cycles.
+These need oscilloscope / logic-analyzer confirmation with the actual
+Retrode3 2.9.5 and SMS-0007 hardware, with no other cartridges fitted.
+Until then **do not enable the new kernel mapper-write parameter, do
+not switch to 5 V to test mapper writes, and do not attempt full 128-KiB
+SMS reads**. A software test is not electrical acceptance.
+
+Build the *software* against a matching local checkout without modifying
+the pinned Sanni source:
+
+```sh
+git submodule update --init third_party/oscr-firmware
+make -f Makefile.migration test-sms-md-module
+./tools/preflight-ci.sh
+```
+
+The kernel module may be built separately on the existing configured
+Letux 7.3 tree with `M=drivers/misc/retrode3 modules` for **static
+validation only**. Never replace the working module or merge these
+experimental branches without passing CI, code review and signal checks.
+
+---
+
 # Sega Master System SMS-0007: Retrode3 v3 experimental read-only core
 
 Status: **mock tested, physical cartridge not tested**. Intended for the
