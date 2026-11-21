@@ -50,14 +50,17 @@ class SmsCoreAbi(unittest.TestCase):
         self.assertTrue(schema['fields'][0]['values'][0]['read_supported'])
         self.assertFalse(schema['fields'][0]['values'][1]['read_supported'])
 
-    def test_probe_never_claims_authorized_hardware(self):
-        info = self.get_json(self.ops.fast_probe_json)
-        self.assertEqual(info['candidate_lookup'], 'hardware_unavailable')
-        self.assertTrue(info['selection_required'])
-        self.assertFalse(info['read_supported'])
-        self.assertEqual(info['read_layouts'], [])
-        self.assertEqual(info['candidates'], [])
-        self.assertFalse(info['system_detected'])
+    def test_experimental_probe_policy_without_physical_io(self):
+        # This suite loads the production .so, not a TESTING build.
+        # Calling fast_probe_json here can access a real /dev/slot-md
+        # when the test happens to run on powered Retrode hardware.
+        # Probe JSON is exercised with a synthetic voltage/device by
+        # sms_md_live_test.cpp; validate the production policy here.
+        schema = self.get_json(self.ops.capabilities_json)
+        self.assertEqual(schema['hardware_mode'], 'experimental-read-only')
+        self.assertEqual(schema['probe_voltage_mv'], 3300)
+        self.assertEqual(schema['read_voltage_mv'], 5000)
+        self.assertFalse(schema['write_operations'])
 
 
 if __name__ == '__main__':

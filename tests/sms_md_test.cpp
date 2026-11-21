@@ -2,6 +2,7 @@
 #include "retrode3/core_descriptor_v1.h"
 #include "retrode3/core_operations_v3.h"
 #include <cassert>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -152,8 +153,16 @@ int main() {
         assert(v3->capabilities_json(json, sizeof(json), err, sizeof(err)) == 0);
         assert(std::strstr(json, "sms-md-layout-v1") != NULL);
         assert(std::strstr(json, "read_supported\":true") != NULL);
+        /*
+         * This policy test must never probe the physical MD slot.
+         * The TESTING-only voltage path points at /dev/null, so the
+         * unavailable-hardware response is deterministic on a host
+         * workstation AND on a Retrode with a live SMS cartridge.
+         */
+        assert(::setenv("RETRODE3_SMS_MD_TEST_VCC", "/dev/null", 1) == 0);
         assert(v3->fast_probe_json(json, sizeof(json), err, sizeof(err)) == 0);
         assert(std::strstr(json, "hardware_unavailable") != NULL);
+        assert(::unsetenv("RETRODE3_SMS_MD_TEST_VCC") == 0);
         retrode3_selection_v3 selection = retrode3_selection_v3();
         selection.struct_size = sizeof(selection);
         selection.protocol_version = 1;

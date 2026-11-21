@@ -41,9 +41,17 @@ int main()
     expected[0x7fff] = 0x4c;
     std::uint32_t offset = 0;
     assert(retrode3::sms::sms_read_offset(0, 512, &offset));
+    // Physical MD A0 is unused by the SMS ROM: every cartridge byte
+    // appears at two consecutive MD bus offsets. The production SMS
+    // adapter reads 2*N positions and deinterleaves back to N bytes.
+    std::vector<unsigned char> physical(expected.size() * 2u);
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        physical[2u * i] = expected[i];
+        physical[2u * i + 1u] = expected[i];
+    }
     assert(::lseek(fd, offset, SEEK_SET) == static_cast<off_t>(offset));
-    assert(::write(fd, expected.data(), expected.size()) ==
-           static_cast<ssize_t>(expected.size()));
+    assert(::write(fd, physical.data(), physical.size()) ==
+           static_cast<ssize_t>(physical.size()));
     ::close(fd);
 
     const retrode3_core_operations_v3 *ops = retrode3_core_get_operations_v3();

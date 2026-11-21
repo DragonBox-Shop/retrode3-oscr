@@ -154,3 +154,16 @@ transport, cancellation and CRC-facing output are tested in CI, including a
 GCC 8 build. These are **not** physical-cartridge electrical acceptance tests.
 The paired kernel preselect patch must first be built for the running kernel
 and /WR versus /CE timing validated electrically.
+
+## Deterministic tests on the actual Retrode3
+
+`make -f Makefile.migration test-sms-md-module` must be safe to run on the
+powered target with an SMS cartridge present. The C++ policy test uses a
+`RETRODE3_TESTING`-only VCC override pointing to `/dev/null`, forcing
+the hardware-unavailable path without opening `/dev/slot-md`. The C++
+transport/end-to-end tests use isolated temporary files modelling the
+physical double-byte address positions; the real production `.so` cannot
+use those test-only path overrides. The Python production-module ABI test
+inspects `capabilities_json` and deliberately does NOT call the live
+`fast_probe_json` callback. Run the actual cartridge probe only manually,
+after reviewing voltage and adapter bus safety.
