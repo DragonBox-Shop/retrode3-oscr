@@ -8,12 +8,14 @@
 #include "retrode3/sms_rom_core_v1.h"
 #include "retrode3/json_v3.h"
 #include "oscr_sms_catalog.h"
+#include "oscr_sms_header_catalog.h"
 
 #include <cstdio>
 #include <cstring>
 #include <exception>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 const char *const kSchema = "sms-md-layout-v1";
@@ -67,7 +69,7 @@ int capabilities(char *out, size_t cap, char *err, size_t ec)
          "module_parameters":{"legacy_bridge_hiz_test":true,"sms_mapper_write_test":true},
          "environment":{"RETRODE3_SMS_MD_EXPERIMENT":"enable-readonly-v1",
                         "RETRODE3_SMS_MD_MAPPER_EXPERIMENT":"enable-sega16k-v1"}}},
-"selection_modes":["auto","layout","override"],
+"selection_modes":["auto","candidate","layout","override"],
 "fields":[
   {"id":"mapping","label":"ROM mapping","type":"enum","required":true,
    "values":[{"value":"linear","label":"Linear (8-32 KiB)","read_supported":true},
@@ -104,6 +106,51 @@ retrode3::sms::Layout detected_layout(const retrode3::sms::Probe &probe)
     return layout;
 }
 
+// Bounded, read-only identification only. MAME product numbers are hints,
+// NOT a verified game signature or a mapper authorization. Ignore unreliable
+// or absent BCD codes and require the same declared physical ROM size.
+std::string candidate_id(std::uint32_t crc)
+{
+    char id[20] = {};
+    std::snprintf(id, sizeof(id), "sms-crc-%08X", crc);
+    return id;
+}
+std::vector<const retrode3::sms::HeaderCandidate *> header_candidates(
+    const retrode3::sms::Probe &p)
+{
+    std::vector<const retrode3::sms::HeaderCandidate *> result;
+    if (!p.header_found || p.conflicting_headers ||
+        !p.header.product_code_valid || !p.header.product_code)
+        return result;
+    for (std::size_t i = 0; i < retrode3::sms::kHeaderCandidateCount; ++i) {
+        const retrode3::sms::HeaderCandidate &item =
+            retrode3::sms::kHeaderCandidates[i];
+        if (item.product_code == p.header.product_code &&
+            item.size_bytes == p.header.declared_rom_bytes)
+            result.push_back(&item);
+    }
+    return result;
+}
+
+// Different regional versions of the same game may share a product code.
+// In that case the generic Web can show the common game name and offer its
+// individual CRC-based candidates without falsely claiming a unique version.
+std::string shared_game_name(
+    const std::vector<const retrode3::sms::HeaderCandidate *> &matches)
+{
+    if (matches.empty()) return "";
+    const std::string first(matches[0]->title);
+    const std::string::size_type pos = first.find(" (");
+    if (pos == std::string::npos) return matches.size() == 1 ? first : "";
+    const std::string base = first.substr(0, pos);
+    for (std::size_t i = 1; i < matches.size(); ++i) {
+        const std::string name(matches[i]->title);
+        if (name != base && name.compare(0, base.size() + 2, base + " (") != 0)
+            return "";
+    }
+    return base;
+}
+
 retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
 {
     if (!s || s->struct_size != sizeof(*s) || s->protocol_version != 1 ||
@@ -113,8 +160,21 @@ retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
         !terminated(s->layout_id, sizeof(s->layout_id)) ||
         s->parameter_count > RETRODE3_MAX_PARAMETERS_V3)
         throw std::runtime_error("invalid SMS selection ABI or schema");
+    if (s->mode == RETRODE3_SELECT_CANDIDATE_V3) {
+        if (!s->candidate_id[0] || s->layout_id[0] || s->parameter_count)
+            throw std::runtime_error("invalid SMS candidate selection");
+        retrode3::sms::SmsMdPosixBus probe_bus(NULL, NULL,
+                                                retrode3::sms::SmsMdHeaderProbe);
+        const retrode3::sms::Probe p = retrode3::sms::bounded_probe(probe_bus);
+        const std::vector<const retrode3::sms::HeaderCandidate *> matches =
+            header_candidates(p);
+        for (std::size_t i = 0; i < matches.size(); ++i)
+            if (candidate_id(matches[i]->full_crc32) == s->candidate_id)
+                return detected_layout(p);
+        throw std::runtime_error("SMS candidate no longer matches cartridge header");
+    }
     if (s->candidate_id[0])
-        throw std::runtime_error("SMS catalogue candidates are not supported");
+        throw std::runtime_error("SMS candidate ID only valid in candidate mode");
     retrode3::sms::Layout layout = {retrode3::sms::Linear, 0u};
     if (s->mode == RETRODE3_SELECT_AUTO_V3) {
         if (s->layout_id[0] || s->parameter_count)
@@ -189,12 +249,14 @@ int fast_probe(char *out, size_t cap, char *err, size_t ec)
         retrode3::sms::SmsMdPosixBus bus(NULL, NULL, retrode3::sms::SmsMdHeaderProbe);
         const retrode3::sms::Probe p = retrode3::sms::bounded_probe(bus);
         std::string layouts = "[]";
+        std::string layout_id;
         bool auto_layout = false;
         if (p.header_found && !p.conflicting_headers) {
             const unsigned kib = p.header.declared_rom_bytes / 1024u;
             if (kib == 8u || kib == 16u || kib == 32u) {
                 auto_layout = true;
-                layouts = "[{\"id\":\"linear-" + std::to_string(kib) +
+                layout_id = "linear-" + std::to_string(kib);
+                layouts = "[{\"id\":\"" + layout_id +
                     "\",\"label\":\"SMS linear " + std::to_string(kib) +
                     " KiB\",\"read_supported\":true}]";
             } else if (kib == 48u || kib == 64u || kib == 128u ||
@@ -203,17 +265,47 @@ int fast_probe(char *out, size_t cap, char *err, size_t ec)
                 // read_support means the layout can be read after the
                 // generic host's scoped read profile has been applied.
                 auto_layout = true;
-                layouts = "[{\"id\":\"sega16k-" + std::to_string(kib) +
+                layout_id = "sega16k-" + std::to_string(kib);
+                layouts = "[{\"id\":\"" + layout_id +
                     "\",\"label\":\"SMS Sega 16-KiB banks " +
                     std::to_string(kib) + " KiB\",\"read_supported\":true,"
                     "\"experimental\":true}]";
             }
         }
-        const std::string json = "{\"identification_status\":\"unknown\","
-            "\"ambiguity\":\"none\",\"candidate_lookup\":\"header_only\","
-            "\"selection_required\":" + std::string(auto_layout ? "false" : "true") +
-            ",\"candidates\":[],\"read_layouts\":" +
-            layouts + ",\"adapter_status\":\"experimental\","
+        const std::vector<const retrode3::sms::HeaderCandidate *> matches =
+            auto_layout ? header_candidates(p) :
+                std::vector<const retrode3::sms::HeaderCandidate *>();
+        const std::string status = matches.empty() ? "unknown" :
+            matches.size() == 1 ? "unique" : "ambiguous";
+        const std::string ambiguity = matches.size() > 1 ?
+            "titles_only" : "none";
+        const std::string common = shared_game_name(matches);
+        std::string candidates = "[";
+        for (std::size_t i = 0; i < matches.size(); ++i) {
+            if (i) candidates += ",";
+            candidates += "{\"id\":" +
+                retrode3::json_quote_v3(candidate_id(matches[i]->full_crc32)) +
+                ",\"title\":" + retrode3::json_quote_v3(matches[i]->title) +
+                ",\"layout_id\":" + retrode3::json_quote_v3(layout_id) +
+                ",\"read_supported\":true}";
+        }
+        candidates += "]";
+        const std::string json = "{\"identification_status\":" +
+            retrode3::json_quote_v3(status) +
+            ",\"ambiguity\":" + retrode3::json_quote_v3(ambiguity) +
+            ",\"candidate_lookup\":\"" +
+            std::string(matches.empty() ? "header_only" : "header_product_code") +
+            "\",\"title\":" +
+            (common.empty() ? "null" : retrode3::json_quote_v3(common)) +
+            ",\"selection_required\":" + std::string(auto_layout ? "false" : "true") +
+            ",\"candidates\":" + candidates + ",\"read_layouts\":" +
+            layouts + ",\"probe_fingerprints\":{\"product_code\":" +
+            std::string(p.header_found && p.header.product_code_valid ?
+                std::to_string(p.header.product_code) : "null") +
+            ",\"revision\":" + std::to_string(p.header_found ? p.header.revision : 0u) +
+            ",\"header_checksum\":" +
+            std::to_string(p.header_found ? p.header.checksum : 0u) +
+            "},\"adapter_status\":\"experimental\","
             "\"system_detected\":" +
             ((p.header_found && !p.conflicting_headers) ? "true" : "false") +
             ",\"header_found\":" + (p.header_found ? "true" : "false") +
@@ -273,18 +365,25 @@ int read_rom(const retrode3_selection_v3 *s, const retrode3_host_io_v1 *io,
         char crc_text[9] = {};
         std::snprintf(crc_text, sizeof(crc_text), "%08X", crc);
         const std::string crc_json = retrode3::json_quote_v3(crc_text);
-        const std::string match_id = std::string("sms-crc-") + crc_text;
+        const std::string match_id = candidate_id(crc);
+        const std::string selected_id =
+            s->mode == RETRODE3_SELECT_CANDIDATE_V3 ? s->candidate_id : "";
+        const bool mismatch = !selected_id.empty() &&
+            (!entry || selected_id != match_id);
+        const std::string verified_status = mismatch ? "mismatch" :
+            entry ? "verified" : "not_found";
         const std::string details = "{\"read_configuration\":{\"mapping\":\"" +
             std::string(layout.mapping == retrode3::sms::Sega16k ?
                         "sega16k" : "linear") + "\","
             "\"rom_kib\":" + std::to_string(layout.rom_kib) +
-            "},\"identity\":{\"selected_candidate_id\":null,"
-            "\"matched_candidate_id\":" +
+            "},\"identity\":{\"selected_candidate_id\":" +
+            (selected_id.empty() ? "null" : retrode3::json_quote_v3(selected_id)) +
+            ",\"matched_candidate_id\":" +
             (entry ? retrode3::json_quote_v3(match_id) : "null") +
             ",\"title\":" + (entry ? retrode3::json_quote_v3(entry->title) : "null") +
             "},\"verification\":{\"status\":\"" +
-            std::string(entry ? "verified" : "not_found") +
-            "\",\"verified\":" + (entry ? "true" : "false") +
+            verified_status +
+            "\",\"verified\":" + (verified_status == "verified" ? "true" : "false") +
             ",\"method\":\"full_rom_crc32\",\"expected\":" +
             (entry ? crc_json : "null") + ",\"actual\":" + crc_json + "}}";
         if (details.size() >= sizeof(result->details_json))
