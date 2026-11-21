@@ -53,6 +53,18 @@ bool is_slug(std::string const &s)
     return true;
 }
 
+bool is_selection_id(std::string const &s)
+{
+    if (s.empty() || s.size() > 63) return false;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(s[i]);
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.'))
+            return false;
+    }
+    return true;
+}
+
 bool ends_with(std::string const &s, std::string const &suffix)
 {
     return s.size() > suffix.size() &&
@@ -1481,8 +1493,9 @@ int main(int argc, char **argv)
 {
     std::string available = "/usr/lib/retrode3/cores-available";
     std::string enabled = "/etc/retrode3/cores-enabled";
-    std::string core_id, action, output, slot_id;
+    std::string core_id, action, output, slot_id, layout_id;
     bool list = false, streamed = false, run_interactive = false;
+    bool layout_id_given = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--list-cores" && !list) list = true;
@@ -1501,6 +1514,9 @@ int main(int argc, char **argv)
             if (action == "probe-slot") action = "probe_slot";
         } else if (arg == "--output" && i + 1 < argc && output.empty()) {
             output = argv[++i];
+        } else if (arg == "--layout-id" && i + 1 < argc && !layout_id_given) {
+            layout_id = argv[++i];
+            layout_id_given = true;
         }
 #ifdef RETRODE3_TESTING
         else if (arg == "--available-dir" && i + 1 < argc)
@@ -1512,14 +1528,16 @@ int main(int argc, char **argv)
             std::fprintf(stderr,
                 "usage: retrode3-cli --list-cores | --protocol ndjson-v1 "
                 "--interactive | --protocol ndjson-v1 --core ID "
-                "--action probe|read-rom|probe-slot [--slot ID] [--output FILE]\n");
+                "--action probe|read-rom|probe-slot [--slot ID] "
+                "[--output FILE] [--layout-id ID (v3 read-rom only)]\n");
             return 2;
         }
     }
     unsigned mode_count = (list ? 1u : 0u) + (run_interactive ? 1u : 0u)
                         + (!action.empty() ? 1u : 0u);
     if (mode_count != 1 || ((run_interactive || !action.empty()) && !streamed) ||
-        ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() || !output.empty())) ||
+        (layout_id_given && (!is_selection_id(layout_id) || action != "read_rom")) ||
+        ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() || !output.empty() || layout_id_given)) ||
         (!action.empty() && ((action == "probe_slot" ?
                                 (!core_id.empty() || !is_slug(slot_id)) :
                                 (!is_slug(core_id) || !slot_id.empty())) ||
@@ -1545,7 +1563,7 @@ int main(int argc, char **argv)
                 Core const &c = find_usable(installed, core_id);
                 BusLock lock(enabled);
                 OpenCore module(available + "/" + c.id + ".so");
-                if (module.api3 && !module.api2) {
+                if (module.api3 && (!module.api2 || layout_id_given)) {
                     if (action == "probe") {
                         emit_probe_v3(stream, "cli", c, module);
                     } else {
@@ -1554,9 +1572,18 @@ int main(int argc, char **argv)
                         command.core = c.id;
                         command.request_id = "cli";
                         command.output = output;
+                        if (layout_id_given) {
+                            command.has_selection = true;
+                            command.selection_schema =
+                                capability_schema_v3(module).at("schema_id").text();
+                            command.selection_mode = "layout";
+                            command.selection_layout = layout_id;
+                        }
                         read_rom_v3(stream, command, module);
                     }
                 } else if (module.api2) {
+                    if (layout_id_given)
+                        throw std::runtime_error("core lacks v3 layout selection");
                     retrode3_probe_v2 info = fast_probe(module);
                     if (action == "probe") {
                         emit_fast_probe(stream, "cli", c.id, info);
@@ -1569,6 +1596,8 @@ int main(int argc, char **argv)
                         read_rom_v2(stream, command, module, info);
                     }
                 } else {
+                    if (layout_id_given)
+                        throw std::runtime_error("core lacks v3 layout selection");
                     retrode3_probe_v1 info = probe(module);
                     if (action == "probe") {
                         emit_probe(stream, "cli", c.id, info);
