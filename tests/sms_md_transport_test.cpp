@@ -45,6 +45,20 @@ int main()
     assert(!sms_read_offset(0, 513, &offset));
     assert(!sms_read_offset(0, 1, NULL));
 
+    // A separate kernel mode accepts ONLY the four Sega bank registers.
+    assert(sms_mapper_write_offset(0xfffc, 0, &offset));
+    assert((offset >> 24) == adapter_mode_sms_mapper_write);
+    assert((offset & (1u << 23)) && (offset & (1u << 22)));
+    assert(sms_mapper_write_offset(0xfffd, 0, &offset));
+    assert(sms_mapper_write_offset(0xfffe, 1, &offset));
+    assert(sms_mapper_write_offset(0xffff, 63, &offset));
+    assert(!sms_mapper_write_offset(0xfffb, 0, &offset));
+    assert(!sms_mapper_write_offset(0xfffc, 1, &offset));
+    assert(!sms_mapper_write_offset(0xfffd, 1, &offset));
+    assert(!sms_mapper_write_offset(0xfffe, 0, &offset));
+    assert(!sms_mapper_write_offset(0xffff, 64, &offset));
+    assert(!sms_mapper_write_offset(0xffff, 2, NULL));
+
     char device[] = "/tmp/sms-md-bus-XXXXXX";
     char vcc[] = "/tmp/sms-md-vcc-XXXXXX";
     int fd = ::mkstemp(device);
@@ -106,6 +120,48 @@ int main()
     assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
     assert(!bus.approved());
     assert(probe_bus.approved()); // Same header path remains available.
+
+    // Kernel mapper and high-Z params are mimicked ONLY in TESTING builds.
+    // A regular ROM opt-in alone must never unlock mapper register writes.
+    char gate[] = "/tmp/sms-md-mapper-gate-XXXXXX";
+    const int gf = ::mkstemp(gate);
+    assert(gf >= 0);
+    const char yes[] = "Y\n";
+    assert(::write(gf, yes, sizeof(yes)-1) ==
+           static_cast<ssize_t>(sizeof(yes)-1));
+    ::close(gf);
+    assert(::setenv("RETRODE3_SMS_MD_TEST_MAPPER_GATE", gate, 1) == 0);
+    assert(::setenv("RETRODE3_SMS_MD_TEST_HIZ_GATE", gate, 1) == 0);
+    assert(sms_kernel_mapper_gate_enabled());
+    SmsMdPosixBus mapper;
+    assert(!mapper.begin_sega_banked());
+    assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT", "enable-readonly-v1", 1) == 0);
+    assert(!mapper.begin_sega_banked());
+    assert(::setenv("RETRODE3_SMS_MD_MAPPER_EXPERIMENT",
+                    "enable-sega16k-v1", 1) == 0);
+    assert(sms_mapper_experiment_enabled());
+    assert(mapper.begin_sega_banked());
+    assert(mapper.select_page2(7));
+    assert(!mapper.select_page2(64));
+    assert(mapper.end_sega_banked());
+    assert(!mapper.select_page2(4));
+
+    int verify = ::open(device, O_RDONLY);
+    assert(verify >= 0);
+    unsigned char value = 0xff;
+    assert(sms_mapper_write_offset(0xfffe, 1, &offset));
+    assert(::pread(verify, &value, 1, static_cast<off_t>(offset)) == 1);
+    assert(value == 1);
+    assert(sms_mapper_write_offset(0xffff, 2, &offset));
+    assert(::pread(verify, &value, 1, static_cast<off_t>(offset)) == 1);
+    assert(value == 2); // end() reset page 2 to Sanni's initial bank.
+    ::close(verify);
+
+    assert(::unsetenv("RETRODE3_SMS_MD_MAPPER_EXPERIMENT") == 0);
+    assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
+    assert(::unsetenv("RETRODE3_SMS_MD_TEST_MAPPER_GATE") == 0);
+    assert(::unsetenv("RETRODE3_SMS_MD_TEST_HIZ_GATE") == 0);
+    ::unlink(gate);
     ::unlink(device);
     ::unlink(vcc);
     ::unsetenv("RETRODE3_SMS_MD_EXPERIMENT");
