@@ -1,10 +1,13 @@
 # Automatic cartridge hardware profiles (experimental, Letux 7.3)
 
-Status: **source implementation and offline CI only**. The original SMS
-hardware acceptance is Action Fighter (USA/Europe/Brazil Rev 1), 128 KiB,
-CRC32 **3658F3E0** using the manually gated experimental Sega mapper.
-The new automatic transition lifecycle has **not yet been accepted on the
-physical Retrode3**.
+Status: **automatic SMS hardware probe and ROM read physically tested**
+on 2026-11-21 using Action Fighter (USA/Europe/Brazil Rev 1), 128 KiB,
+CRC32 **3658F3E0**, with `selection_mode:auto` and full-ROM
+`verified:true`. The common host restored MD slot voltage (3300mV)
+and both kernel gates (N/N) after a successful `probe_slot`.
+The new product-code candidate detection in core 0.5.0 is **source/CI
+only** until that separate feature is physically tested. Web browser
+acceptance and reboot persistence remain separate tests.
 
 ## Contract and ownership
 
@@ -48,14 +51,34 @@ vendored, immutable snapshot of
 `58ee0dd4770d5618d55efdd84ef355edbefcae99`, Git blob
 `c34d43076180413cb7857a1db0835c4559ac6c7d`.
 There are 675 entries, including Action Fighter CRC32 `3658F3E0`.
-The database contains **full-ROM CRC32 and names only**, not mapper
-metadata or short fingerprints. Therefore probes report cartridge
-layout from a bounded read but do not infer the game title.
+The OSCR database contains **full-ROM CRC32 and names only**, not
+mapper metadata or short ROM fingerprints. For tentative game name
+candidates without dumping, `third_party/oscr-sms-product-codes.json`
+contains 272 OSCR CRC records cross-referenced by full-CRC match to the
+**CC0** MAME Master System software list, pinned to Git blob
+`5410f81bc8e1900375d076f2f7ee42ee852c2c48`
+(commit `d39e971ee65da1d1b0170da3ce187fc6168e71e1`).
+The Python 3.4-compatible `tools/build-linux-sms-header-catalog.py`
+generates the read-only candidate lookup. It relies on product numbers
+encoded as BCD in the existing 16-byte Sega cartridge header; it reads
+no additional mapper pages and performs NO mapper writes on probe.
+
+If header product code AND declared size match known records, the core
+reports possible ROM revisions with stable `sms-crc-XXXXXXXX` IDs.
+For example Action Fighter product code 5055 has two known CRC variants
+`3658F3E0` and `D91B340D`; generic ambiguity is `titles_only`,
+`selection_required:false`, and the shared title is `Action Fighter`.
+The header is not an identity proof and may contain inaccurate information.
+Unknown codes remain `identification_status:unknown` without a false title.
+Header size is still only a layout hint. The full streamed ROM CRC is the
+only final game/revision verification. Explicit candidate mode rechecks the
+header and reports `mismatch` if the selected revision does not match the
+final full-ROM CRC. The original Sanni ROM read loops are unchanged.
+
 For a single unambiguous supported header geometry the SMS probe marks
 `selection_required:false` and `auto` chooses that same layout by
 re-reading just the bounded header at read time. Unknown, conflicting
-or unsupported header geometries require explicit v3 layout/override. The full
-streamed ROM CRC identifies and verifies the game **after** dumping.
+or unsupported header geometries require explicit v3 layout/override.
 
 The pinned Sanni SMS reader covers 8/16/32 KiB linear and the standard
 Sega 16-KiB ROM bank mapper (48/64/128/256/512/1024 KiB). Codemasters,
