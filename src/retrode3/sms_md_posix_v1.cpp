@@ -90,14 +90,22 @@ bool SmsMdPosixBus::read(std::uint16_t address, std::uint8_t *bytes,
     }
     if (::lseek(fd_, static_cast<off_t>(offset), SEEK_SET) !=
         static_cast<off_t>(offset)) return false;
+    // The MD slot has no A0: its A1 addresses SMS A0. Kernel mode 20
+    // increments physical byte addresses by one, so sample pairs of
+    // positions and retain the first byte of each pair. Bounds are set
+    // by sms_read_offset(): at most 512 logical bytes / 1024 raw bytes.
+    std::uint8_t physical[1024];
+    const std::size_t physical_count = count * 2u;
     std::size_t total = 0;
-    while (total < count) {
+    while (total < physical_count) {
         if (cancelled()) return false;
-        const ssize_t n = ::read(fd_, bytes + total, count - total);
+        const ssize_t n = ::read(fd_, physical + total, physical_count - total);
         if (n < 0 && errno == EINTR) continue;
         if (n <= 0) return false;
         total += static_cast<std::size_t>(n);
     }
+    for (std::size_t i = 0; i < count; ++i)
+        bytes[i] = physical[2u * i];
     return true;
 }
 

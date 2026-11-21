@@ -25,11 +25,16 @@ int main()
     using namespace retrode3::sms;
     std::uint32_t offset = 0;
     assert(sms_read_offset(0x0000, 512, &offset));
-    assert(offset == (20u << 24 | 1u << 21 | 1u << 17 | 1u << 16));
+    const std::uint32_t base = (20u << 24 | 1u << 22 | 1u << 18 | 1u << 17);
+    assert(offset == base);
+    assert(sms_read_offset(1, 1, &offset));
+    assert(offset == base + 2u); // SMS A0 is MD A1, not MD A0.
     assert(sms_read_offset(0x7ff0, 16, &offset));
-    assert((offset & (1u << 17)) && !(offset & (1u << 22)));
+    assert(offset == base + (0x7ff0u << 1));
+    assert((offset & (1u << 18)) && !(offset & (1u << 23)));
     assert(sms_read_offset(0x8000, 512, &offset));
-    assert(!(offset & (1u << 17)) && (offset & (1u << 15)));
+    assert(!(offset & (1u << 18)) && (offset & (1u << 16)));
+    assert(offset & (1u << 22)); // /WR stays inactive throughout.
     assert(!sms_read_offset(0x7fff, 2, &offset));
     assert(!sms_read_offset(0xbfff, 2, &offset));
     assert(!sms_read_offset(0xc000, 1, &offset));
@@ -52,8 +57,15 @@ int main()
     expected[0x7fff] = 0x4cu; // EU / 32-KiB header
     assert(sms_read_offset(0, 512, &offset));
     assert(::lseek(fd, offset, SEEK_SET) == static_cast<off_t>(offset));
-    assert(::write(fd, expected.data(), expected.size()) ==
-           static_cast<ssize_t>(expected.size()));
+    // Model the real MD kernel's sequential reads: A0 is not connected
+    // to the SMS adapter, so each logical SMS byte appears twice.
+    std::vector<unsigned char> physical(expected.size() * 2u);
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        physical[i * 2u] = expected[i];
+        physical[i * 2u + 1u] = expected[i];
+    }
+    assert(::write(fd, physical.data(), physical.size()) ==
+           static_cast<ssize_t>(physical.size()));
     ::close(fd);
 
     assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);

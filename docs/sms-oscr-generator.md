@@ -21,8 +21,11 @@ size *hint*, never a verified game identity.
 and 512-byte buffer loop structure. The deterministic generator performs
 only these reviewed substitutions:
 
-1. `readByte()`'s 512 AVR port reads become one typed kernel-mode-20 512-byte
-   read. The common CLI still owns output, progress, cancellation and CRC.
+1. `readByte()`'s 512 AVR port reads become one typed 512-byte
+   logical HAL read. The POSIX transport reads 1024 physical MD positions
+   through kernel mode 20 and keeps every second byte, because SMS A0 is
+   wired to the MD cartridge's A1. The common CLI still owns output,
+   progress, cancellation and CRC.
 2. `writeByte(0xFFFF, currBank)` routes to `bus.select_page2(currBank)`,
    which is **disabled on real hardware** until kernel mapper write cycles
    are reviewed. Sanni's banked loop remains testable against mocks.
