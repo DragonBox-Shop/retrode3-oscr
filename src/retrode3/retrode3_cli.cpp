@@ -1204,8 +1204,9 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
             selected = c.id;
             selected_event = event;
             if (schema.has("hardware_access")) {
-                // The scoped read changes voltage only after layout selection.
-                selected_voltage = "ready";
+                // Probe restored its hardware profile. The requested read
+                // voltage is applied only within the later scoped read.
+                selected_voltage = "automatic_on_read";
             } else if (schema.has("read_voltage_mv") &&
                 schema.at("read_voltage_mv").kind == retrode3::JsonV3::Integer &&
                 schema.at("read_voltage_mv").integer == 5000 &&
