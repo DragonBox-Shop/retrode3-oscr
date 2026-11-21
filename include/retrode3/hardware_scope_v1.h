@@ -26,6 +26,12 @@ class HardwareScopeV1 {
         bool voltage;
     };
     std::vector<Previous> previous_;
+    struct EnvPrevious {
+        std::string name;
+        std::string value;
+        bool existed;
+    };
+    std::vector<EnvPrevious> env_previous_;
     bool restoring_;
 
     static std::string slot_root() {
@@ -73,6 +79,28 @@ class HardwareScopeV1 {
         if (s == "N" || s == "0") return false;
         throw std::runtime_error("unexpected kernel parameter state");
     }
+    void update_environment(const std::string &name, const std::string &value) {
+        if (name.size() < 10 || name.compare(0, 9, "RETRODE3_") != 0 ||
+            name.size() > 64 || value.empty() || value.size() > 127)
+            throw std::runtime_error("invalid core environment profile");
+        for (std::size_t i = 0; i < name.size(); ++i) {
+            char c = name[i];
+            if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                  c == '_'))
+                throw std::runtime_error("invalid core environment key");
+        }
+        for (std::size_t i = 0; i < value.size(); ++i) {
+            char c = value[i];
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') || c == '_' || c == '-'))
+                throw std::runtime_error("invalid core environment value");
+        }
+        const char *before = std::getenv(name.c_str());
+        env_previous_.push_back(EnvPrevious{name, before ? before : "",
+                                           before != NULL});
+        if (::setenv(name.c_str(), value.c_str(), 1) != 0)
+            throw std::runtime_error("cannot apply core environment profile");
+    }
     void update_parameter(const std::string &name, bool desired) {
         if (!identifier(name))
             throw std::runtime_error("invalid hardware parameter identifier");
@@ -103,6 +131,16 @@ class HardwareScopeV1 {
     void restore() {
         if (restoring_) return;
         restoring_ = true;
+        while (!env_previous_.empty()) {
+            const EnvPrevious entry = env_previous_.back();
+            env_previous_.pop_back();
+            const int rc = entry.existed ?
+                ::setenv(entry.name.c_str(), entry.value.c_str(), 1) :
+                ::unsetenv(entry.name.c_str());
+            if (rc != 0)
+                std::fprintf(stderr, "Retrode3 environment restore failed: %s\n",
+                             entry.name.c_str());
+        }
         // Reverse order: restore voltage before reducing hardware permissions.
         while (!previous_.empty()) {
             const Previous entry = previous_.back();
@@ -155,6 +193,17 @@ public:
                 if (mv != 3300 && mv != 5000)
                     throw std::runtime_error("unknown hardware profile voltage");
                 update_voltage(slot, static_cast<unsigned>(mv));
+            }
+            if (profile.has("environment")) {
+                const JsonV3 &env = profile.at("environment");
+                if (env.kind != JsonV3::Object || env.object.size() > 16)
+                    throw std::runtime_error("invalid core environment profile");
+                for (std::map<std::string, JsonV3>::const_iterator it =
+                         env.object.begin(); it != env.object.end(); ++it) {
+                    if (it->second.kind != JsonV3::String)
+                        throw std::runtime_error("core environment requires strings");
+                    update_environment(it->first, it->second.string);
+                }
             }
         } catch (...) {
             restore(); // Failed constructor has no destructor.
