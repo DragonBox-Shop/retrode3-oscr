@@ -7,6 +7,7 @@
 #include "retrode3/core_operations_v2.h"
 #include "retrode3/core_operations_v3.h"
 #include "retrode3/json_v3.h"
+#include "retrode3/hardware_scope_v1.h"
 #include "retrode3/ndjson_protocol.h"
 
 #include <algorithm>
@@ -1005,6 +1006,7 @@ std::string probe_event_v3(std::string const &id, Core const &core,
                            OpenCore &module)
 {
     retrode3::JsonV3 schema = capability_schema_v3(module);
+    retrode3::HardwareScopeV1 hardware(schema, core.slot, "probe");
     retrode3::JsonV3 info = core_document_v3(module.api3->fast_probe_json);
     std::string status = info.at("identification_status").text();
     std::string ambiguity = info.at("ambiguity").text();
@@ -1131,13 +1133,34 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
         return;
     }
     BusLock lock(enabled);
+    // Prioritize specific adapter probes without any console ID in the host.
+    std::map<std::string, std::uint64_t> priority;
+    for (std::size_t i = 0; i < matches.size(); ++i) {
+        priority[matches[i].id] = 0;
+        try {
+            OpenCore module(available + "/" + matches[i].id + ".so");
+            const retrode3::JsonV3 schema = capability_schema_v3(module);
+            if (schema.has("probe_priority")) {
+                const std::uint64_t value = schema.at("probe_priority").number();
+                if (value > 1000u)
+                    throw std::runtime_error("probe priority out of range");
+                priority[matches[i].id] = value;
+            }
+        } catch (std::exception const &) {
+            // The normal probe loop still reports unusable plugins.
+        }
+    }
+    std::stable_sort(matches.begin(), matches.end(),
+        [&priority](Core const &a, Core const &b) {
+            return priority.at(a.id) > priority.at(b.id);
+        });
     if (read_slot_attribute(slot, "sense") != "active") {
         stream.emit(out + ",\"detection\":\"empty\",\"core\":null,"
                     "\"candidates\":[],\"attempts\":[]}");
         return;
     }
     const std::string vcc = read_slot_attribute(slot, "vcc");
-    if (vcc != "3300mV" && vcc != "5000mV") {
+    if (vcc != "3300mV" && vcc != "5000mV" && vcc != "fixed") {
         stream.emit(out + ",\"detection\":\"manual_required\",\"core\":null,"
                     "\"reason\":\"unknown_probe_voltage\","
                     "\"candidates\":[],\"attempts\":[]}");
@@ -1159,9 +1182,10 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
                 throw std::runtime_error("cartridge_removed");
             OpenCore module(available + "/" + c.id + ".so");
             retrode3::JsonV3 schema = capability_schema_v3(module);
-            if (!schema.has("probe_voltage_mv") ||
-                schema.at("probe_voltage_mv").number() != 3300 ||
-                vcc != "3300mV") {
+            if (!schema.has("hardware_access") &&
+                (!schema.has("probe_voltage_mv") ||
+                 schema.at("probe_voltage_mv").number() != 3300 ||
+                 vcc != "3300mV")) {
                 attempts += ",\"outcome\":\"skipped_voltage\"}";
                 continue;
             }
@@ -1179,7 +1203,10 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
             attempts += ",\"outcome\":\"matched\"}";
             selected = c.id;
             selected_event = event;
-            if (schema.has("read_voltage_mv") &&
+            if (schema.has("hardware_access")) {
+                // The scoped read changes voltage only after layout selection.
+                selected_voltage = "ready";
+            } else if (schema.has("read_voltage_mv") &&
                 schema.at("read_voltage_mv").kind == retrode3::JsonV3::Integer &&
                 schema.at("read_voltage_mv").integer == 5000 &&
                 schema.has("automatic_voltage_switch") &&
@@ -1266,7 +1293,8 @@ retrode3_selection_v3 typed_selection_v3(retrode3::WebCommand const &command,
 }
 
 void read_rom_v3(retrode3::NdjsonProtocol &stream,
-                 retrode3::WebCommand const &command, OpenCore &module)
+                 retrode3::WebCommand const &command, OpenCore &module,
+                 const std::string &slot)
 {
     if (command.has_manual || !command.candidate_id.empty() ||
         !command.layout_id.empty() || command.has_size || !command.mapping.empty())
@@ -1274,6 +1302,9 @@ void read_rom_v3(retrode3::NdjsonProtocol &stream,
     const retrode3::JsonV3 schema = capability_schema_v3(module);
     const retrode3_selection_v3 selection =
         typed_selection_v3(command, schema.at("schema_id").text());
+    // Hold the profile through plan, stream and output publication. Destructor
+    // restores the original voltage and kernel controls on every exit.
+    retrode3::HardwareScopeV1 hardware(schema, slot, "read");
     const std::string &output = command.output;
     if (output.empty() || output[0] != '/' || output.size() > 1024 ||
         output.find("/../") != std::string::npos ||
@@ -1448,7 +1479,7 @@ void interactive(std::string const &available, std::string const &enabled)
                 if (command.action == "probe")
                     emit_probe_v3(stream, command.request_id, core_info, module);
                 else if (command.action == "read_rom")
-                    read_rom_v3(stream, command, module);
+                    read_rom_v3(stream, command, module, core_info.slot);
             } else if (module.api2) {
                 if (command.has_selection)
                     throw std::runtime_error("core does not implement generic selection ABI");
@@ -1554,7 +1585,7 @@ int main(int argc, char **argv)
                         command.core = c.id;
                         command.request_id = "cli";
                         command.output = output;
-                        read_rom_v3(stream, command, module);
+                        read_rom_v3(stream, command, module, c.slot);
                     }
                 } else if (module.api2) {
                     retrode3_probe_v2 info = fast_probe(module);
