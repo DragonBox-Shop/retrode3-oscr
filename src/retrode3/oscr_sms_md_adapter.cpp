@@ -88,6 +88,22 @@ int capabilities(char *out, size_t cap, char *err, size_t ec)
     return copy_json(json, out, cap, err, ec);
 }
 
+// Header geometry is a read-only suggestion. The core owns the actual
+// mapping choice; the shared host never needs to know SMS ROM sizes.
+retrode3::sms::Layout detected_layout(const retrode3::sms::Probe &probe)
+{
+    if (!probe.header_found || probe.conflicting_headers ||
+        !probe.header.declared_rom_bytes ||
+        probe.header.declared_rom_bytes % 1024u != 0u)
+        throw std::runtime_error("SMS layout requires manual selection");
+    const unsigned kib = probe.header.declared_rom_bytes / 1024u;
+    retrode3::sms::Layout layout = {kib <= 32u ?
+        retrode3::sms::Linear : retrode3::sms::Sega16k, kib};
+    if (!retrode3::sms::valid_layout(layout))
+        throw std::runtime_error("unsupported SMS auto layout");
+    return layout;
+}
+
 retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
 {
     if (!s || s->struct_size != sizeof(*s) || s->protocol_version != 1 ||
@@ -103,7 +119,11 @@ retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
     if (s->mode == RETRODE3_SELECT_AUTO_V3) {
         if (s->layout_id[0] || s->parameter_count)
             throw std::runtime_error("SMS auto selection contains overrides");
-        throw std::runtime_error("explicit SMS layout selection required");
+        // Bounded reads of three header windows, never mapper writes.
+        // Recheck on BOTH plan and read; fail closed on conflicting data.
+        retrode3::sms::SmsMdPosixBus probe_bus(NULL, NULL,
+                                                retrode3::sms::SmsMdHeaderProbe);
+        return detected_layout(retrode3::sms::bounded_probe(probe_bus));
     }
     if (s->mode == RETRODE3_SELECT_LAYOUT_V3) {
         if (s->parameter_count) throw std::runtime_error("SMS layout has parameters");
@@ -169,9 +189,11 @@ int fast_probe(char *out, size_t cap, char *err, size_t ec)
         retrode3::sms::SmsMdPosixBus bus(NULL, NULL, retrode3::sms::SmsMdHeaderProbe);
         const retrode3::sms::Probe p = retrode3::sms::bounded_probe(bus);
         std::string layouts = "[]";
+        bool auto_layout = false;
         if (p.header_found && !p.conflicting_headers) {
             const unsigned kib = p.header.declared_rom_bytes / 1024u;
             if (kib == 8u || kib == 16u || kib == 32u) {
+                auto_layout = true;
                 layouts = "[{\"id\":\"linear-" + std::to_string(kib) +
                     "\",\"label\":\"SMS linear " + std::to_string(kib) +
                     " KiB\",\"read_supported\":true}]";
@@ -180,6 +202,7 @@ int fast_probe(char *out, size_t cap, char *err, size_t ec)
                 // Probe is deliberately at 3.3V without mapper writes;
                 // read_support means the layout can be read after the
                 // generic host's scoped read profile has been applied.
+                auto_layout = true;
                 layouts = "[{\"id\":\"sega16k-" + std::to_string(kib) +
                     "\",\"label\":\"SMS Sega 16-KiB banks " +
                     std::to_string(kib) + " KiB\",\"read_supported\":true,"
@@ -188,7 +211,8 @@ int fast_probe(char *out, size_t cap, char *err, size_t ec)
         }
         const std::string json = "{\"identification_status\":\"unknown\","
             "\"ambiguity\":\"none\",\"candidate_lookup\":\"header_only\","
-            "\"selection_required\":true,\"candidates\":[],\"read_layouts\":" +
+            "\"selection_required\":" + std::string(auto_layout ? "false" : "true") +
+            ",\"candidates\":[],\"read_layouts\":" +
             layouts + ",\"adapter_status\":\"experimental\","
             "\"system_detected\":" +
             ((p.header_found && !p.conflicting_headers) ? "true" : "false") +
