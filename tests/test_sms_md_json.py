@@ -73,9 +73,9 @@ class SmsCoreAbi(unittest.TestCase):
         self.assertEqual([p['id'] for p in schema['fields']],
                          ['mapping', 'rom_kib'])
         self.assertTrue(schema['rules'][0]['read_supported'])
-        self.assertFalse(schema['rules'][1]['read_supported'])
+        self.assertTrue(schema['rules'][1]['read_supported'])
         self.assertTrue(schema['fields'][0]['values'][0]['read_supported'])
-        self.assertFalse(schema['fields'][0]['values'][1]['read_supported'])
+        self.assertTrue(schema['fields'][0]['values'][1]['read_supported'])
 
     def test_experimental_probe_policy_without_physical_io(self):
         # This suite loads the production .so, not a TESTING build.
@@ -87,6 +87,15 @@ class SmsCoreAbi(unittest.TestCase):
         self.assertEqual(schema['hardware_mode'], 'experimental-read-only')
         self.assertEqual(schema['probe_voltage_mv'], 3300)
         self.assertEqual(schema['read_voltage_mv'], 5000)
+        self.assertEqual(schema['probe_priority'], 100)
+        profile = schema['hardware_access']
+        self.assertEqual(profile['version'], 1)
+        self.assertEqual(profile['probe']['voltage_mv'], 3300)
+        self.assertEqual(profile['read']['voltage_mv'], 5000)
+        self.assertTrue(profile['probe']['module_parameters']['legacy_bridge_hiz_test'])
+        self.assertTrue(profile['read']['module_parameters']['sms_mapper_write_test'])
+        self.assertEqual(profile['read']['environment']['RETRODE3_SMS_MD_MAPPER_EXPERIMENT'],
+                         'enable-sega16k-v1')
         self.assertFalse(schema['write_operations'])
 
 
