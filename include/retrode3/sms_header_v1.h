@@ -13,6 +13,9 @@ namespace sms {
 struct Header {
     std::uint32_t declared_rom_bytes;
     std::uint16_t checksum;
+    std::uint32_t product_code;
+    std::uint8_t revision;
+    bool product_code_valid;
     std::uint8_t region_code;
     std::uint8_t size_code;
 };
@@ -49,6 +52,19 @@ inline bool decode_header(const std::uint8_t *window, std::size_t length,
     parsed.checksum = static_cast<std::uint16_t>(
         static_cast<unsigned>(window[10]) |
         (static_cast<unsigned>(window[11]) << 8));
+    // Sega header product code: two BCD bytes, least significant two
+    // digits first, plus a hexadecimal high digit in bits 7..4 of $7FFE.
+    // Source: SMS Power ROM Header. Invalid BCD is not a game identifier.
+    const unsigned p0 = window[12], p1 = window[13];
+    parsed.product_code_valid =
+        (p0 & 15u) < 10u && (p0 >> 4) < 10u &&
+        (p1 & 15u) < 10u && (p1 >> 4) < 10u;
+    if (parsed.product_code_valid) {
+        parsed.product_code = (p0 & 15u) + ((p0 >> 4) * 10u) +
+            ((p1 & 15u) * 100u) + ((p1 >> 4) * 1000u) +
+            ((window[14] >> 4) * 10000u);
+    }
+    parsed.revision = static_cast<std::uint8_t>(window[14] & 15u);
     parsed.region_code = static_cast<std::uint8_t>(window[15] >> 4);
     parsed.size_code = size_code;
     *result = parsed;

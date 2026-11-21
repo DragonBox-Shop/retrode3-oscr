@@ -137,7 +137,7 @@ jobs:
       - name: Generate and validate the SMS core with target Python 3.4
         run: |
           docker run --rm --volume "$PWD:/workspace" --workdir /workspace python:3.4.10 \
-            sh -ec 'python3 tools/build-linux-sms-core.py --size-output build/migration/oscr_sms_size.h --read-output build/migration/oscr_sms_read.h && python3 -m unittest discover -s tests -p "test_sms_oscr_generator.py" -v'
+            sh -ec 'python3 tools/build-linux-sms-core.py --size-output build/migration/oscr_sms_size.h --read-output build/migration/oscr_sms_read.h && python3 tools/build-linux-sms-catalog.py --output build/migration/oscr_sms_catalog.h && python3 tools/build-linux-sms-header-catalog.py --output build/migration/oscr_sms_header_catalog.h && python3 -m unittest discover -s tests -p "test_sms_header_catalog_generator.py" -v && python3 -m unittest discover -s tests -p "test_sms_oscr_generator.py" -v && python3 -m unittest discover -s tests -p "test_sms_catalog_generator.py" -v'
 
   sms-gcc8:
     runs-on: ubuntu-latest
@@ -149,6 +149,8 @@ jobs:
         run: |
           mkdir -p build/migration
           python3 tools/build-linux-sms-core.py --size-output build/migration/oscr_sms_size.h --read-output build/migration/oscr_sms_read.h
+          python3 tools/build-linux-sms-catalog.py --output build/migration/oscr_sms_catalog.h
+          python3 tools/build-linux-sms-header-catalog.py --output build/migration/oscr_sms_header_catalog.h
           touch build/migration/oscr_sms_generated.stamp
       - name: Compile generated SMS core with GCC 8 and warnings as errors
         run: |
