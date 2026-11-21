@@ -89,8 +89,9 @@ int main()
     result.struct_size = sizeof(result);
     assert(!ops->read_rom(&s, &io, &result, error, sizeof(error)));
     assert(sink.bytes == expected);
-    assert(std::strstr(result.details_json, "\"status\":\"not_checked\"") != NULL);
+    assert(std::strstr(result.details_json, "\"status\":\"not_found\"") != NULL);
     assert(std::strstr(result.details_json, "\"verified\":false") != NULL);
+    assert(result.payload_crc_known == 1);
 
     // Invalid/unapproved mapping must fail before writing anything.
     sink.bytes.clear();
