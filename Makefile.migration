@@ -317,10 +317,12 @@ test-slot-autoprobe: build/migration/retrode3-cli-mock
 # Generate real pinned OSCR SMS.cpp size table and ROM bank/buffer loops.
 # Only reviewed AVR-to-kernel and SD-to-host replacements; no CLI rebuild.
 build/migration/oscr_sms_generated.stamp: tools/build-linux-sms-core.py third_party/oscr-firmware/src/cores/SMS.cpp \
-    tools/build-linux-sms-catalog.py third_party/oscr-sms-db.json
+    tools/build-linux-sms-catalog.py third_party/oscr-sms-db.json \
+    tools/build-linux-sms-header-catalog.py third_party/oscr-sms-product-codes.json
 	mkdir -p build/migration
 	python3 tools/build-linux-sms-core.py --size-output build/migration/oscr_sms_size.h --read-output build/migration/oscr_sms_read.h
 	python3 tools/build-linux-sms-catalog.py --output build/migration/oscr_sms_catalog.h
+	python3 tools/build-linux-sms-header-catalog.py --output build/migration/oscr_sms_header_catalog.h
 	touch $@
 
 # Kept out of the default release staging and normal web auto-enable.
