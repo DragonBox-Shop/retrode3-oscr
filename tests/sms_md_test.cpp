@@ -216,5 +216,26 @@ int main() {
         assert(old->probe(&legacy, err, sizeof(err)) != 0);
         assert(writes == 0);
     }
+    {
+        // The Sanni banked layout parses, but without the independent
+        // mapper gate no real register writes are authorized.
+        const retrode3_core_operations_v3 *ops =
+            retrode3_core_get_operations_v3();
+        retrode3_selection_v3 selected = retrode3_selection_v3();
+        selected.struct_size = sizeof(selected);
+        selected.protocol_version = 1;
+        selected.mode = RETRODE3_SELECT_LAYOUT_V3;
+        std::strcpy(selected.schema_id, "sms-md-layout-v1");
+        std::strcpy(selected.layout_id, "sega16k-128");
+        retrode3_read_plan_v3 planned = retrode3_read_plan_v3();
+        planned.struct_size = sizeof(planned);
+        char error[256] = {};
+        assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT",
+                        "enable-readonly-v1", 1) == 0);
+        assert(ops->plan_read(&selected, &planned,
+                              error, sizeof(error)) != 0);
+        assert(std::strstr(error, "mapper needs explicit opt-in") != NULL);
+        assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);
+    }
     return 0;
 }
