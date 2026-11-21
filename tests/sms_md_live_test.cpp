@@ -61,6 +61,7 @@ int main()
     assert(std::strstr(response, "linear-32") != NULL);
     assert(std::strstr(response, "header_found\":true") != NULL);
     assert(std::strstr(response, "system_detected\":true") != NULL);
+    assert(std::strstr(response, "selection_required\":false") != NULL);
 
     retrode3_selection_v3 s = retrode3_selection_v3();
     s.struct_size = sizeof(s); s.protocol_version = 1;
@@ -92,6 +93,20 @@ int main()
     assert(std::strstr(result.details_json, "\"status\":\"not_found\"") != NULL);
     assert(std::strstr(result.details_json, "\"verified\":false") != NULL);
     assert(result.payload_crc_known == 1);
+
+    // Auto mode uses the same bounded header decoder and NEVER needs
+    // an SMS-specific selection flag from the generic host.
+    s.mode = RETRODE3_SELECT_AUTO_V3;
+    s.layout_id[0] = '\0';
+    assert(!ops->plan_read(&s, &p, error, sizeof(error)));
+    assert(p.payload_bytes == 32768);
+    Sink auto_sink;
+    io.context = &auto_sink;
+    assert(!ops->read_rom(&s, &io, &result, error, sizeof(error)));
+    assert(auto_sink.bytes == expected);
+    io.context = &sink;
+    s.mode = RETRODE3_SELECT_LAYOUT_V3;
+    std::strcpy(s.layout_id, "linear-32");
 
     // Invalid/unapproved mapping must fail before writing anything.
     sink.bytes.clear();
