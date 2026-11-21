@@ -25,11 +25,20 @@ int main()
     using namespace retrode3::sms;
     std::uint32_t offset = 0;
     assert(sms_read_offset(0x0000, 512, &offset));
-    assert(offset == (20u << 24 | 1u << 21 | 1u << 17 | 1u << 16));
+    assert(offset == (20u << 24 | 1u << 22 | 1u << 18 | 1u << 17));
+    // First SMS ROM byte (A0=0) appears at physical MD address zero.
+    assert(sms_read_offset(0x0001, 1, &offset));
+    assert((offset & 0xffffu) == 2u);
+    assert((offset & (1u << 22)) && !(offset & (1u << 23)));
+    assert(sms_read_offset(0x1ff0, 16, &offset));
+    assert((offset & 0xffffu) == 0x3fe0u);
     assert(sms_read_offset(0x7ff0, 16, &offset));
-    assert((offset & (1u << 17)) && !(offset & (1u << 22)));
+    assert((offset & 0xffffu) == 0xffe0u);
+    assert((offset & (1u << 18)) && (offset & (1u << 22)));
+    assert(!(offset & (1u << 23)));
     assert(sms_read_offset(0x8000, 512, &offset));
-    assert(!(offset & (1u << 17)) && (offset & (1u << 15)));
+    assert(!(offset & (1u << 18)) && (offset & (1u << 16)));
+    assert((offset & (1u << 22)) && !(offset & (1u << 23)));
     assert(!sms_read_offset(0x7fff, 2, &offset));
     assert(!sms_read_offset(0xbfff, 2, &offset));
     assert(!sms_read_offset(0xc000, 1, &offset));
@@ -51,9 +60,16 @@ int main()
     std::memcpy(&expected[0x7ff0], "TMR SEGA", 8);
     expected[0x7fff] = 0x4cu; // EU / 32-KiB header
     assert(sms_read_offset(0, 512, &offset));
+    // Model a real MD slot: physical A0 is irrelevant to SMS. Therefore
+    // each SMS ROM byte is observed at two consecutive MD bus addresses.
+    std::vector<unsigned char> physical(expected.size() * 2u);
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        physical[2u * i] = expected[i];
+        physical[2u * i + 1u] = expected[i];
+    }
     assert(::lseek(fd, offset, SEEK_SET) == static_cast<off_t>(offset));
-    assert(::write(fd, expected.data(), expected.size()) ==
-           static_cast<ssize_t>(expected.size()));
+    assert(::write(fd, physical.data(), physical.size()) ==
+           static_cast<ssize_t>(physical.size()));
     ::close(fd);
 
     assert(::unsetenv("RETRODE3_SMS_MD_EXPERIMENT") == 0);

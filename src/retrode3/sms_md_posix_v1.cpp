@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <sys/types.h>
 #include <unistd.h>
+#include <vector>
 
 namespace retrode3 { namespace sms {
 namespace {
@@ -90,14 +91,22 @@ bool SmsMdPosixBus::read(std::uint16_t address, std::uint8_t *bytes,
     }
     if (::lseek(fd_, static_cast<off_t>(offset), SEEK_SET) !=
         static_cast<off_t>(offset)) return false;
+    // MD physical A1 is SMS A0. Consecutive MD addresses therefore
+    // sample each SMS byte twice. Read twice the number of bus positions,
+    // then keep the first sample from each adjacent pair.
+    // sms_read_offset() restricts count to 512 bytes and checks boundaries.
+    std::vector<std::uint8_t> physical(count * 2u);
     std::size_t total = 0;
-    while (total < count) {
+    while (total < physical.size()) {
         if (cancelled()) return false;
-        const ssize_t n = ::read(fd_, bytes + total, count - total);
+        const ssize_t n = ::read(fd_, &physical[total],
+                                 physical.size() - total);
         if (n < 0 && errno == EINTR) continue;
         if (n <= 0) return false;
         total += static_cast<std::size_t>(n);
     }
+    for (std::size_t i = 0; i < count; ++i)
+        bytes[i] = physical[i * 2u];
     return true;
 }
 
