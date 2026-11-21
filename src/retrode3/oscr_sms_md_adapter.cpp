@@ -46,12 +46,26 @@ int capabilities(char *out, size_t cap, char *err, size_t ec)
 "rules":[{"when":{"mapping":"linear"},"allow":{"rom_kib":[8,16,32]},
           "read_supported":true,"experimental":true,
           "reason":"Requires explicit operator opt-in, 5V and SMS-0007 hardware acceptance"},
-         {"when":{"mapping":"sega16k"},"read_supported":false,
-          "reason":"SMS mapper-register write cycles are disabled"}],
+         {"when":{"mapping":"sega16k"},"read_supported":false,"experimental":true,
+          "reason":"Requires explicit 5V mapper opt-in, gated kernel mode 22 and electrical acceptance"}],
 "hardware_mode":"experimental-read-only","probe_voltage_mv":3300,
-"read_voltage_mv":5000,"write_operations":false
+"read_voltage_mv":5000,"write_operations":false,
+"mapper_register_writes":"experimental-opt-in-only"
 })SMS";
-    return copy_json(json, out, cap, err, ec);
+    std::string dynamic(json);
+    if (retrode3::sms::sms_mapper_experiment_enabled() &&
+        retrode3::sms::sms_kernel_mapper_gate_enabled() &&
+        retrode3::sms::sms_voltage_is_5v()) {
+        const std::string v = "\"label\":\"Sega 16-KiB banks\",\"read_supported\":false";
+        const std::string w = "\"label\":\"Sega 16-KiB banks\",\"read_supported\":true";
+        const std::string rule = "\"when\":{\"mapping\":\"sega16k\"},\"read_supported\":false";
+        const std::string allow = "\"when\":{\"mapping\":\"sega16k\"},\"read_supported\":true";
+        std::string::size_type at = dynamic.find(v);
+        if (at != std::string::npos) dynamic.replace(at, v.size(), w);
+        at = dynamic.find(rule);
+        if (at != std::string::npos) dynamic.replace(at, rule.size(), allow);
+    }
+    return copy_json(dynamic, out, cap, err, ec);
 }
 
 retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
@@ -69,13 +83,25 @@ retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
     if (s->mode == RETRODE3_SELECT_AUTO_V3) {
         if (s->layout_id[0] || s->parameter_count)
             throw std::runtime_error("SMS auto selection contains overrides");
-        throw std::runtime_error("explicit SMS linear layout selection required");
+        throw std::runtime_error("explicit SMS layout selection required");
     }
     if (s->mode == RETRODE3_SELECT_LAYOUT_V3) {
         if (s->parameter_count) throw std::runtime_error("SMS layout has parameters");
         if (std::strcmp(s->layout_id, "linear-8") == 0) layout.rom_kib = 8;
         else if (std::strcmp(s->layout_id, "linear-16") == 0) layout.rom_kib = 16;
         else if (std::strcmp(s->layout_id, "linear-32") == 0) layout.rom_kib = 32;
+        else if (std::strcmp(s->layout_id, "sega16k-48") == 0)
+            layout = retrode3::sms::Layout{retrode3::sms::Sega16k, 48};
+        else if (std::strcmp(s->layout_id, "sega16k-64") == 0)
+            layout = retrode3::sms::Layout{retrode3::sms::Sega16k, 64};
+        else if (std::strcmp(s->layout_id, "sega16k-128") == 0)
+            layout = retrode3::sms::Layout{retrode3::sms::Sega16k, 128};
+        else if (std::strcmp(s->layout_id, "sega16k-256") == 0)
+            layout = retrode3::sms::Layout{retrode3::sms::Sega16k, 256};
+        else if (std::strcmp(s->layout_id, "sega16k-512") == 0)
+            layout = retrode3::sms::Layout{retrode3::sms::Sega16k, 512};
+        else if (std::strcmp(s->layout_id, "sega16k-1024") == 0)
+            layout = retrode3::sms::Layout{retrode3::sms::Sega16k, 1024};
         else throw std::runtime_error("unknown or unsupported SMS layout");
     } else if (s->mode == RETRODE3_SELECT_OVERRIDE_V3) {
         if (s->layout_id[0] || s->parameter_count != 2)
@@ -107,8 +133,6 @@ retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
     } else throw std::runtime_error("unsupported SMS selection mode");
     if (!retrode3::sms::valid_layout(layout))
         throw std::runtime_error("unsupported SMS mapping/size combination");
-    if (layout.mapping != retrode3::sms::Linear)
-        throw std::runtime_error("SMS bank-switch writes are disabled");
     return layout;
 }
 
@@ -127,10 +151,22 @@ int fast_probe(char *out, size_t cap, char *err, size_t ec)
         std::string layouts = "[]";
         if (p.header_found && !p.conflicting_headers) {
             const unsigned kib = p.header.declared_rom_bytes / 1024u;
-            if (kib == 8u || kib == 16u || kib == 32u)
+            if (kib == 8u || kib == 16u || kib == 32u) {
                 layouts = "[{\"id\":\"linear-" + std::to_string(kib) +
                     "\",\"label\":\"SMS linear " + std::to_string(kib) +
                     " KiB\",\"read_supported\":true}]";
+            } else if (kib == 48u || kib == 64u || kib == 128u ||
+                       kib == 256u || kib == 512u || kib == 1024u) {
+                const bool permitted =
+                    retrode3::sms::sms_mapper_experiment_enabled() &&
+                    retrode3::sms::sms_kernel_mapper_gate_enabled() &&
+                    retrode3::sms::sms_voltage_is_5v();
+                layouts = "[{\"id\":\"sega16k-" + std::to_string(kib) +
+                    "\",\"label\":\"SMS Sega 16-KiB banks " +
+                    std::to_string(kib) + " KiB\",\"read_supported\":" +
+                    (permitted ? "true" : "false") +
+                    ",\"experimental\":true}]";
+            }
         }
         const std::string json = "{\"identification_status\":\"unknown\","
             "\"ambiguity\":\"none\",\"candidate_lookup\":\"header_only\","
@@ -156,6 +192,10 @@ int plan(const retrode3_selection_v3 *s, retrode3_read_plan_v3 *p,
         const retrode3::sms::Layout layout = checked_layout(s);
         if (!retrode3::sms::sms_experiment_enabled())
             return fail(err, cap, "SMS experimental read requires explicit opt-in");
+        if (layout.mapping == retrode3::sms::Sega16k &&
+            (!retrode3::sms::sms_mapper_experiment_enabled() ||
+             !retrode3::sms::sms_kernel_mapper_gate_enabled()))
+            return fail(err, cap, "SMS mapper needs explicit opt-in and 7.3 kernel mode 22");
         if (!retrode3::sms::sms_voltage_is_5v())
             return fail(err, cap, "SMS requires confirmed 5000mV on MD slot");
         p->prefix_bytes = 0;
@@ -174,13 +214,19 @@ int read_rom(const retrode3_selection_v3 *s, const retrode3_host_io_v1 *io,
         return fail(err, cap, "invalid SMS host IO/result ABI");
     try {
         const retrode3::sms::Layout layout = checked_layout(s);
+        if (layout.mapping == retrode3::sms::Sega16k &&
+            (!retrode3::sms::sms_mapper_experiment_enabled() ||
+             !retrode3::sms::sms_kernel_mapper_gate_enabled()))
+            return fail(err, cap, "SMS mapper needs explicit opt-in and 7.3 kernel mode 22");
         retrode3::sms::SmsMdPosixBus bus(io->cancelled, io->context);
         if (!bus.approved())
             return fail(err, cap, "SMS opt-in and 5000mV required");
         retrode3::sms::stream_rom(bus, layout, io->context, io->write);
         result->prefix_bytes = 0;
         result->payload_crc_known = 0;
-        const std::string details = "{\"read_configuration\":{\"mapping\":\"linear\","
+        const std::string details = "{\"read_configuration\":{\"mapping\":\"" +
+            std::string(layout.mapping == retrode3::sms::Sega16k ?
+                        "sega16k" : "linear") + "\","
             "\"rom_kib\":" + std::to_string(layout.rom_kib) +
             "},\"identity\":{\"selected_candidate_id\":null,"
             "\"matched_candidate_id\":null,\"title\":null},"
@@ -206,7 +252,7 @@ extern "C" const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void)
 {
     static const retrode3_core_descriptor_v1 d = {
         RETRODE3_CORE_DISCOVERY_ABI_V1, sizeof(d),
-        "sms-md", "Master System (SMS-0007 adapter)", "0.3.1-oscr-generated-lab", "md"
+        "sms-md", "Master System (SMS-0007 adapter)", "0.4.0-oscr-generated-sega16k-lab", "md"
     };
     return &d;
 }
