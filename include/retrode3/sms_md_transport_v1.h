@@ -2,7 +2,8 @@
 #define RETRODE3_SMS_MD_TRANSPORT_V1_H
 
 // Passive SMS-0007 Eagle schematic, verified nets:
-// MD A21 => SMS /WR (high = inactive), A22 => SMS /RD (low = active).
+// U$2 A21 and A22 connect SMS /WR and /RD, but the physical MD
+// edge uses A22 and A23 (a one-bit shift in the address-bus numbering).
 // IMPORTANT: the Eagle 'U$2' pins A00..A22 are adapter LOGICAL names.
 // Physical MegaDrive A1..A23 map to those respectively! Thus:
 // MD A1..A16 => SMS A0..A15 (all CPU addresses shifted left once).
