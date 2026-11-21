@@ -65,6 +65,7 @@ class GenericSelectionContract(unittest.TestCase):
             {"command": "probe", "core": "mock-v3", "request_id": "p"},
             self.read(self.select("auto"))])
         self.assertEqual(events[1]["ambiguity"], "titles_only")
+        self.assertEqual(events[1]["read_voltage_mv"], 5000)
         self.assertFalse(events[1]["selection_required"])
         self.assertEqual(len(events[1]["candidates"]), 2)
         self.assertEqual(events[-1]["event"], "result")
