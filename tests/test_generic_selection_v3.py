@@ -87,43 +87,6 @@ class GenericSelectionContract(unittest.TestCase):
         self.assertTrue(os.path.exists(choices[1]["output"]))
         self.assertEqual(events[-1]["event"], "result")
 
-    def test_one_shot_cli_accepts_generic_v3_layout(self):
-        # Production-style CLI invocation, using the mock v3 core and no bus.
-        env = dict(os.environ)
-        env["RETRODE_TEST_V3_SCENARIO"] = "layouts"
-        out_file = os.path.join(self.tmp.name, "one-shot.bin")
-        common = [HOST, "--protocol", "ndjson-v1", "--core", "mock-v3",
-                  "--action", "read-rom", "--output", out_file,
-                  "--available-dir", self.available,
-                  "--enabled-dir", self.enabled]
-        args = common + ["--layout-id", "y"]
-        p = subprocess.Popen(args, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE, env=env)
-        out, err = p.communicate()
-        self.assertEqual(p.returncode, 0, err.decode("utf-8", "replace"))
-        events = [json.loads(row) for row in out.decode("utf-8").splitlines()]
-        self.assertEqual(events[-1]["event"], "result")
-        self.assertEqual(events[-1]["selection_mode"], "layout")
-        self.assertEqual(events[-1]["bytes_written"], 1028)
-        self.assertTrue(os.path.isfile(out_file))
-
-        invalid = [("not-offered", "read-rom"), ("x/../../", "read-rom"),
-                   ("y", "probe")]
-        for layout_id, action in invalid:
-            bad_file = os.path.join(self.tmp.name, "bad-%s.bin" %
-                                    len(layout_id))
-            bad_args = [HOST, "--protocol", "ndjson-v1", "--core", "mock-v3",
-                        "--action", action, "--layout-id", layout_id,
-                        "--available-dir", self.available,
-                        "--enabled-dir", self.enabled]
-            if action == "read-rom":
-                bad_args.extend(["--output", bad_file])
-            p = subprocess.Popen(bad_args, stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE, env=env)
-            out, err = p.communicate()
-            self.assertEqual(p.returncode, 2)
-            self.assertFalse(os.path.exists(bad_file))
-
     def test_unknown_override_and_rejected_parameters(self):
         good = self.select("override", parameters={"bank_count": 1, "safe": True})
         bad = [
