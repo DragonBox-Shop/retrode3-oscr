@@ -50,7 +50,11 @@ vendored, immutable snapshot of
 There are 675 entries, including Action Fighter CRC32 `3658F3E0`.
 The database contains **full-ROM CRC32 and names only**, not mapper
 metadata or short fingerprints. Therefore probes report cartridge
-layout from a bounded read but do not infer the game title. The full
+layout from a bounded read but do not infer the game title.
+For a single unambiguous supported header geometry the SMS probe marks
+`selection_required:false` and `auto` chooses that same layout by
+re-reading just the bounded header at read time. Unknown, conflicting
+or unsupported header geometries require explicit v3 layout/override. The full
 streamed ROM CRC identifies and verifies the game **after** dumping.
 
 The pinned Sanni SMS reader covers 8/16/32 KiB linear and the standard
