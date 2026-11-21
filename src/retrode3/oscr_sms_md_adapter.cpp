@@ -36,36 +36,33 @@ int capabilities(char *out, size_t cap, char *err, size_t ec)
     static const char json[] = R"SMS({
 "schema_version":1,
 "schema_id":"sms-md-layout-v1",
+"probe_priority":100,
+"hardware_access":{"version":1,
+ "probe":{"voltage_mv":3300,
+          "module_parameters":{"legacy_bridge_hiz_test":true,"sms_mapper_write_test":false}},
+ "read":{"voltage_mv":5000,
+         "module_parameters":{"legacy_bridge_hiz_test":true,"sms_mapper_write_test":true},
+         "environment":{"RETRODE3_SMS_MD_EXPERIMENT":"enable-readonly-v1",
+                        "RETRODE3_SMS_MD_MAPPER_EXPERIMENT":"enable-sega16k-v1"}}},
 "selection_modes":["auto","layout","override"],
 "fields":[
   {"id":"mapping","label":"ROM mapping","type":"enum","required":true,
    "values":[{"value":"linear","label":"Linear (8-32 KiB)","read_supported":true},
-             {"value":"sega16k","label":"Sega 16-KiB banks","read_supported":false}]},
+             {"value":"sega16k","label":"Sega 16-KiB banks","read_supported":true}]},
   {"id":"rom_kib","label":"ROM size (KiB)","type":"enum","required":true,
    "values":[8,16,32,48,64,128,256,512,1024]}],
 "rules":[{"when":{"mapping":"linear"},"allow":{"rom_kib":[8,16,32]},
           "read_supported":true,"experimental":true,
           "reason":"Requires explicit operator opt-in, 5V and SMS-0007 hardware acceptance"},
-         {"when":{"mapping":"sega16k"},"read_supported":false,"experimental":true,
+         {"when":{"mapping":"sega16k"},"read_supported":true,"experimental":true,
           "reason":"Requires explicit 5V mapper opt-in, gated kernel mode 22 and electrical acceptance"}],
 "hardware_mode":"experimental-read-only","probe_voltage_mv":3300,
 "read_voltage_mv":5000,"write_operations":false,
 "mapper_register_writes":"experimental-opt-in-only"
 })SMS";
-    std::string dynamic(json);
-    if (retrode3::sms::sms_mapper_experiment_enabled() &&
-        retrode3::sms::sms_kernel_mapper_gate_enabled() &&
-        retrode3::sms::sms_voltage_is_5v()) {
-        const std::string v = "\"label\":\"Sega 16-KiB banks\",\"read_supported\":false";
-        const std::string w = "\"label\":\"Sega 16-KiB banks\",\"read_supported\":true";
-        const std::string rule = "\"when\":{\"mapping\":\"sega16k\"},\"read_supported\":false";
-        const std::string allow = "\"when\":{\"mapping\":\"sega16k\"},\"read_supported\":true";
-        std::string::size_type at = dynamic.find(v);
-        if (at != std::string::npos) dynamic.replace(at, v.size(), w);
-        at = dynamic.find(rule);
-        if (at != std::string::npos) dynamic.replace(at, rule.size(), allow);
-    }
-    return copy_json(dynamic, out, cap, err, ec);
+    // Availability describes geometry support, not the current sysfs state.
+    // The generic host applies the declared read profile before plan_read.
+    return copy_json(json, out, cap, err, ec);
 }
 
 retrode3::sms::Layout checked_layout(const retrode3_selection_v3 *s)
@@ -157,15 +154,13 @@ int fast_probe(char *out, size_t cap, char *err, size_t ec)
                     " KiB\",\"read_supported\":true}]";
             } else if (kib == 48u || kib == 64u || kib == 128u ||
                        kib == 256u || kib == 512u || kib == 1024u) {
-                const bool permitted =
-                    retrode3::sms::sms_mapper_experiment_enabled() &&
-                    retrode3::sms::sms_kernel_mapper_gate_enabled() &&
-                    retrode3::sms::sms_voltage_is_5v();
+                // Probe is deliberately at 3.3V without mapper writes;
+                // read_support means the layout can be read after the
+                // generic host's scoped read profile has been applied.
                 layouts = "[{\"id\":\"sega16k-" + std::to_string(kib) +
                     "\",\"label\":\"SMS Sega 16-KiB banks " +
-                    std::to_string(kib) + " KiB\",\"read_supported\":" +
-                    (permitted ? "true" : "false") +
-                    ",\"experimental\":true}]";
+                    std::to_string(kib) + " KiB\",\"read_supported\":true,"
+                    "\"experimental\":true}]";
             }
         }
         const std::string json = "{\"identification_status\":\"unknown\","
