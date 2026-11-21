@@ -634,6 +634,9 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
 {
     static const char schema[] = R"V3({
 "schema_version":1,"schema_id":"nes-layout-v1",
+"hardware_access":{"version":1,
+ "probe":{"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false}},
+ "read":{"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false}}},
 "selection_modes":["auto","candidate","layout","override"],
 "fields":[
 {"id":"mapper","label":"Mapper","type":"enum","required":true,
