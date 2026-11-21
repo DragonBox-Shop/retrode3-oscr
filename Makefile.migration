@@ -342,6 +342,7 @@ native-sms-md-module: build/migration/sms-md.so
 
 test-sms-md-module: native-sms-md-module
 	python3 -m unittest discover -s tests -p 'test_sms_catalog_generator.py' -v
+	python3 -m unittest discover -s tests -p 'test_sms_header_catalog_generator.py' -v
 	python3 -m unittest discover -s tests -p 'test_sms_oscr_generator.py' -v
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -Ibuild/migration tests/sms_header_v1_test.cpp -o build/migration/sms_header_v1_test
 	./build/migration/sms_header_v1_test
