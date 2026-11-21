@@ -42,8 +42,13 @@ int main()
     std::uint32_t offset = 0;
     assert(retrode3::sms::sms_read_offset(0, 512, &offset));
     assert(::lseek(fd, offset, SEEK_SET) == static_cast<off_t>(offset));
-    assert(::write(fd, expected.data(), expected.size()) ==
-           static_cast<ssize_t>(expected.size()));
+    std::vector<unsigned char> physical(expected.size() * 2u);
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        physical[i * 2u] = expected[i];
+        physical[i * 2u + 1u] = expected[i];
+    }
+    assert(::write(fd, physical.data(), physical.size()) ==
+           static_cast<ssize_t>(physical.size()));
     ::close(fd);
 
     const retrode3_core_operations_v3 *ops = retrode3_core_get_operations_v3();
