@@ -385,7 +385,10 @@ int read_rom(const retrode3_selection_v3 *s, const retrode3_host_io_v1 *io,
             verified_status +
             "\",\"verified\":" + (verified_status == "verified" ? "true" : "false") +
             ",\"method\":\"full_rom_crc32\",\"expected\":" +
-            (entry ? crc_json : "null") + ",\"actual\":" + crc_json + "}}";
+            (!selected_id.empty() ?
+                retrode3::json_quote_v3(selected_id.substr(8)) :
+                (entry ? crc_json : "null")) +
+            ",\"actual\":" + crc_json + "}}";
         if (details.size() >= sizeof(result->details_json))
             return fail(err, cap, "SMS result metadata too long");
         std::memcpy(result->details_json, details.c_str(), details.size() + 1);
