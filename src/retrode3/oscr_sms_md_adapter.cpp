@@ -6,6 +6,8 @@
 #include "retrode3/core_operations_v3.h"
 #include "retrode3/sms_md_posix_v1.h"
 #include "retrode3/sms_rom_core_v1.h"
+#include "retrode3/json_v3.h"
+#include "oscr_sms_catalog.h"
 
 #include <cstdio>
 #include <cstring>
@@ -30,6 +32,27 @@ int copy_json(const std::string &json, char *out, size_t cap, char *err, size_t 
 bool terminated(const char *s, size_t cap)
 {
     return std::memchr(s, '\0', cap) != NULL;
+}
+
+// Track exactly the payload sent to the shared host; this CRC32 uses the
+// standard reflected polynomial and identifies a full ROM only after reading.
+struct SmsCrcSink {
+    const retrode3_host_io_v1 *host;
+    std::uint32_t raw_crc;
+};
+int stream_with_crc(void *context, const void *data, size_t size)
+{
+    SmsCrcSink *sink = static_cast<SmsCrcSink *>(context);
+    if (sink->host->write(sink->host->context, data, size))
+        return -1;
+    const unsigned char *bytes = static_cast<const unsigned char *>(data);
+    for (size_t i = 0; i < size; ++i) {
+        sink->raw_crc ^= bytes[i];
+        for (unsigned b = 0; b < 8u; ++b)
+            sink->raw_crc = (sink->raw_crc >> 1) ^
+                ((sink->raw_crc & 1u) ? 0xedb88320u : 0u);
+    }
+    return 0;
 }
 int capabilities(char *out, size_t cap, char *err, size_t ec)
 {
@@ -215,17 +238,31 @@ int read_rom(const retrode3_selection_v3 *s, const retrode3_host_io_v1 *io,
             return fail(err, cap, "SMS mapper needs explicit opt-in and 7.3 kernel mode 22");
         retrode3::sms::SmsMdPosixBus bus(io->cancelled, io->context);
         if (!bus.approved())
-            return fail(err, cap, "SMS opt-in and 5000mV required");
-        retrode3::sms::stream_rom(bus, layout, io->context, io->write);
+            return fail(err, cap, "SMS read profile and 5000mV required");
+        SmsCrcSink sink = {io, 0xffffffffu};
+        retrode3::sms::stream_rom(bus, layout, &sink, stream_with_crc);
+        const std::uint32_t crc = ~sink.raw_crc;
         result->prefix_bytes = 0;
-        result->payload_crc_known = 0;
+        result->payload_crc_known = 1;
+        result->payload_crc32 = crc;
+        const retrode3::sms::CatalogEntry *entry = retrode3::sms::catalog_lookup(crc);
+        char crc_text[9] = {};
+        std::snprintf(crc_text, sizeof(crc_text), "%08X", crc);
+        const std::string crc_json = retrode3::json_quote_v3(crc_text);
+        const std::string match_id = std::string("sms-crc-") + crc_text;
         const std::string details = "{\"read_configuration\":{\"mapping\":\"" +
             std::string(layout.mapping == retrode3::sms::Sega16k ?
                         "sega16k" : "linear") + "\","
             "\"rom_kib\":" + std::to_string(layout.rom_kib) +
             "},\"identity\":{\"selected_candidate_id\":null,"
-            "\"matched_candidate_id\":null,\"title\":null},"
-            "\"verification\":{\"status\":\"not_checked\",\"verified\":false}}";
+            "\"matched_candidate_id\":" +
+            (entry ? retrode3::json_quote_v3(match_id) : "null") +
+            ",\"title\":" + (entry ? retrode3::json_quote_v3(entry->title) : "null") +
+            "},\"verification\":{\"status\":\"" +
+            std::string(entry ? "verified" : "not_found") +
+            "\",\"verified\":" + (entry ? "true" : "false") +
+            ",\"method\":\"full_rom_crc32\",\"expected\":" +
+            (entry ? crc_json : "null") + ",\"actual\":" + crc_json + "}}";
         if (details.size() >= sizeof(result->details_json))
             return fail(err, cap, "SMS result metadata too long");
         std::memcpy(result->details_json, details.c_str(), details.size() + 1);
