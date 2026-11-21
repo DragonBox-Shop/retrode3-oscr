@@ -128,6 +128,10 @@ int main() {
             std::memcpy(&bus.rom[start], "TMR SEGA", 8);
             bus.rom[start+10] = 0x34;
             bus.rom[start+11] = 0x12;
+            // All mirrored headers must agree on product and revision too.
+            bus.rom[start+12] = 0x55;
+            bus.rom[start+13] = 0x50;
+            bus.rom[start+14] = 0x01;
             bus.rom[start+15] = 0x4eu;
         }
         retrode3::sms::Probe probe = retrode3::sms::bounded_probe(bus);
