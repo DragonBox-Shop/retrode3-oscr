@@ -291,6 +291,9 @@ test-release-stage: stage-retrode3-runtime
 # Keep this test target in CI even when no real cartridge fixture is available.
 .PHONY: test-generic-selection-v3
 test-generic-selection-v3: native-core-registry
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING \
+		tests/hardware_scope_v1_test.cpp -o build/migration/hardware_scope_v1_test
+	./build/migration/hardware_scope_v1_test
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
 	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
