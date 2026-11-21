@@ -54,6 +54,12 @@ build/migration/oscr_md_core.o: build/migration/oscr_md_core.cpp include/retrode
 $(MD_CORE_ARCHIVE): build/migration/oscr_md_core.o
 	$(AR) rcs $@ $<
 
+.PHONY: test-md-save-layout
+test-md-save-layout:
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) tests/md_save_layout_test.cpp -o build/migration/md_save_layout_test
+	./build/migration/md_save_layout_test
+
 .PHONY: native-md test-native-md
 native-md: $(MD_CORE_ARCHIVE)
 	$(CC) -std=gnu11 -O2 -I. -c retrode3-lib.c -o build/migration/retrode3-lib.o
@@ -80,7 +86,7 @@ native-md-module: build/migration/oscr_md_core.pic.o
 
 # Run real original-OSCR adapter against a mocked MD kernel and compare its
 # bytes to the prior hardware-proven standalone acceptance reader.
-test-native-md-module: build/migration/oscr_md_core.pic.o test-native-md test-core-registry
+test-native-md-module: build/migration/oscr_md_core.pic.o test-native-md test-core-registry test-md-save-layout
 	mkdir -p build/migration/real-md-fixture
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp \
@@ -183,7 +189,7 @@ REGISTRY_CLI_SOURCES = src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protoco
 REGISTRY_CLI_HEADERS = include/retrode3/core_descriptor_v1.h \
 	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v2.h \
 	include/retrode3/core_operations_v3.h include/retrode3/json_v3.h \
-	include/retrode3/ndjson_protocol.h
+	include/retrode3/ndjson_protocol.h include/retrode3/hardware_scope_v1.h
 
 build/migration/retrode3-cli: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
 	mkdir -p build/migration
@@ -265,7 +271,7 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
@@ -285,6 +291,76 @@ test-release-stage: stage-retrode3-runtime
 # Keep this test target in CI even when no real cartridge fixture is available.
 .PHONY: test-generic-selection-v3
 test-generic-selection-v3: native-core-registry
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -DRETRODE3_TESTING \
+		tests/hardware_scope_v1_test.cpp -o build/migration/hardware_scope_v1_test
+	./build/migration/hardware_scope_v1_test
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
 	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
+
+# Two independent v3 adapters sharing one mock physical slot.
+.PHONY: test-slot-autoprobe
+test-slot-autoprobe: build/migration/retrode3-cli-mock
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		-DRETRODE3_TEST_MOCK_ID='"mock-a"' \
+		-DRETRODE3_TEST_MOCK_NAME='"Adapter A"' \
+		-DRETRODE3_TEST_MOCK_SLOT='"md"' \
+		tests/mock_core_v3.cpp -o build/migration/mock-slot-a.so
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		-DRETRODE3_TEST_MOCK_ID='"mock-z"' \
+		-DRETRODE3_TEST_MOCK_NAME='"Adapter Z"' \
+		-DRETRODE3_TEST_MOCK_SLOT='"md"' \
+		tests/mock_core_v3.cpp -o build/migration/mock-slot-z.so
+	python3 -m unittest discover -s tests -p 'test_slot_autoprobe.py' -v
+
+# SMS-0007 Retrode2 adapter, 8-bit kernel mode 20, explicit read-only lab.
+# Generate real pinned OSCR SMS.cpp size table and ROM bank/buffer loops.
+# Only reviewed AVR-to-kernel and SD-to-host replacements; no CLI rebuild.
+build/migration/oscr_sms_generated.stamp: tools/build-linux-sms-core.py third_party/oscr-firmware/src/cores/SMS.cpp \
+    tools/build-linux-sms-catalog.py third_party/oscr-sms-db.json \
+    tools/build-linux-sms-header-catalog.py third_party/oscr-sms-product-codes.json
+	mkdir -p build/migration
+	python3 tools/build-linux-sms-core.py --size-output build/migration/oscr_sms_size.h --read-output build/migration/oscr_sms_read.h
+	python3 tools/build-linux-sms-catalog.py --output build/migration/oscr_sms_catalog.h
+	python3 tools/build-linux-sms-header-catalog.py --output build/migration/oscr_sms_header_catalog.h
+	touch $@
+
+# Kept out of the default release staging and normal web auto-enable.
+SMS_MD_HEADERS = include/retrode3/sms_header_v1.h include/retrode3/sms_rom_core_v1.h \
+    include/retrode3/sms_md_transport_v1.h include/retrode3/sms_md_posix_v1.h \
+    include/retrode3/core_descriptor_v1.h include/retrode3/core_operations_v1.h \
+    include/retrode3/core_operations_v3.h
+SMS_MD_SOURCES = src/retrode3/oscr_sms_md_adapter.cpp src/retrode3/sms_md_posix_v1.cpp
+
+build/migration/sms-md.so: $(SMS_MD_SOURCES) $(SMS_MD_HEADERS) build/migration/oscr_sms_generated.stamp
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) -Ibuild/migration \
+	    $(SMS_MD_SOURCES) -o $@
+
+.PHONY: native-sms-md-module test-sms-md-module stage-sms-md-module
+native-sms-md-module: build/migration/sms-md.so
+
+test-sms-md-module: native-sms-md-module
+	python3 -m unittest discover -s tests -p 'test_sms_catalog_generator.py' -v
+	python3 -m unittest discover -s tests -p 'test_sms_header_catalog_generator.py' -v
+	python3 -m unittest discover -s tests -p 'test_sms_oscr_generator.py' -v
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -Ibuild/migration tests/sms_header_v1_test.cpp -o build/migration/sms_header_v1_test
+	./build/migration/sms_header_v1_test
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -Ibuild/migration -DRETRODE3_TESTING \
+	    tests/sms_md_test.cpp $(SMS_MD_SOURCES) -o build/migration/sms_md_test
+	./build/migration/sms_md_test
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -Ibuild/migration -DRETRODE3_TESTING \
+	    tests/sms_md_transport_test.cpp src/retrode3/sms_md_posix_v1.cpp \
+	    -o build/migration/sms_md_transport_test
+	./build/migration/sms_md_transport_test
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -Ibuild/migration -DRETRODE3_TESTING \
+	    tests/sms_md_live_test.cpp $(SMS_MD_SOURCES) \
+	    -o build/migration/sms_md_live_test
+	./build/migration/sms_md_live_test
+	RETRODE3_SMS_TEST_MODULE=build/migration/sms-md.so python3 tests/test_sms_md_json.py
+
+# Stage only by explicit request. Never auto-install or enable on the device.
+stage-sms-md-module: native-sms-md-module
+	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
+	install -m 644 build/migration/sms-md.so build/migration/stage/usr/lib/retrode3/cores-available/sms-md.so
+	install -m 644 packaging/cores/sms-md.core build/migration/stage/usr/lib/retrode3/cores-available/sms-md.core

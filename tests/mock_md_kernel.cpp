@@ -21,6 +21,24 @@ void init()
     std::memcpy(rom + 0x1f0, "JUE", 3);
     rom[0x18e] = 0x12; rom[0x18f] = 0x34;
     rom[0x1a4] = 0; rom[0x1a5] = 0x07; rom[0x1a6] = 0xff; rom[0x1a7] = 0xff;
+    const char *save = std::getenv("RETRODE_MOCK_MD_SAVE");
+    if (save) {
+        unsigned char *p=rom+0x1b0;
+        p[0]='R';p[1]='A';
+        const unsigned kind = std::strcmp(save,"both")==0 ? 0xe020u :
+                              std::strcmp(save,"eeprom")==0 ? 0xf840u : 0xf820u;
+        p[2]=static_cast<unsigned char>(kind>>8);
+        p[3]=static_cast<unsigned char>(kind);
+        std::uint32_t start=std::strcmp(save,"even")==0 ||
+                            std::strcmp(save,"both")==0 ? 0x200000u : 0x200001u;
+        const std::uint32_t end=std::strcmp(save,"both")==0 ? 0x20ffffu :
+                                std::strcmp(save,"even")==0 ? 0x203ffeu : 0x203fffu;
+        if (std::strcmp(save,"invalid")==0) start=0x300001u;
+        for(unsigned i=0;i<4;++i) {
+            p[4+i]=static_cast<unsigned char>(start>>(24-8*i));
+            p[8+i]=static_cast<unsigned char>(end>>(24-8*i));
+        }
+    }
     char const *bad = std::getenv("RETRODE_MOCK_MD_BAD");
     if (bad && std::strcmp(bad, "header") == 0) rom[0x100] = 'X';
     if (bad && std::strcmp(bad, "32x") == 0)

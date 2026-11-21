@@ -21,6 +21,7 @@ SOURCES = (
     "include/retrode3/core_operations_v2.h",
     "include/retrode3/core_operations_v3.h",
     "include/retrode3/json_v3.h",
+    "include/retrode3/hardware_scope_v1.h",
     "include/retrode3/ndjson_protocol.h",
     "tests/mock_core_module.cpp",
 )

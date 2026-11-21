@@ -6,6 +6,7 @@
 // generated original-OSCR archive. No writes or mapper controls here.
 #include <cstddef>
 #include <string>
+#include "retrode3/oscr_md_save.h"
 
 namespace retrode3 {
 namespace mdstage1 {
@@ -16,6 +17,7 @@ struct Probe {
     std::string title;
     std::string serial;
     std::string region;
+    mdsave::Geometry save;
 };
 
 typedef int (*WriteFn)(void *context, void const *data, std::size_t count);

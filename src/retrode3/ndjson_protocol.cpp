@@ -122,6 +122,7 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
         if (i->first != "command" && i->first != "request_id" &&
             i->first != "output" && i->first != "mapping" &&
             i->first != "size_bytes" && i->first != "core" &&
+            i->first != "slot" &&
             i->first != "candidate_id" && i->first != "layout_id" &&
             i->first != "mapper" && i->first != "submapper" &&
             i->first != "prg_kib" && i->first != "chr_kib" &&
@@ -131,6 +132,9 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     WebCommand cmd;
     cmd.action = field(obj, "command", true);
     cmd.core = field(obj, "core");
+    cmd.slot = field(obj, "slot");
+    if (!cmd.slot.empty() && (!safe_token(cmd.slot) || cmd.slot.size() > 48))
+        throw std::runtime_error("invalid slot identifier");
     if (cmd.core.size() > 48) throw std::runtime_error("invalid core identifier");
     for (std::size_t k = 0; k < cmd.core.size(); ++k) {
         unsigned char c = static_cast<unsigned char>(cmd.core[k]);
@@ -196,10 +200,15 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     }
     if (cmd.action != "probe" && cmd.action != "read_rom" &&
         cmd.action != "cancel" && cmd.action != "get_capabilities" &&
-        cmd.action != "list_cores")
+        cmd.action != "list_cores" && cmd.action != "probe_slot")
         throw std::runtime_error("unsupported command");
-    if (cmd.action == "list_cores" && !cmd.core.empty())
+    if (cmd.action == "list_cores" && (!cmd.core.empty() || !cmd.slot.empty()))
         throw std::runtime_error("list_cores takes no core identifier");
+    if (cmd.action == "probe_slot") {
+        if (cmd.slot.empty() || !cmd.core.empty())
+            throw std::runtime_error("probe_slot requires slot and forbids core");
+    } else if (!cmd.slot.empty())
+        throw std::runtime_error("slot only allowed for probe_slot");
     if (cmd.action == "read_rom" && cmd.output.empty())
         throw std::runtime_error("read_rom requires output");
     if (cmd.action != "read_rom" &&

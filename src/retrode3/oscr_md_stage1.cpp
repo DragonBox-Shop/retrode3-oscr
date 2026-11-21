@@ -70,7 +70,8 @@ Probe probe()
     OSCR::Cores::MegaDrive::copyToRomName(
         filename, header + 0x150, static_cast<std::uint8_t>(sizeof(filename) - 1));
     Probe result = {size, (static_cast<unsigned>(header[0x18e]) << 8) | header[0x18f],
-                    text(header, 0x150, 0x180), serial, text(header, 0x1f0, 0x200)};
+                    text(header, 0x150, 0x180), serial, text(header, 0x1f0, 0x200),
+                    mdsave::parse(header, sizeof(header))};
     return result;
 }
 

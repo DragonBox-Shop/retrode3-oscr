@@ -108,6 +108,34 @@ class TestRealMdAdapter(unittest.TestCase):
         self.assertEqual(result["crc32"], "%08X" % (zlib.crc32(actual) & 0xffffffff))
 
 
+    def test_v3_save_header_is_metadata_only(self):
+        self.enable()
+        cases = (("odd", "sram_odd8", 8192, True),
+                 ("even", "sram_even8", 8192, True),
+                 ("both", "sram_both16", 65536, True),
+                 ("eeprom", "parallel_eeprom", 0, False),
+                 ("invalid", "sram_odd8", 0, False))
+        for key, kind, size, valid in cases:
+            env = os.environ.copy()
+            env["RETRODE_MOCK_MD_SAVE"] = key
+            rc, events, errors = self.host([
+                {"command":"probe", "core":"md", "request_id":key}
+            ], env=env)
+            self.assertEqual(rc, 0, errors)
+            self.assertEqual(events[-1]["event"], "probe_result", events)
+            save = events[-1]["save"]
+            self.assertTrue(save["detected"])
+            self.assertEqual(save["kind"], kind)
+            self.assertEqual(save["size_bytes"], size)
+            self.assertEqual(save["geometry_valid"], valid)
+            self.assertFalse(save["read_supported"])
+            self.assertFalse(save["write_supported"])
+        rc, events, errors = self.host([
+            {"command":"probe", "core":"md", "request_id":"none"}
+        ])
+        self.assertEqual(rc, 0, errors)
+        self.assertFalse(events[-1]["save"]["detected"])
+
     def test_v3_layout_and_validated_smaller_override(self):
         self.enable()
         for mode, extra, size in (

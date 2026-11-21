@@ -1,0 +1,1966 @@
+{
+  "format": "retrode3-sms-header-product-code-v1",
+  "source": {
+    "url": "https://github.com/mamedev/mame/blob/d39e971ee65da1d1b0170da3ce187fc6168e71e1/hash/sms.xml",
+    "blob_sha": "5410f81bc8e1900375d076f2f7ee42ee852c2c48",
+    "license": "CC0-1.0",
+    "derived_from": "MAME softwarelist serial info joined to identical full-ROM CRC32 in pinned Sanni SMS database"
+  },
+  "notes": "Serial values are tentative region/revision identifiers, not proof of ROM identity. Only matching size and exact BCD header product code are candidate hints; use full CRC32 after dump for verification.",
+  "entries": [
+    {
+      "crc32": "00BEF1D7",
+      "size_bytes": 524288,
+      "product_codes": [
+        9500
+      ]
+    },
+    {
+      "crc32": "00E73541",
+      "size_bytes": 131072,
+      "product_codes": [
+        5077
+      ]
+    },
+    {
+      "crc32": "013C0A94",
+      "size_bytes": 131072,
+      "product_codes": [
+        5116
+      ]
+    },
+    {
+      "crc32": "04E9C089",
+      "size_bytes": 524288,
+      "product_codes": [
+        9026
+      ]
+    },
+    {
+      "crc32": "05CDC24E",
+      "size_bytes": 262144,
+      "product_codes": [
+        7071
+      ]
+    },
+    {
+      "crc32": "05EA5353",
+      "size_bytes": 262144,
+      "product_codes": [
+        1358
+      ]
+    },
+    {
+      "crc32": "0667ED9F",
+      "size_bytes": 524288,
+      "product_codes": [
+        9030
+      ]
+    },
+    {
+      "crc32": "071B045E",
+      "size_bytes": 32768,
+      "product_codes": [
+        4080,
+        4580
+      ]
+    },
+    {
+      "crc32": "07301F83",
+      "size_bytes": 524288,
+      "product_codes": [
+        4534
+      ]
+    },
+    {
+      "crc32": "07306947",
+      "size_bytes": 262144,
+      "product_codes": [
+        7067
+      ]
+    },
+    {
+      "crc32": "08C9EC91",
+      "size_bytes": 131072,
+      "product_codes": [
+        1306
+      ]
+    },
+    {
+      "crc32": "0A9089E5",
+      "size_bytes": 262144,
+      "product_codes": [
+        7062
+      ]
+    },
+    {
+      "crc32": "0BD8DA96",
+      "size_bytes": 262144,
+      "product_codes": [
+        7034
+      ]
+    },
+    {
+      "crc32": "0C6FAC4E",
+      "size_bytes": 262144,
+      "product_codes": [
+        7009
+      ]
+    },
+    {
+      "crc32": "0CA95637",
+      "size_bytes": 262144,
+      "product_codes": [
+        7074
+      ]
+    },
+    {
+      "crc32": "0DF8597F",
+      "size_bytes": 262144,
+      "product_codes": [
+        7025
+      ]
+    },
+    {
+      "crc32": "0E1CC1E0",
+      "size_bytes": 262144,
+      "product_codes": [
+        7029
+      ]
+    },
+    {
+      "crc32": "0E333B6E",
+      "size_bytes": 262144,
+      "product_codes": [
+        7500
+      ]
+    },
+    {
+      "crc32": "0ED170C9",
+      "size_bytes": 32768,
+      "product_codes": [
+        4082,
+        41018
+      ]
+    },
+    {
+      "crc32": "0FFBCAA3",
+      "size_bytes": 131072,
+      "product_codes": [
+        1301
+      ]
+    },
+    {
+      "crc32": "10ED6B57",
+      "size_bytes": 131072,
+      "product_codes": [
+        5061
+      ]
+    },
+    {
+      "crc32": "11C1BC8A",
+      "size_bytes": 524288,
+      "product_codes": [
+        9034
+      ]
+    },
+    {
+      "crc32": "1350E4F8",
+      "size_bytes": 262144,
+      "product_codes": [
+        7050
+      ]
+    },
+    {
+      "crc32": "147E02FA",
+      "size_bytes": 524288,
+      "product_codes": [
+        9008
+      ]
+    },
+    {
+      "crc32": "15576613",
+      "size_bytes": 262144,
+      "product_codes": [
+        7041
+      ]
+    },
+    {
+      "crc32": "15668CA4",
+      "size_bytes": 262144,
+      "product_codes": [
+        7119
+      ]
+    },
+    {
+      "crc32": "156948F9",
+      "size_bytes": 262144,
+      "product_codes": [
+        1349
+      ]
+    },
+    {
+      "crc32": "184C23B7",
+      "size_bytes": 32768,
+      "product_codes": [
+        4005
+      ]
+    },
+    {
+      "crc32": "1A390B93",
+      "size_bytes": 262144,
+      "product_codes": [
+        7028
+      ]
+    },
+    {
+      "crc32": "1B1D8CC2",
+      "size_bytes": 262144,
+      "product_codes": [
+        7101
+      ]
+    },
+    {
+      "crc32": "1BCC7BE3",
+      "size_bytes": 262144,
+      "product_codes": [
+        1319,
+        7002
+      ]
+    },
+    {
+      "crc32": "1C5059F0",
+      "size_bytes": 131072,
+      "product_codes": [
+        6002
+      ]
+    },
+    {
+      "crc32": "1C951F8E",
+      "size_bytes": 524288,
+      "product_codes": [
+        1340,
+        9001
+      ]
+    },
+    {
+      "crc32": "1DDC3059",
+      "size_bytes": 131072,
+      "product_codes": [
+        5065
+      ]
+    },
+    {
+      "crc32": "1DE2C2D0",
+      "size_bytes": 131072,
+      "product_codes": [
+        1338
+      ]
+    },
+    {
+      "crc32": "1E949D1F",
+      "size_bytes": 131072,
+      "product_codes": [
+        5078
+      ]
+    },
+    {
+      "crc32": "1FDAE719",
+      "size_bytes": 262144,
+      "product_codes": [
+        7037
+      ]
+    },
+    {
+      "crc32": "2055825F",
+      "size_bytes": 131072,
+      "product_codes": [
+        1321,
+        5058
+      ]
+    },
+    {
+      "crc32": "205CAAE8",
+      "size_bytes": 262144,
+      "product_codes": [
+        7039
+      ]
+    },
+    {
+      "crc32": "24E97200",
+      "size_bytes": 524288,
+      "product_codes": [
+        9014
+      ]
+    },
+    {
+      "crc32": "24F5FE8C",
+      "size_bytes": 131072,
+      "product_codes": [
+        1303
+      ]
+    },
+    {
+      "crc32": "2728FAA3",
+      "size_bytes": 32768,
+      "product_codes": [
+        4003,
+        4503
+      ]
+    },
+    {
+      "crc32": "296879DD",
+      "size_bytes": 262144,
+      "product_codes": [
+        7103
+      ]
+    },
+    {
+      "crc32": "299CBB74",
+      "size_bytes": 131072,
+      "product_codes": [
+        1312,
+        5069
+      ]
+    },
+    {
+      "crc32": "29BC7FAD",
+      "size_bytes": 131072,
+      "product_codes": [
+        1359
+      ]
+    },
+    {
+      "crc32": "2AC001EB",
+      "size_bytes": 131072,
+      "product_codes": [
+        1320,
+        5071
+      ]
+    },
+    {
+      "crc32": "2BCDB8FA",
+      "size_bytes": 131072,
+      "product_codes": [
+        1334
+      ]
+    },
+    {
+      "crc32": "2F2E3BC9",
+      "size_bytes": 131072,
+      "product_codes": [
+        1344,
+        5105
+      ]
+    },
+    {
+      "crc32": "3084CF11",
+      "size_bytes": 262144,
+      "product_codes": [
+        1373,
+        27006
+      ]
+    },
+    {
+      "crc32": "31B8040B",
+      "size_bytes": 131072,
+      "product_codes": [
+        8003
+      ]
+    },
+    {
+      "crc32": "320313EC",
+      "size_bytes": 131072,
+      "product_codes": [
+        1308
+      ]
+    },
+    {
+      "crc32": "323F357F",
+      "size_bytes": 131072,
+      "product_codes": [
+        1315
+      ]
+    },
+    {
+      "crc32": "32759751",
+      "size_bytes": 262144,
+      "product_codes": [
+        1370
+      ]
+    },
+    {
+      "crc32": "327A0B4C",
+      "size_bytes": 131072,
+      "product_codes": [
+        5121
+      ]
+    },
+    {
+      "crc32": "357D4F78",
+      "size_bytes": 131072,
+      "product_codes": [
+        5122
+      ]
+    },
+    {
+      "crc32": "3658F3E0",
+      "size_bytes": 131072,
+      "product_codes": [
+        5055
+      ]
+    },
+    {
+      "crc32": "3727D8B2",
+      "size_bytes": 262144,
+      "product_codes": [
+        7020
+      ]
+    },
+    {
+      "crc32": "3793C01A",
+      "size_bytes": 524288,
+      "product_codes": [
+        9009
+      ]
+    },
+    {
+      "crc32": "38C53916",
+      "size_bytes": 262144,
+      "product_codes": [
+        7056
+      ]
+    },
+    {
+      "crc32": "3BE7F641",
+      "size_bytes": 262144,
+      "product_codes": [
+        7116
+      ]
+    },
+    {
+      "crc32": "3CFF6E80",
+      "size_bytes": 262144,
+      "product_codes": [
+        7021
+      ]
+    },
+    {
+      "crc32": "3D55759B",
+      "size_bytes": 262144,
+      "product_codes": [
+        7020
+      ]
+    },
+    {
+      "crc32": "3EBB7457",
+      "size_bytes": 262144,
+      "product_codes": [
+        1362
+      ]
+    },
+    {
+      "crc32": "3EC5E627",
+      "size_bytes": 262144,
+      "product_codes": [
+        7045
+      ]
+    },
+    {
+      "crc32": "4077EFD9",
+      "size_bytes": 131072,
+      "product_codes": [
+        1004,
+        5109
+      ]
+    },
+    {
+      "crc32": "41C948BF",
+      "size_bytes": 131072,
+      "product_codes": [
+        1365
+      ]
+    },
+    {
+      "crc32": "428B1E7C",
+      "size_bytes": 131072,
+      "product_codes": [
+        4350
+      ]
+    },
+    {
+      "crc32": "42FC3A6E",
+      "size_bytes": 524288,
+      "product_codes": [
+        9022
+      ]
+    },
+    {
+      "crc32": "42FC47EE",
+      "size_bytes": 262144,
+      "product_codes": [
+        27005
+      ]
+    },
+    {
+      "crc32": "4752CAE7",
+      "size_bytes": 524288,
+      "product_codes": [
+        9003
+      ]
+    },
+    {
+      "crc32": "48651325",
+      "size_bytes": 262144,
+      "product_codes": [
+        7502
+      ]
+    },
+    {
+      "crc32": "4A21C15F",
+      "size_bytes": 131072,
+      "product_codes": [
+        5051,
+        41001
+      ]
+    },
+    {
+      "crc32": "4AAAD0D6",
+      "size_bytes": 131072,
+      "product_codes": [
+        5080
+      ]
+    },
+    {
+      "crc32": "4AB3790F",
+      "size_bytes": 524288,
+      "product_codes": [
+        9019
+      ]
+    },
+    {
+      "crc32": "4B051022",
+      "size_bytes": 131072,
+      "product_codes": [
+        5072
+      ]
+    },
+    {
+      "crc32": "4BC42857",
+      "size_bytes": 32768,
+      "product_codes": [
+        4004,
+        4504,
+        41003
+      ]
+    },
+    {
+      "crc32": "4CC11DF9",
+      "size_bytes": 262144,
+      "product_codes": [
+        1339
+      ]
+    },
+    {
+      "crc32": "4F20694A",
+      "size_bytes": 262144,
+      "product_codes": [
+        7042
+      ]
+    },
+    {
+      "crc32": "516ED32E",
+      "size_bytes": 262144,
+      "product_codes": [
+        7013
+      ]
+    },
+    {
+      "crc32": "51BD14BE",
+      "size_bytes": 262144,
+      "product_codes": [
+        7024
+      ]
+    },
+    {
+      "crc32": "52B83072",
+      "size_bytes": 131072,
+      "product_codes": [
+        1314
+      ]
+    },
+    {
+      "crc32": "5359762D",
+      "size_bytes": 131072,
+      "product_codes": [
+        5118
+      ]
+    },
+    {
+      "crc32": "54316FEA",
+      "size_bytes": 262144,
+      "product_codes": [
+        27007
+      ]
+    },
+    {
+      "crc32": "5589D8D2",
+      "size_bytes": 262144,
+      "product_codes": [
+        1326,
+        7003
+      ]
+    },
+    {
+      "crc32": "55BF81A0",
+      "size_bytes": 262144,
+      "product_codes": [
+        7043
+      ]
+    },
+    {
+      "crc32": "56CC906B",
+      "size_bytes": 262144,
+      "product_codes": [
+        7052
+      ]
+    },
+    {
+      "crc32": "5718762C",
+      "size_bytes": 131072,
+      "product_codes": [
+        5075
+      ]
+    },
+    {
+      "crc32": "5A1C3DDE",
+      "size_bytes": 262144,
+      "product_codes": [
+        7106
+      ]
+    },
+    {
+      "crc32": "5B3B922C",
+      "size_bytes": 524288,
+      "product_codes": [
+        9015
+      ]
+    },
+    {
+      "crc32": "5B5F9106",
+      "size_bytes": 262144,
+      "product_codes": [
+        1367
+      ]
+    },
+    {
+      "crc32": "5C0B1F0F",
+      "size_bytes": 262144,
+      "product_codes": [
+        7066
+      ]
+    },
+    {
+      "crc32": "5CBFE997",
+      "size_bytes": 262144,
+      "product_codes": [
+        7006
+      ]
+    },
+    {
+      "crc32": "5D5C50B3",
+      "size_bytes": 262144,
+      "product_codes": [
+        1322
+      ]
+    },
+    {
+      "crc32": "5FC74D2A",
+      "size_bytes": 131072,
+      "product_codes": [
+        5074
+      ]
+    },
+    {
+      "crc32": "60C19645",
+      "size_bytes": 131072,
+      "product_codes": [
+        1325,
+        5075
+      ]
+    },
+    {
+      "crc32": "62F0C23D",
+      "size_bytes": 32768,
+      "product_codes": [
+        4001,
+        4501,
+        41004
+      ]
+    },
+    {
+      "crc32": "655FB1F4",
+      "size_bytes": 32768,
+      "product_codes": [
+        4084,
+        4584,
+        41022
+      ]
+    },
+    {
+      "crc32": "6586BD1F",
+      "size_bytes": 131072,
+      "product_codes": [
+        1313
+      ]
+    },
+    {
+      "crc32": "65D7E4E0",
+      "size_bytes": 131072,
+      "product_codes": [
+        1301,
+        5108,
+        41002
+      ]
+    },
+    {
+      "crc32": "6605D36A",
+      "size_bytes": 524288,
+      "product_codes": [
+        1341
+      ]
+    },
+    {
+      "crc32": "66388128",
+      "size_bytes": 262144,
+      "product_codes": [
+        7078
+      ]
+    },
+    {
+      "crc32": "665FDA92",
+      "size_bytes": 131072,
+      "product_codes": [
+        1001,
+        5120
+      ]
+    },
+    {
+      "crc32": "6687FAB9",
+      "size_bytes": 524288,
+      "product_codes": [
+        9029
+      ]
+    },
+    {
+      "crc32": "66A15BD9",
+      "size_bytes": 131072,
+      "product_codes": [
+        5066
+      ]
+    },
+    {
+      "crc32": "679E1676",
+      "size_bytes": 262144,
+      "product_codes": [
+        2004,
+        7026
+      ]
+    },
+    {
+      "crc32": "6819B0C0",
+      "size_bytes": 131072,
+      "product_codes": [
+        1317
+      ]
+    },
+    {
+      "crc32": "69538469",
+      "size_bytes": 131072,
+      "product_codes": [
+        5500
+      ]
+    },
+    {
+      "crc32": "69EFD483",
+      "size_bytes": 131072,
+      "product_codes": [
+        6081,
+        41011
+      ]
+    },
+    {
+      "crc32": "6A664405",
+      "size_bytes": 262144,
+      "product_codes": [
+        7063
+      ]
+    },
+    {
+      "crc32": "6BD5C2BF",
+      "size_bytes": 262144,
+      "product_codes": [
+        8004
+      ]
+    },
+    {
+      "crc32": "6C696221",
+      "size_bytes": 262144,
+      "product_codes": [
+        7123
+      ]
+    },
+    {
+      "crc32": "6D94BB0E",
+      "size_bytes": 262144,
+      "product_codes": [
+        7019
+      ]
+    },
+    {
+      "crc32": "6E1AD6FD",
+      "size_bytes": 131072,
+      "product_codes": [
+        5084
+      ]
+    },
+    {
+      "crc32": "702C3E98",
+      "size_bytes": 262144,
+      "product_codes": [
+        7035
+      ]
+    },
+    {
+      "crc32": "71ABEF27",
+      "size_bytes": 524288,
+      "product_codes": [
+        9031
+      ]
+    },
+    {
+      "crc32": "72112B75",
+      "size_bytes": 131072,
+      "product_codes": [
+        1327,
+        5059
+      ]
+    },
+    {
+      "crc32": "73705C02",
+      "size_bytes": 131072,
+      "product_codes": [
+        5068
+      ]
+    },
+    {
+      "crc32": "78D7FAAB",
+      "size_bytes": 32768,
+      "product_codes": [
+        4083,
+        4583,
+        41021
+      ]
+    },
+    {
+      "crc32": "79AC8E7F",
+      "size_bytes": 131072,
+      "product_codes": [
+        5106
+      ]
+    },
+    {
+      "crc32": "7A92EBA6",
+      "size_bytes": 262144,
+      "product_codes": [
+        7055
+      ]
+    },
+    {
+      "crc32": "7ABC70E9",
+      "size_bytes": 131072,
+      "product_codes": [
+        1342
+      ]
+    },
+    {
+      "crc32": "7B27202F",
+      "size_bytes": 262144,
+      "product_codes": [
+        7019
+      ]
+    },
+    {
+      "crc32": "7B369892",
+      "size_bytes": 131072,
+      "product_codes": [
+        1304,
+        5080
+      ]
+    },
+    {
+      "crc32": "7BA54510",
+      "size_bytes": 131072,
+      "product_codes": [
+        5075
+      ]
+    },
+    {
+      "crc32": "7CC3E837",
+      "size_bytes": 262144,
+      "product_codes": [
+        7111
+      ]
+    },
+    {
+      "crc32": "7D7CE80B",
+      "size_bytes": 524288,
+      "product_codes": [
+        9012
+      ]
+    },
+    {
+      "crc32": "7E0EF8CB",
+      "size_bytes": 262144,
+      "product_codes": [
+        1357
+      ]
+    },
+    {
+      "crc32": "7F30F793",
+      "size_bytes": 262144,
+      "product_codes": [
+        7075
+      ]
+    },
+    {
+      "crc32": "7F3AFE58",
+      "size_bytes": 262144,
+      "product_codes": [
+        7115
+      ]
+    },
+    {
+      "crc32": "8132AB2C",
+      "size_bytes": 262144,
+      "product_codes": [
+        1355
+      ]
+    },
+    {
+      "crc32": "82038AD4",
+      "size_bytes": 131072,
+      "product_codes": [
+        5111
+      ]
+    },
+    {
+      "crc32": "82EF2A7D",
+      "size_bytes": 262144,
+      "product_codes": [
+        7120
+      ]
+    },
+    {
+      "crc32": "82FDA895",
+      "size_bytes": 131072,
+      "product_codes": [
+        4370
+      ]
+    },
+    {
+      "crc32": "8370F6CD",
+      "size_bytes": 262144,
+      "product_codes": [
+        7036
+      ]
+    },
+    {
+      "crc32": "85CFC9C9",
+      "size_bytes": 262144,
+      "product_codes": [
+        7038
+      ]
+    },
+    {
+      "crc32": "861B6E79",
+      "size_bytes": 262144,
+      "product_codes": [
+        7040
+      ]
+    },
+    {
+      "crc32": "871562B0",
+      "size_bytes": 131072,
+      "product_codes": [
+        1345
+      ]
+    },
+    {
+      "crc32": "887D9F6B",
+      "size_bytes": 262144,
+      "product_codes": [
+        7054
+      ]
+    },
+    {
+      "crc32": "8B40F6BF",
+      "size_bytes": 524288,
+      "product_codes": [
+        4001
+      ]
+    },
+    {
+      "crc32": "8B43D21D",
+      "size_bytes": 262144,
+      "product_codes": [
+        7102
+      ]
+    },
+    {
+      "crc32": "8C9D5BE8",
+      "size_bytes": 524288,
+      "product_codes": [
+        9008
+      ]
+    },
+    {
+      "crc32": "8CBEF0C1",
+      "size_bytes": 262144,
+      "product_codes": [
+        7007
+      ]
+    },
+    {
+      "crc32": "8D43EA95",
+      "size_bytes": 131072,
+      "product_codes": [
+        5070
+      ]
+    },
+    {
+      "crc32": "8DA5C93F",
+      "size_bytes": 131072,
+      "product_codes": [
+        5119
+      ]
+    },
+    {
+      "crc32": "8ECD201C",
+      "size_bytes": 262144,
+      "product_codes": [
+        1351,
+        8005
+      ]
+    },
+    {
+      "crc32": "8FB75994",
+      "size_bytes": 131072,
+      "product_codes": [
+        1304
+      ]
+    },
+    {
+      "crc32": "908E7524",
+      "size_bytes": 131072,
+      "product_codes": [
+        25003
+      ]
+    },
+    {
+      "crc32": "908FF25C",
+      "size_bytes": 262144,
+      "product_codes": [
+        7065
+      ]
+    },
+    {
+      "crc32": "912D92AF",
+      "size_bytes": 262144,
+      "product_codes": [
+        7100
+      ]
+    },
+    {
+      "crc32": "914514E3",
+      "size_bytes": 32768,
+      "product_codes": [
+        4007,
+        4507,
+        41010
+      ]
+    },
+    {
+      "crc32": "93141463",
+      "size_bytes": 262144,
+      "product_codes": [
+        7124,
+        9028
+      ]
+    },
+    {
+      "crc32": "953F42E1",
+      "size_bytes": 262144,
+      "product_codes": [
+        7053
+      ]
+    },
+    {
+      "crc32": "9549FCE4",
+      "size_bytes": 131072,
+      "product_codes": [
+        5123
+      ]
+    },
+    {
+      "crc32": "955A009E",
+      "size_bytes": 262144,
+      "product_codes": [
+        1354
+      ]
+    },
+    {
+      "crc32": "96FB4D4B",
+      "size_bytes": 262144,
+      "product_codes": [
+        7107
+      ]
+    },
+    {
+      "crc32": "97993479",
+      "size_bytes": 262144,
+      "product_codes": [
+        7032
+      ]
+    },
+    {
+      "crc32": "9802ED31",
+      "size_bytes": 524288,
+      "product_codes": [
+        9005
+      ]
+    },
+    {
+      "crc32": "98E4AE4A",
+      "size_bytes": 131072,
+      "product_codes": [
+        1332,
+        5057
+      ]
+    },
+    {
+      "crc32": "9A8B28EC",
+      "size_bytes": 262144,
+      "product_codes": [
+        7031
+      ]
+    },
+    {
+      "crc32": "9EB1AA4F",
+      "size_bytes": 131072,
+      "product_codes": [
+        1309
+      ]
+    },
+    {
+      "crc32": "A109A6FE",
+      "size_bytes": 524288,
+      "product_codes": [
+        9024
+      ]
+    },
+    {
+      "crc32": "A1710F13",
+      "size_bytes": 262144,
+      "product_codes": [
+        7072
+      ]
+    },
+    {
+      "crc32": "A249FA9D",
+      "size_bytes": 131072,
+      "product_codes": [
+        1302
+      ]
+    },
+    {
+      "crc32": "A2A60BC8",
+      "size_bytes": 131072,
+      "product_codes": [
+        5114
+      ]
+    },
+    {
+      "crc32": "A3EF13CB",
+      "size_bytes": 262144,
+      "product_codes": [
+        1336,
+        8002
+      ]
+    },
+    {
+      "crc32": "A4852757",
+      "size_bytes": 262144,
+      "product_codes": [
+        1356,
+        7008
+      ]
+    },
+    {
+      "crc32": "A4AC35D8",
+      "size_bytes": 524288,
+      "product_codes": [
+        29001
+      ]
+    },
+    {
+      "crc32": "A51376FE",
+      "size_bytes": 262144,
+      "product_codes": [
+        7017
+      ]
+    },
+    {
+      "crc32": "A55D89F3",
+      "size_bytes": 262144,
+      "product_codes": [
+        1369,
+        7012
+      ]
+    },
+    {
+      "crc32": "A577CE46",
+      "size_bytes": 262144,
+      "product_codes": [
+        19001
+      ]
+    },
+    {
+      "crc32": "A6FA42D0",
+      "size_bytes": 131072,
+      "product_codes": [
+        1348
+      ]
+    },
+    {
+      "crc32": "A8061AEF",
+      "size_bytes": 262144,
+      "product_codes": [
+        7069
+      ]
+    },
+    {
+      "crc32": "A908CFF5",
+      "size_bytes": 524288,
+      "product_codes": [
+        9010
+      ]
+    },
+    {
+      "crc32": "AA7D6F45",
+      "size_bytes": 262144,
+      "product_codes": [
+        1361
+      ]
+    },
+    {
+      "crc32": "AAB67EC3",
+      "size_bytes": 131072,
+      "product_codes": [
+        5110
+      ]
+    },
+    {
+      "crc32": "ABD48AD2",
+      "size_bytes": 262144,
+      "product_codes": [
+        8006
+      ]
+    },
+    {
+      "crc32": "AC6009A7",
+      "size_bytes": 262144,
+      "product_codes": [
+        7014
+      ]
+    },
+    {
+      "crc32": "AE4A28D7",
+      "size_bytes": 262144,
+      "product_codes": [
+        7049
+      ]
+    },
+    {
+      "crc32": "AE705699",
+      "size_bytes": 131072,
+      "product_codes": [
+        1307
+      ]
+    },
+    {
+      "crc32": "AE920E4B",
+      "size_bytes": 262144,
+      "product_codes": [
+        7011
+      ]
+    },
+    {
+      "crc32": "AED9AAC4",
+      "size_bytes": 131072,
+      "product_codes": [
+        5067
+      ]
+    },
+    {
+      "crc32": "AEDF3BDF",
+      "size_bytes": 524288,
+      "product_codes": [
+        9021
+      ]
+    },
+    {
+      "crc32": "B0FC4577",
+      "size_bytes": 524288,
+      "product_codes": [
+        9025
+      ]
+    },
+    {
+      "crc32": "B137007A",
+      "size_bytes": 262144,
+      "product_codes": [
+        7122
+      ]
+    },
+    {
+      "crc32": "B13DF647",
+      "size_bytes": 131072,
+      "product_codes": [
+        1318
+      ]
+    },
+    {
+      "crc32": "B154EC38",
+      "size_bytes": 262144,
+      "product_codes": [
+        7112
+      ]
+    },
+    {
+      "crc32": "B1DA6A30",
+      "size_bytes": 262144,
+      "product_codes": [
+        1346
+      ]
+    },
+    {
+      "crc32": "B33E2827",
+      "size_bytes": 262144,
+      "product_codes": [
+        7501
+      ]
+    },
+    {
+      "crc32": "B519E833",
+      "size_bytes": 262144,
+      "product_codes": [
+        7076
+      ]
+    },
+    {
+      "crc32": "B52D60C8",
+      "size_bytes": 524288,
+      "product_codes": [
+        9501
+      ]
+    },
+    {
+      "crc32": "B746A6F5",
+      "size_bytes": 131072,
+      "product_codes": [
+        5102
+      ]
+    },
+    {
+      "crc32": "B81F6FA5",
+      "size_bytes": 131072,
+      "product_codes": [
+        5117
+      ]
+    },
+    {
+      "crc32": "B8B141F9",
+      "size_bytes": 262144,
+      "product_codes": [
+        7004
+      ]
+    },
+    {
+      "crc32": "B9DB4282",
+      "size_bytes": 262144,
+      "product_codes": [
+        7053
+      ]
+    },
+    {
+      "crc32": "B9FDF6D9",
+      "size_bytes": 262144,
+      "product_codes": [
+        1331
+      ]
+    },
+    {
+      "crc32": "BB54B6B0",
+      "size_bytes": 524288,
+      "product_codes": [
+        1364,
+        9002
+      ]
+    },
+    {
+      "crc32": "BBA2FE98",
+      "size_bytes": 262144,
+      "product_codes": [
+        7018
+      ]
+    },
+    {
+      "crc32": "BBDA65F0",
+      "size_bytes": 131072,
+      "product_codes": [
+        5064
+      ]
+    },
+    {
+      "crc32": "BCFBFC67",
+      "size_bytes": 131072,
+      "product_codes": [
+        1337
+      ]
+    },
+    {
+      "crc32": "BE31D63F",
+      "size_bytes": 262144,
+      "product_codes": [
+        7506
+      ]
+    },
+    {
+      "crc32": "BEA27D5C",
+      "size_bytes": 131072,
+      "product_codes": [
+        1343
+      ]
+    },
+    {
+      "crc32": "BEDDF80E",
+      "size_bytes": 262144,
+      "product_codes": [
+        1310,
+        7001,
+        7080
+      ]
+    },
+    {
+      "crc32": "BF0411AD",
+      "size_bytes": 262144,
+      "product_codes": [
+        1363
+      ]
+    },
+    {
+      "crc32": "BF7B7285",
+      "size_bytes": 262144,
+      "product_codes": [
+        7070
+      ]
+    },
+    {
+      "crc32": "C08132FB",
+      "size_bytes": 524288,
+      "product_codes": [
+        9004
+      ]
+    },
+    {
+      "crc32": "C0CE19B1",
+      "size_bytes": 262144,
+      "product_codes": [
+        1360
+      ]
+    },
+    {
+      "crc32": "C0E25D62",
+      "size_bytes": 262144,
+      "product_codes": [
+        7105
+      ]
+    },
+    {
+      "crc32": "C13896D5",
+      "size_bytes": 262144,
+      "product_codes": [
+        1347,
+        2347,
+        7005
+      ]
+    },
+    {
+      "crc32": "C172A22C",
+      "size_bytes": 262144,
+      "product_codes": [
+        7117
+      ]
+    },
+    {
+      "crc32": "C19430CE",
+      "size_bytes": 262144,
+      "product_codes": [
+        7033
+      ]
+    },
+    {
+      "crc32": "C4BB1676",
+      "size_bytes": 262144,
+      "product_codes": [
+        7042
+      ]
+    },
+    {
+      "crc32": "C547EB1B",
+      "size_bytes": 262144,
+      "product_codes": [
+        7022
+      ]
+    },
+    {
+      "crc32": "C722FB42",
+      "size_bytes": 262144,
+      "product_codes": [
+        1329
+      ]
+    },
+    {
+      "crc32": "C7DED988",
+      "size_bytes": 262144,
+      "product_codes": [
+        7505
+      ]
+    },
+    {
+      "crc32": "C8718D40",
+      "size_bytes": 524288,
+      "product_codes": [
+        9027
+      ]
+    },
+    {
+      "crc32": "C9DBF936",
+      "size_bytes": 262144,
+      "product_codes": [
+        7109
+      ]
+    },
+    {
+      "crc32": "C9DD4E5F",
+      "size_bytes": 32768,
+      "product_codes": [
+        2101
+      ]
+    },
+    {
+      "crc32": "CA1D3752",
+      "size_bytes": 262144,
+      "product_codes": [
+        7080
+      ]
+    },
+    {
+      "crc32": "CA860451",
+      "size_bytes": 131072,
+      "product_codes": [
+        1324
+      ]
+    },
+    {
+      "crc32": "CAEA8002",
+      "size_bytes": 262144,
+      "product_codes": [
+        7073
+      ]
+    },
+    {
+      "crc32": "CB09F355",
+      "size_bytes": 524288,
+      "product_codes": [
+        9006
+      ]
+    },
+    {
+      "crc32": "D11D32E4",
+      "size_bytes": 524288,
+      "product_codes": [
+        1366
+      ]
+    },
+    {
+      "crc32": "D2417ED7",
+      "size_bytes": 262144,
+      "product_codes": [
+        7044
+      ]
+    },
+    {
+      "crc32": "D29889AD",
+      "size_bytes": 131072,
+      "product_codes": [
+        5108
+      ]
+    },
+    {
+      "crc32": "D40D03C7",
+      "size_bytes": 262144,
+      "product_codes": [
+        7045
+      ]
+    },
+    {
+      "crc32": "D6F2BFCA",
+      "size_bytes": 524288,
+      "product_codes": [
+        9015
+      ]
+    },
+    {
+      "crc32": "D6F43DDA",
+      "size_bytes": 262144,
+      "product_codes": [
+        8007
+      ]
+    },
+    {
+      "crc32": "D7416B83",
+      "size_bytes": 524288,
+      "product_codes": [
+        9007
+      ]
+    },
+    {
+      "crc32": "D8C4165B",
+      "size_bytes": 131072,
+      "product_codes": [
+        1352
+      ]
+    },
+    {
+      "crc32": "D8F2F1B9",
+      "size_bytes": 262144,
+      "product_codes": [
+        7048
+      ]
+    },
+    {
+      "crc32": "D9190956",
+      "size_bytes": 131072,
+      "product_codes": [
+        25006
+      ]
+    },
+    {
+      "crc32": "D91B340D",
+      "size_bytes": 131072,
+      "product_codes": [
+        1305,
+        5055,
+        41008
+      ]
+    },
+    {
+      "crc32": "DA3A2F57",
+      "size_bytes": 131072,
+      "product_codes": [
+        5054
+      ]
+    },
+    {
+      "crc32": "DA5A7013",
+      "size_bytes": 262144,
+      "product_codes": [
+        7015
+      ]
+    },
+    {
+      "crc32": "DA9BE8F0",
+      "size_bytes": 131072,
+      "product_codes": [
+        1323
+      ]
+    },
+    {
+      "crc32": "DEF9B14E",
+      "size_bytes": 524288,
+      "product_codes": [
+        9023
+      ]
+    },
+    {
+      "crc32": "DFB0B161",
+      "size_bytes": 262144,
+      "product_codes": [
+        7023
+      ]
+    },
+    {
+      "crc32": "E030E66C",
+      "size_bytes": 131072,
+      "product_codes": [
+        5013
+      ]
+    },
+    {
+      "crc32": "E0F34FA6",
+      "size_bytes": 131072,
+      "product_codes": [
+        5073
+      ]
+    },
+    {
+      "crc32": "E167A561",
+      "size_bytes": 131072,
+      "product_codes": [
+        6001
+      ]
+    },
+    {
+      "crc32": "E1FFF1BB",
+      "size_bytes": 262144,
+      "product_codes": [
+        1353
+      ]
+    },
+    {
+      "crc32": "E2F7193E",
+      "size_bytes": 262144,
+      "product_codes": [
+        7030
+      ]
+    },
+    {
+      "crc32": "E2FCB6F3",
+      "size_bytes": 131072,
+      "product_codes": [
+        1003,
+        1316,
+        5068
+      ]
+    },
+    {
+      "crc32": "E421E466",
+      "size_bytes": 131072,
+      "product_codes": [
+        1371
+      ]
+    },
+    {
+      "crc32": "E42E4998",
+      "size_bytes": 131072,
+      "product_codes": [
+        5060
+      ]
+    },
+    {
+      "crc32": "E4B7C56A",
+      "size_bytes": 262144,
+      "product_codes": [
+        2356
+      ]
+    },
+    {
+      "crc32": "E7F62E6D",
+      "size_bytes": 262144,
+      "product_codes": [
+        7027
+      ]
+    },
+    {
+      "crc32": "E8215C2E",
+      "size_bytes": 131072,
+      "product_codes": [
+        6080
+      ]
+    },
+    {
+      "crc32": "E843BA7E",
+      "size_bytes": 262144,
+      "product_codes": [
+        7077
+      ]
+    },
+    {
+      "crc32": "E8511B08",
+      "size_bytes": 262144,
+      "product_codes": [
+        7016
+      ]
+    },
+    {
+      "crc32": "E890331D",
+      "size_bytes": 524288,
+      "product_codes": [
+        9011
+      ]
+    },
+    {
+      "crc32": "E8EA842C",
+      "size_bytes": 131072,
+      "product_codes": [
+        6003
+      ]
+    },
+    {
+      "crc32": "EAEBF323",
+      "size_bytes": 32768,
+      "product_codes": [
+        4081,
+        4581,
+        41005
+      ]
+    },
+    {
+      "crc32": "EC2DA554",
+      "size_bytes": 524288,
+      "product_codes": [
+        9013
+      ]
+    },
+    {
+      "crc32": "ECF491CF",
+      "size_bytes": 262144,
+      "product_codes": [
+        7041
+      ]
+    },
+    {
+      "crc32": "F0F35C22",
+      "size_bytes": 262144,
+      "product_codes": [
+        2
+      ]
+    },
+    {
+      "crc32": "F1F8FF2D",
+      "size_bytes": 32768,
+      "product_codes": [
+        4002,
+        4502
+      ]
+    },
+    {
+      "crc32": "F369B2D8",
+      "size_bytes": 262144,
+      "product_codes": [
+        7108
+      ]
+    },
+    {
+      "crc32": "F6FAB48D",
+      "size_bytes": 262144,
+      "product_codes": [
+        7057
+      ]
+    },
+    {
+      "crc32": "F7CA9801",
+      "size_bytes": 262144,
+      "product_codes": [
+        7042
+      ]
+    },
+    {
+      "crc32": "F8176918",
+      "size_bytes": 131072,
+      "product_codes": [
+        8011
+      ]
+    },
+    {
+      "crc32": "F8D33BC4",
+      "size_bytes": 131072,
+      "product_codes": [
+        4360
+      ]
+    },
+    {
+      "crc32": "F97E9875",
+      "size_bytes": 131072,
+      "product_codes": [
+        5501
+      ]
+    },
+    {
+      "crc32": "F9B7D26B",
+      "size_bytes": 524288,
+      "product_codes": [
+        9032
+      ]
+    },
+    {
+      "crc32": "F9DBB533",
+      "size_bytes": 131072,
+      "product_codes": [
+        1330
+      ]
+    },
+    {
+      "crc32": "FA8E4CA0",
+      "size_bytes": 262144,
+      "product_codes": [
+        7079
+      ]
+    },
+    {
+      "crc32": "FBDE42D3",
+      "size_bytes": 131072,
+      "product_codes": [
+        5056
+      ]
+    },
+    {
+      "crc32": "FBE5CFBB",
+      "size_bytes": 131072,
+      "product_codes": [
+        8001
+      ]
+    },
+    {
+      "crc32": "FD91CC7E",
+      "size_bytes": 262144,
+      "product_codes": [
+        7042
+      ]
+    },
+    {
+      "crc32": "FDAB876A",
+      "size_bytes": 262144,
+      "product_codes": [
+        7063
+      ]
+    },
+    {
+      "crc32": "FF614EB3",
+      "size_bytes": 131072,
+      "product_codes": [
+        1335,
+        5100
+      ]
+    },
+    {
+      "crc32": "FFF63B0B",
+      "size_bytes": 131072,
+      "product_codes": [
+        1328
+      ]
+    }
+  ]
+}

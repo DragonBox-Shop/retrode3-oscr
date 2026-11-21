@@ -96,7 +96,12 @@ int capabilities_json_v3(char *out, size_t capacity, char *err, size_t cap)
  "values":[{"value":"linear","label":"Standard linear","read_supported":true}]},
 {"id":"rom_size_bytes","label":"ROM size (bytes)","type":"integer",
  "required":true,"minimum":512,"maximum":4194304}],
-"rules":[{"when":{"mapping":"linear"},"read_supported":true}]
+"rules":[{"when":{"mapping":"linear"},"read_supported":true}],
+"probe_voltage_mv":3300,"read_voltage_mv":5000,
+"hardware_access":{"version":1,
+ "probe":{"voltage_mv":3300,"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false}},
+ "read":{"voltage_mv":5000,"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false}}},
+"automatic_voltage_switch":true
 })V3";
     if (!out || sizeof(schema) > capacity)
         return fail(err, cap, "MegaDrive v3 capability buffer too small");
@@ -112,7 +117,7 @@ int fast_probe_json_v3(char *out, size_t capacity, char *err, size_t cap)
         std::snprintf(checksum, sizeof(checksum), "%04X", info.checksum);
         std::string json = std::string("{\"identification_status\":\"unknown\",") +
             "\"ambiguity\":\"none\",\"selection_required\":false," +
-            "\"candidate_lookup\":\"cartridge_header_only\",\"candidates\":[]," +
+            "\"candidate_lookup\":\"cartridge_header_only\",\"system_detected\":true,\"candidates\":[]," +
             "\"read_layouts\":[{\"id\":\"md-linear\"," +
             "\"label\":\"Standard linear Mega Drive ROM\",\"read_supported\":true," +
             "\"size_bytes\":" + std::to_string(info.size) + "}]," +
@@ -120,7 +125,15 @@ int fast_probe_json_v3(char *out, size_t capacity, char *err, size_t cap)
             ",\"title\":" + retrode3::json_quote_v3(info.title.empty() ?
                 "Mega Drive cartridge" : info.title) +
             ",\"serial\":" + retrode3::json_quote_v3(info.serial) +
-            ",\"checksum\":" + retrode3::json_quote_v3(checksum) + "}";
+            ",\"checksum\":" + retrode3::json_quote_v3(checksum) +
+            ",\"save\":{\"detected\":" + (info.save.advertised ? "true" : "false") +
+            ",\"kind\":" + retrode3::json_quote_v3(retrode3::mdsave::name(info.save.kind)) +
+            ",\"geometry_valid\":" + (info.save.valid ? "true" : "false") +
+            ",\"start_address\":" + std::to_string(info.save.start) +
+            ",\"end_address\":" + std::to_string(info.save.end) +
+            ",\"size_bytes\":" + std::to_string(info.save.bytes) +
+            ",\"read_supported\":false,\"write_supported\":false," +
+            "\"reason\":\"SRAM bus operations pending hardware validation\"}}";
         if (!out || json.size() + 1 > capacity)
             return fail(err, cap, "MegaDrive v3 probe buffer too small");
         std::memcpy(out, json.c_str(), json.size() + 1);
@@ -252,7 +265,7 @@ extern "C" const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void)
         sizeof(retrode3_core_descriptor_v1),
         "md",
         "Mega Drive",
-        "0.2.0-v3",
+        "0.3.0-saveprobe",
         "md"
     };
     return &descriptor;

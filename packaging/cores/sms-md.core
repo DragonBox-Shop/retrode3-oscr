@@ -1,0 +1,4 @@
+id=sms-md
+name=Master System (SMS-0007 adapter)
+version=0.5.0-oscr-header-candidates-lab
+slot=md

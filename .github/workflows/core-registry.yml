@@ -11,6 +11,7 @@ on:
       - 'src/retrode3/**'
       - 'packaging/cores/**'
       - 'tools/build-linux-*-core.py'
+      - 'tests/test_sms_oscr_generator.py'
       - 'tests/test_release_stage.py'
       - 'tests/test_three_core_host.py'
       - 'tests/test_nes_mapper_banks.py'
@@ -24,6 +25,14 @@ on:
       - master
       - develop
     paths:
+      - 'tools/build-linux-sms-core.py'
+      - 'tests/test_sms_oscr_generator.py'
+      - 'include/retrode3/sms_*.h'
+      - 'src/retrode3/oscr_sms_md_adapter.cpp'
+      - 'src/retrode3/sms_md_posix_v1.cpp'
+      - 'tests/sms_*.cpp'
+      - 'tests/test_sms_md_json.py'
+      - 'packaging/cores/sms-md.core'
       - 'include/retrode3/core_descriptor_v1.h'
       - 'include/retrode3/core_operations_v1.h'
       - 'include/retrode3/ndjson_protocol.h'
@@ -108,6 +117,8 @@ jobs:
           cmp packaging/cores/nes.core build/migration/stage/usr/lib/retrode3/cores-available/nes.core
       - name: Verify stable Debian staging filesystem layout
         run: make -f Makefile.migration test-release-stage
+      - name: Exercise SMS-0007 experimental read-only v3 adapter
+        run: make -f Makefile.migration test-sms-md-module
       - name: Verify pinned upstream checkout untouched
         run: |
           git -C third_party/oscr-firmware diff --exit-code
@@ -116,3 +127,32 @@ jobs:
         run: |
           output="$(build/migration/retrode3-cli --list-cores)"
           printf '%s\n' "$output" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["event"] == "cores" and d["cores"] == []'
+
+  sms-python34:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize pinned original OSCR SMS source
+        run: git submodule update --init third_party/oscr-firmware
+      - name: Generate and validate the SMS core with target Python 3.4
+        run: |
+          docker run --rm --volume "$PWD:/workspace" --workdir /workspace python:3.4.10 \
+            sh -ec 'python3 tools/build-linux-sms-core.py --size-output build/migration/oscr_sms_size.h --read-output build/migration/oscr_sms_read.h && python3 tools/build-linux-sms-catalog.py --output build/migration/oscr_sms_catalog.h && python3 tools/build-linux-sms-header-catalog.py --output build/migration/oscr_sms_header_catalog.h && python3 -m unittest discover -s tests -p "test_sms_header_catalog_generator.py" -v && python3 -m unittest discover -s tests -p "test_sms_oscr_generator.py" -v && python3 -m unittest discover -s tests -p "test_sms_catalog_generator.py" -v'
+
+  sms-gcc8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize pinned original OSCR SMS source
+        run: git submodule update --init third_party/oscr-firmware
+      - name: Generate pinned original on CI host Python
+        run: |
+          mkdir -p build/migration
+          python3 tools/build-linux-sms-core.py --size-output build/migration/oscr_sms_size.h --read-output build/migration/oscr_sms_read.h
+          python3 tools/build-linux-sms-catalog.py --output build/migration/oscr_sms_catalog.h
+          python3 tools/build-linux-sms-header-catalog.py --output build/migration/oscr_sms_header_catalog.h
+          touch build/migration/oscr_sms_generated.stamp
+      - name: Compile generated SMS core with GCC 8 and warnings as errors
+        run: |
+          docker run --rm --volume "$PWD:/workspace" --workdir /workspace gcc:8 \
+            make -f Makefile.migration native-sms-md-module
