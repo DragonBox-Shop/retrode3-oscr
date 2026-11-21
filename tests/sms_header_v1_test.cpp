@@ -24,6 +24,28 @@ int main()
         assert(got.region_code == 4u);
         assert(got.size_code == cases[i].code);
     }
+    // Header product number 5055 is BCD 55 50, with low revision
+    // nibble independent of the product code.
+    std::uint8_t product[16] = {};
+    std::memcpy(product, "TMR SEGA", 8);
+    product[12] = 0x55;
+    product[13] = 0x50;
+    product[14] = 0x01;
+    product[15] = 0x4f;
+    retrode3::sms::Header decoded = retrode3::sms::Header();
+    assert(retrode3::sms::decode_header(product, 16, &decoded));
+    assert(decoded.product_code_valid);
+    assert(decoded.product_code == 5055u);
+    assert(decoded.revision == 1u);
+    product[12] = 0xff;
+    assert(retrode3::sms::decode_header(product, 16, &decoded));
+    assert(!decoded.product_code_valid);
+    product[12] = 0x55;
+    product[14] = 0xa3;
+    assert(retrode3::sms::decode_header(product, 16, &decoded));
+    assert(decoded.product_code == 105055u);
+    assert(decoded.revision == 3u);
+
     std::uint8_t sample[16] = {};
     std::memcpy(sample, "TMR SEGA", 8);
     sample[15] = 0x4Cu;
