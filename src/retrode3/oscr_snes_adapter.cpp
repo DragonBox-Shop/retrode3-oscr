@@ -135,6 +135,9 @@ int capabilities_json_v3(char *json, size_t capacity, char *err, size_t cap)
 {
     static const char schema[] = R"V3({
 "schema_version":1,"schema_id":"snes-standard-v1",
+"hardware_access":{"version":1,
+ "probe":{"module_parameters":{"legacy_bridge_hiz_test":true,"sms_mapper_write_test":false}},
+ "read":{"module_parameters":{"legacy_bridge_hiz_test":true,"sms_mapper_write_test":false}}},
 "selection_modes":["auto","layout","override"],
 "fields":[
 {"id":"mapping","label":"ROM mapping","type":"enum","required":true,
