@@ -65,6 +65,14 @@ class HardwareScopeV1 {
         if (n != static_cast<ssize_t>(data.size()) || close_rc != 0)
             throw std::runtime_error("incomplete hardware state write: " + path);
     }
+    static void write_voltage(const std::string &path, const std::string &mv) {
+#ifdef RETRODE3_TESTING
+        // Regular-file fake sysfs stores displayed values, not kernfs setters.
+        const char *root = std::getenv("RETRODE3_TEST_SLOT_ROOT");
+        if (root && *root) { write_value(path, mv + "mV"); return; }
+#endif
+        write_value(path, mv);
+    }
     static bool identifier(const std::string &s) {
         if (s.empty() || s.size() > 64) return false;
         for (std::size_t i = 0; i < s.size(); ++i) {
@@ -124,7 +132,7 @@ class HardwareScopeV1 {
         if (read_value(slot_root() + "/slot-" + slot + "/sense") != "active")
             throw std::runtime_error("cartridge removed before voltage switch");
         previous_.push_back(Previous{path, original.substr(0, 4), true});
-        write_value(path, std::to_string(mv));
+        write_voltage(path, std::to_string(mv));
         if (read_value(path) != desired)
             throw std::runtime_error("slot voltage readback mismatch");
     }
@@ -146,7 +154,8 @@ class HardwareScopeV1 {
             const Previous entry = previous_.back();
             previous_.pop_back();
             try {
-                write_value(entry.path, entry.value);
+                if (entry.voltage) write_voltage(entry.path, entry.value);
+                else write_value(entry.path, entry.value);
                 const std::string actual = read_value(entry.path);
                 if (entry.voltage) {
                     if (actual != entry.value + "mV")
