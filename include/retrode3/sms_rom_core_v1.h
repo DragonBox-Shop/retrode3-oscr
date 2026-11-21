@@ -70,7 +70,11 @@ inline Probe bounded_probe(Bus &bus)
             probe.address = addresses[i];
         } else if (header.declared_rom_bytes != probe.header.declared_rom_bytes ||
                    header.checksum != probe.header.checksum ||
-                   header.region_code != probe.header.region_code) {
+                   header.region_code != probe.header.region_code ||
+                   header.product_code_valid != probe.header.product_code_valid ||
+                   (header.product_code_valid &&
+                    header.product_code != probe.header.product_code) ||
+                   header.revision != probe.header.revision) {
             probe.conflicting_headers = true;
         }
     }
