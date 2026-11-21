@@ -162,6 +162,7 @@ int fast_probe_json_v3(char *json, size_t capacity, char *err, size_t cap)
         const bool lo = std::strcmp(info.mapping, "lo") == 0;
         std::string payload = std::string("{\"identification_status\":\"unknown\",") +
             "\"ambiguity\":\"none\",\"selection_required\":false," +
+            "\"system_detected\":true," +
             "\"candidate_lookup\":\"cartridge_header_only\",\"candidates\":[]," +
             "\"read_layouts\":[{\"id\":\"" + (lo ? "snes-lo" : "snes-hi") +
             "\",\"label\":\"" + (lo ? "Standard LoROM" : "Standard HiROM") +
