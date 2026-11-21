@@ -683,6 +683,7 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
     std::string json = std::string("{\"identification_status\":") +
         retrode3::json_quote_v3(result.identification_status) +
         ",\"ambiguity\":" + retrode3::json_quote_v3(ambiguity) +
+        ",\"system_detected\":true" +
         ",\"selection_required\":" + (required ? "true" : "false") +
         ",\"candidate_lookup\":\"fingerprint_only\",\"checksum\":null" +
         ",\"probe_fingerprints\":{\"cpu_8000_crc32\":" +
