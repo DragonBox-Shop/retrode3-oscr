@@ -7,6 +7,8 @@ typedef int (*CancelFn)(void *context);
 bool sms_experiment_enabled();
 bool sms_voltage_is_5v();
 bool sms_voltage_allows_probe();
+bool sms_mapper_experiment_enabled();
+bool sms_kernel_mapper_gate_enabled();
 
 // Separate 3.3V-safe header detection from authorized 5V ROM streaming.
 enum SmsMdAccess { SmsMdRomRead, SmsMdHeaderProbe };
@@ -16,6 +18,8 @@ class SmsMdPosixBus : public Bus {
     CancelFn cancel_;
     void *context_;
     SmsMdAccess access_;
+    bool mapper_started_;
+    bool mapper_write(std::uint16_t register_address, std::uint8_t value);
     SmsMdPosixBus(const SmsMdPosixBus &);
     SmsMdPosixBus &operator=(const SmsMdPosixBus &);
 public:
