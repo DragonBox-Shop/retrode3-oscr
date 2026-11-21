@@ -164,6 +164,13 @@ public:
     HardwareScopeV1(const JsonV3 &schema, const std::string &slot,
                     const char *phase)
         : restoring_(false) {
+#ifdef RETRODE3_TESTING
+        // Existing offline fixtures have no /sys module or voltage controls.
+        // Explicitly opted-in scope tests provide fake sysfs roots and
+        // exercise the exact same transition/rollback implementation.
+        const char *test_scope = std::getenv("RETRODE3_TEST_HARDWARE_SCOPE");
+        if (!test_scope || std::strcmp(test_scope, "1") != 0) return;
+#endif
         if (!schema.has("hardware_access")) return; // legacy v3 compatibility
         if (!identifier(slot) || !phase ||
             (std::strcmp(phase, "probe") && std::strcmp(phase, "read")))
