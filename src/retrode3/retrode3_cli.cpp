@@ -1039,10 +1039,19 @@ std::string probe_event_v3(std::string const &id, Core const &core,
         if (it->first == "system" || it->first == "core" ||
             it->first == "slot" || it->first == "selection_schema_id" ||
             it->first == "event" || it->first == "protocol" ||
-            it->first == "version" || it->first == "request_id")
+            it->first == "version" || it->first == "request_id" ||
+            it->first == "read_voltage_mv")
             throw std::runtime_error("core probe attempted envelope override");
         out += "," + retrode3::NdjsonProtocol::quote(it->first) + ":" +
             retrode3::stringify_json_v3(it->second);
+    }
+    // The core capability schema is authoritative for the nominal read
+    // voltage. The probe body must not spoof this metadata.
+    if (schema.has("read_voltage_mv")) {
+        const retrode3::JsonV3 &voltage = schema.at("read_voltage_mv");
+        if (voltage.kind == retrode3::JsonV3::Integer &&
+            (voltage.integer == 3300 || voltage.integer == 5000))
+            out += ",\"read_voltage_mv\":" + std::to_string(voltage.integer);
     }
     return out + "}";
 }
