@@ -165,7 +165,7 @@ int main()
     s.mode = RETRODE3_SELECT_CANDIDATE_V3;
     s.layout_id[0] = '\0';
     std::strcpy(s.candidate_id, "sms-crc-3658F3E0");
-    assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT", "enable-readonly-v1") == 0);
+    assert(::setenv("RETRODE3_SMS_MD_EXPERIMENT", "enable-readonly-v1", 1) == 0);
     assert(ops->plan_read(&s, &p, error, sizeof(error)) != 0);
     assert(std::strstr(error, "mapper needs explicit opt-in") != NULL);
     std::strcpy(s.candidate_id, "sms-crc-00000000");
