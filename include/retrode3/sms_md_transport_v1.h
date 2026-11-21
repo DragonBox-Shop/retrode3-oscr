@@ -37,8 +37,7 @@ inline bool sms_mapper_write_offset(std::uint16_t register_address,
                                     std::uint8_t value,
                                     std::uint32_t *file_offset)
 {
-    if (!file_offset || register_address < 0xfffcu ||
-        register_address > 0xffffu)
+    if (!file_offset || register_address < 0xfffcu)
         return false;
     if ((register_address == 0xfffcu && value != 0u) ||
         (register_address == 0xfffdu && value != 0u) ||
