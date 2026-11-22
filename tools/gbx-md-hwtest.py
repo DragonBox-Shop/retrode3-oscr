@@ -119,8 +119,8 @@ def main():
             if a.dump:
                 if header[1] not in (0, 8, 9) or header[2] != 0:
                     raise RuntimeError("Stage 1 supports 32 KiB no-MBC only")
-                voltage(5000)
                 try:
+                    voltage(5000)
                     if probe_gb(fd) != header:
                         raise RuntimeError("GB header changed at 5 V")
                     dump(fd, "gb", 32768, a.dump)
