@@ -105,8 +105,24 @@ def main():
     voltage(3300)
     if a.system == "arm":
         # No GB/GBC/GBA cartridge may be inserted during arm.
-        with open(PARAM, "w") as file:
-            file.write("1\n")
+        # Some images forbid runtime writes to module parameters. In that
+        # case load the test .ko with gbx_md_test=1 and use this arm command.
+        with open(PARAM, "r") as file:
+            armed = file.read().strip().lower() in ("1", "y", "yes")
+        if not armed:
+            try:
+                with open(PARAM, "w") as file:
+                    file.write("1\n")
+            except OSError as error:
+                raise RuntimeError(
+                    "Cannot enable gbx_md_test through sysfs (%s). "
+                    "With the cartridge and adapter removed, reload the "
+                    "test module using: insmod "
+                    "/root/retrode3-gbx-test.ko gbx_md_test=1; "
+                    "then rerun this arm command." % error)
+        with open(PARAM, "r") as file:
+            if file.read().strip().lower() not in ("1", "y", "yes"):
+                raise RuntimeError("gbx_md_test did not become active")
         fd = os.open(DEV, os.O_RDONLY)
         try:
             get(fd, GBA_LOW, 0, 1)  # first cycle makes A19 high-Z
