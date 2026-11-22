@@ -14,6 +14,7 @@ PARAM = "/sys/module/retrode3/parameters/gbx_md_test"
 GB = 23
 GBA_LOW = 24
 GBA_HIGH = 25
+GB_PINS = 26  # diagnostic GPIO mask (A7..A18), GB address * 2
 WINDOW = 0x1000000
 
 
@@ -60,6 +61,28 @@ def probe_gba(fd):
     return (title, code, h[0xbd])
 
 
+def diagnose_gb_pins(fd):
+    # Nintendo logo provides a known alternating D7 pattern.
+    # This diagnostic reads physical input GPIO levels during GB /RD.
+    expected = (
+        (0x0100, 0x00), (0x0101, 0xc3),
+        (0x0104, 0xce), (0x0105, 0xed),
+        (0x0106, 0x66), (0x0107, 0x66),
+        (0x0108, 0xcc), (0x0109, 0x0d),
+        (0x010a, 0x00), (0x010b, 0x0b),
+        (0x010f, 0x83), (0x0118, 0x88),
+        (0x0119, 0x89), (0x0134, 0x50))
+    print("GB INPUT GPIO SNAPSHOT: A7..A18, 3.3V, /RD active")
+    print("Address  Expected  D7  MD pins HIGH (A7..A18)   mask")
+    for addr, known in expected:
+        raw = get(fd, GB_PINS, addr * 2, 2)
+        mask = raw[0] | (raw[1] << 8)
+        high = ",".join("A%d" % pin for pin in range(7, 19)
+                        if mask & (1 << (pin - 7)))
+        print("%04X       %02X        %d   %-27s %03X" %
+              (addr, known, known >> 7, high or "(none)", mask))
+
+
 def dump(fd, family, length, path):
     partial = path + ".partial"
     if os.path.exists(path) or os.path.exists(partial):
@@ -91,15 +114,19 @@ def main():
     parser.add_argument("--dump", help="ROM output path; optional")
     parser.add_argument("--raw", action="store_true",
                         help="Print raw header bytes even if header validation fails")
+    parser.add_argument("--pins", action="store_true",
+                        help="GB only: inspect read-only GPIO A7..A18 during /RD (kernel mode 26)")
     parser.add_argument("--mib", type=int, choices=(1, 2, 4, 8, 16, 32),
                         help="GBA ROM size, required for GBA dump")
     a = parser.parse_args()
-    if a.system == "arm" and (a.dump or a.mib or a.raw):
+    if a.system == "arm" and (a.dump or a.mib or a.raw or a.pins):
         parser.error("arm takes no dump parameters")
     if a.system == "gba" and a.dump and not a.mib:
         parser.error("GBA dump requires --mib")
     if a.system != "gba" and a.mib:
         parser.error("--mib is only for GBA")
+    if a.system != "gb" and a.pins:
+        parser.error("--pins only works for GB/GBC")
 
     # Both header probes ALWAYS use 3.3 V.
     voltage(3300)
@@ -143,6 +170,8 @@ def main():
                       " ".join("%02X" % byte for byte in
                                bytearray(raw[i:i + 16]))))
         if a.system == "gb":
+            if a.pins:
+                diagnose_gb_pins(fd)
             header = probe_gb(fd)
             print("GB/GBC at 3.3V: title=%r type=%02X ROM=%02X RAM=%02X" %
                   header[:4])
