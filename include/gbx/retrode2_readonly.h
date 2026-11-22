@@ -53,7 +53,9 @@ struct GbaHeader {
 };
 
 /* Hardware voltage selection MUST happen before probe, outside this API:
- * GB/GBC: 5 V, GBA: 3.3 V; neither may be tried speculatively. */
+ * ALL probes (GB/GBC and GBA) run at 3.3 V. Only after a successful,
+ * explicitly selected GB/GBC probe may a ROM read switch to 5 V.
+ * GBA ROM reads remain at 3.3 V. Never automatically probe at 5 V. */
 Status probe_gb(const Bus &bus, GbHeader *header);
 Status probe_gba(const Bus &bus, GbaHeader *header);
 
