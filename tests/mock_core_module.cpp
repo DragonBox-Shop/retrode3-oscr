@@ -76,3 +76,52 @@ extern "C" const retrode3_core_operations_v1 *retrode3_core_get_operations_v1(vo
     return &operations;
 }
 #endif
+
+#ifdef RETRODE3_MOCK_FLASH_OPERATIONS
+// Explicit test-only plugin implementing the additive Flash ABI.
+// There is NO bus access and the fixture deliberately cannot program.
+#include "retrode3/core_flash_v1.h"
+#include <cstring>
+namespace {
+int mock_flash_capabilities(char *json, size_t capacity, char *, size_t) {
+    static const char value[] =
+        "{\\\"version\\\":1,\\\"cfi_supported\\\":true,\\\"probe_supported\\\":true,"
+        "\\\"write_supported\\\":false,\\\"verify_supported\\\":false}";
+    if (!json || capacity < sizeof(value)) return -1;
+    std::memcpy(json, value, sizeof(value));
+    return 0;
+}
+int mock_flash_probe(retrode3_flash_probe_v1 *probe, char *, size_t) {
+    if (!probe || probe->struct_size != sizeof(*probe)) return -1;
+    probe->cfi_valid = 1;
+    probe->write_supported = 0;
+    probe->verify_supported = 0;
+    probe->manufacturer_id = 0x7f;
+    probe->device_id = 0x1234;
+    probe->primary_command_set = 2;
+    probe->interface_code = 2;
+    probe->capacity_bytes = 4194304u;
+    probe->region_count = 1;
+    probe->regions[0].start_bytes = 0;
+    probe->regions[0].block_bytes = 65536;
+    probe->regions[0].blocks = 64;
+    std::strcpy(probe->adapter_profile, "offline-simulated");
+    std::strcpy(probe->diagnostic, "mock fixture - no hardware access");
+    return 0;
+}
+int mock_flash_plan(const retrode3_flash_probe_v1 *, uint64_t,
+                    char *, size_t) { return -1; }
+int mock_flash_write(const retrode3_flash_probe_v1 *, uint64_t,
+                     const retrode3_flash_host_io_v1 *,
+                     char *, size_t) { return -1; }
+} // anonymous namespace
+extern "C" const retrode3_core_flash_operations_v1 *
+retrode3_core_get_flash_operations_v1(void)
+{
+    static const retrode3_core_flash_operations_v1 functions = {
+        RETRODE3_CORE_FLASH_ABI_V1, sizeof(retrode3_core_flash_operations_v1),
+        mock_flash_capabilities, mock_flash_probe, mock_flash_plan, mock_flash_write
+    };
+    return &functions;
+}
+#endif
