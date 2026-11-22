@@ -200,7 +200,8 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     }
     if (cmd.action != "probe" && cmd.action != "read_rom" &&
         cmd.action != "cancel" && cmd.action != "get_capabilities" &&
-        cmd.action != "list_cores" && cmd.action != "probe_slot")
+        cmd.action != "list_cores" && cmd.action != "probe_slot" &&
+        cmd.action != "get_flash_capabilities" && cmd.action != "flash_probe")
         throw std::runtime_error("unsupported command");
     if (cmd.action == "list_cores" && (!cmd.core.empty() || !cmd.slot.empty()))
         throw std::runtime_error("list_cores takes no core identifier");
