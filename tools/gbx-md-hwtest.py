@@ -6,6 +6,7 @@ from __future__ import print_function
 import argparse
 import os
 import sys
+import zlib
 
 DEV = "/dev/slot-md"
 VCC = "/sys/class/retrode3/slot-md/vcc"
@@ -63,6 +64,7 @@ def dump(fd, family, length, path):
     partial = path + ".partial"
     if os.path.exists(path) or os.path.exists(partial):
         raise RuntimeError("Output or partial file already exists")
+    crc = 0
     try:
         with open(partial, "xb") as output:
             for offset in range(0, length, 512):
@@ -72,9 +74,11 @@ def dump(fd, family, length, path):
                     mode = GBA_LOW if offset < WINDOW else GBA_HIGH
                     buf = get(fd, mode, offset % WINDOW, 512)
                 output.write(buf)
+                crc = zlib.crc32(buf, crc)
             output.flush()
             os.fsync(output.fileno())
         os.rename(partial, path)
+        return crc & 0xffffffff
     except BaseException:
         if os.path.exists(partial):
             os.unlink(partial)
@@ -85,10 +89,12 @@ def main():
     parser = argparse.ArgumentParser(description="GBx-0011 MD header test")
     parser.add_argument("system", choices=("arm", "gb", "gba"))
     parser.add_argument("--dump", help="ROM output path; optional")
+    parser.add_argument("--raw", action="store_true",
+                        help="Print raw header bytes even if header validation fails")
     parser.add_argument("--mib", type=int, choices=(1, 2, 4, 8, 16, 32),
                         help="GBA ROM size, required for GBA dump")
     a = parser.parse_args()
-    if a.system == "arm" and (a.dump or a.mib):
+    if a.system == "arm" and (a.dump or a.mib or a.raw):
         parser.error("arm takes no dump parameters")
     if a.system == "gba" and a.dump and not a.mib:
         parser.error("GBA dump requires --mib")
@@ -112,6 +118,14 @@ def main():
 
     fd = os.open(DEV, os.O_RDONLY)
     try:
+        if a.raw:
+            mode, pos, n = ((GB, 0x100, 0x50) if a.system == "gb"
+                            else (GBA_LOW, 0, 0xc0))
+            raw = get(fd, mode, pos, n)
+            for i in range(0, n, 16):
+                print("%04X: %s" % (pos + i,
+                      " ".join("%02X" % byte for byte in
+                               bytearray(raw[i:i + 16]))))
         if a.system == "gb":
             header = probe_gb(fd)
             print("GB/GBC at 3.3V: title=%r type=%02X ROM=%02X RAM=%02X" %
@@ -123,18 +137,18 @@ def main():
                     voltage(5000)
                     if probe_gb(fd) != header:
                         raise RuntimeError("GB header changed at 5 V")
-                    dump(fd, "gb", 32768, a.dump)
+                    crc = dump(fd, "gb", 32768, a.dump)
                 finally:
                     voltage(3300)
-                print("Wrote 32768 bytes: " + a.dump)
+                print("Wrote 32768 bytes: %s CRC32=%08X" % (a.dump, crc))
         else:
             header = probe_gba(fd)
             print("GBA at 3.3V: title=%r game_code=%s" % header[:2])
             if a.dump:
                 if probe_gba(fd) != header:
                     raise RuntimeError("GBA header changed")
-                dump(fd, "gba", a.mib * 1024 * 1024, a.dump)
-                print("Wrote %d MiB: %s" % (a.mib, a.dump))
+                crc = dump(fd, "gba", a.mib * 1024 * 1024, a.dump)
+                print("Wrote %d MiB: %s CRC32=%08X" % (a.mib, a.dump, crc))
     finally:
         os.close(fd)
 
