@@ -189,7 +189,8 @@ REGISTRY_CLI_SOURCES = src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protoco
 REGISTRY_CLI_HEADERS = include/retrode3/core_descriptor_v1.h \
 	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v2.h \
 	include/retrode3/core_operations_v3.h include/retrode3/json_v3.h \
-	include/retrode3/ndjson_protocol.h include/retrode3/hardware_scope_v1.h
+	include/retrode3/ndjson_protocol.h include/retrode3/hardware_scope_v1.h \
+	include/retrode3/core_flash_v1.h
 
 build/migration/retrode3-cli: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
 	mkdir -p build/migration
@@ -271,7 +272,7 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module test-flash-cfi-v1
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module test-flash-cfi-v1 test-flash-cli-v1
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
@@ -371,3 +372,16 @@ test-flash-cfi-v1:
 	mkdir -p build/migration
 	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) tests/flash_cfi_v1_test.cpp -o build/migration/flash_cfi_v1_test
 	./build/migration/flash_cfi_v1_test
+
+# Mock-only ABI fixture has no real flash device and cannot program.
+build/migration/registry-fixtures/flashmock.so: tests/mock_core_module.cpp \
+	include/retrode3/core_flash_v1.h include/retrode3/core_descriptor_v1.h
+	mkdir -p build/migration/registry-fixtures
+	$(CXX) $(NATIVE_CXXFLAGS) $(NATIVE_INCLUDES) -fPIC -shared \
+		-DRETRODE3_MOCK_OPERATIONS -DRETRODE3_MOCK_FLASH_OPERATIONS \
+		-DRETRODE3_MOCK_ID='"flashmock"' -DRETRODE3_MOCK_NAME='"Mock Flash"' \
+		-DRETRODE3_MOCK_SLOT='"md"' $< -o $@
+
+.PHONY: test-flash-cli-v1
+test-flash-cli-v1: build/migration/retrode3-cli-mock build/migration/registry-fixtures/flashmock.so
+	python3 -m unittest discover -s tests -p 'test_flash_cli_v1.py' -v
