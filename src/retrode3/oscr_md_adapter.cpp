@@ -5,6 +5,7 @@
 #include "retrode3/core_descriptor_v1.h"
 #include "retrode3/core_operations_v1.h"
 #include "retrode3/core_operations_v3.h"
+#include "retrode3/core_flash_v1.h"
 #include "retrode3/json_v3.h"
 #include "retrode3/oscr_md_stage1.h"
 
@@ -252,6 +253,38 @@ int read_rom_v3(const retrode3_selection_v3 *choice,
     catch (...) { return fail(err, cap, "unknown MegaDrive v3 read error"); }
 }
 
+/* Advertise the emerging generic Flash ABI, but NEVER issue CFI command
+ * writes until the independent kernel-bus transport is physically reviewed.
+ * Read-only MD operation and SRAM probing are deliberately unchanged. */
+int md_flash_capabilities(char *out, size_t capacity, char *error, size_t error_capacity)
+{
+    static const char data[] = R"FLASH({
+"version":1,"system":"md","adapter":"megadrive",
+"cfi_supported":false,"probe_supported":false,
+"write_supported":false,"verify_supported":false,
+"supported_command_sets":[],
+"reason":"Retrode3 flash bus transport not available or hardware-verified"
+})FLASH";
+    if (!out || sizeof(data) > capacity)
+        return fail(error, error_capacity, "MegaDrive flash capability buffer too small");
+    std::memcpy(out, data, sizeof(data));
+    return 0;
+}
+int md_flash_probe(retrode3_flash_probe_v1 *, char *error, size_t capacity)
+{
+    return fail(error, capacity, "MegaDrive CFI probing requires pending kernel flash transport");
+}
+int md_flash_plan(const retrode3_flash_probe_v1 *, uint64_t,
+                  char *error, size_t capacity)
+{
+    return fail(error, capacity, "MegaDrive Flash write not yet enabled");
+}
+int md_flash_write(const retrode3_flash_probe_v1 *, uint64_t,
+                   const retrode3_flash_host_io_v1 *, char *error, size_t capacity)
+{
+    return fail(error, capacity, "MegaDrive Flash write not yet enabled");
+}
+
 void release()
 {
     retrode3::mdstage1::close_slot();
@@ -288,6 +321,16 @@ extern "C" const retrode3_core_operations_v3 *retrode3_core_get_operations_v3(vo
     static const retrode3_core_operations_v3 operations = {
         RETRODE3_CORE_OPERATION_ABI_V3, sizeof(retrode3_core_operations_v3),
         capabilities_json_v3, fast_probe_json_v3, plan_read_v3, read_rom_v3
+    };
+    return &operations;
+}
+
+extern "C" const retrode3_core_flash_operations_v1 *
+retrode3_core_get_flash_operations_v1(void)
+{
+    static const retrode3_core_flash_operations_v1 operations = {
+        RETRODE3_CORE_FLASH_ABI_V1, sizeof(retrode3_core_flash_operations_v1),
+        md_flash_capabilities, md_flash_probe, md_flash_plan, md_flash_write
     };
     return &operations;
 }
