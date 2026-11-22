@@ -43,9 +43,21 @@ MD A0/A1/A4/A7 lines are wired to N64-only signals.
   `GameBoyAdvance::cartOn()` requests **3.3 V**. The Eagle net's
   `+3V3` label does **not** insert a regulator. Never automatically
   try a 5-V GB probe against a potentially inserted GBA game.
-* Until a trusted cartridge-family identification method exists,
-  require an explicit GB/GBC vs. GBA selection before applying the
-  corresponding voltage. `slot-md/sense` proves only MD-slot presence.
+* **All probes use 3.3 V, without exception**, for both GB/GBC and
+  GBA. A probe must never raise the slot to 5 V, including on
+  invalid, ambiguous or absent headers. A GB/GBC cartridge may not
+  respond reliably at 3.3 V: classify that result as inconclusive,
+  not as proof of GBA or an empty slot. Do not retry at 5 V in the
+  automatic probe.
+* The first physical test selects GB/GBC or GBA manually. Later, the
+  generic host may probe both header formats at 3.3 V and select a
+  family only when sufficiently identified. `slot-md/sense`
+  proves only MD-slot presence.
+* During **ROM reading only**, apply the selected family profile:
+  GB/GBC **5 V**, GBA **3.3 V**, analogous to SMS-MD hardware
+  profiles. Revalidate the selected family and cartridge presence
+  before switching voltage; restore the previous hardware profile
+  on completion, failure and cancellation.
 * Verify the board and host electrical path for MD data-bus output and
   MD address-bus input. A GPIO/software DDR setting alone does not prove
   an intervening hardware buffer is bidirectional. In particular, the
@@ -141,7 +153,8 @@ output, size rejection and cancellation. **No cartridge was connected.**
    contract. Keep original Sanni sources pinned and unmodified; upstream
    the portable adapter and AVR backend only after review.
 3. Add `gb-md` and `gba-md` **separate** v3 `.so` adapters (physical slot
-   `md`), with explicit hardware profiles, safe probe order, generic
+   `md`), each with a 3.3-V probe profile; GB/GBC reading uses 5 V,
+   GBA reading 3.3 V. Provide safe probe order, generic
    selection/override schema and no per-system Web code. MBC bank writes
    require further explicit kernel, timing and SRAM-safety acceptance.
 4. Run the repository's complete `./tools/preflight-ci.sh`, MIPS build,
