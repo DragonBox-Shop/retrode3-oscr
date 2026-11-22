@@ -6,6 +6,7 @@
 #include "retrode3/core_operations_v1.h"
 #include "retrode3/core_operations_v2.h"
 #include "retrode3/core_operations_v3.h"
+#include "retrode3/core_flash_v1.h"
 #include "retrode3/json_v3.h"
 #include "retrode3/hardware_scope_v1.h"
 #include "retrode3/ndjson_protocol.h"
@@ -394,7 +395,8 @@ struct OpenCore {
     const retrode3_core_operations_v1 *api;
     const retrode3_core_operations_v2 *api2;
     const retrode3_core_operations_v3 *api3;
-    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL), api2(NULL), api3(NULL) {
+    const retrode3_core_flash_operations_v1 *flash;
+    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL), api2(NULL), api3(NULL), flash(NULL) {
         handle = ::dlopen(module.c_str(), RTLD_NOW | RTLD_LOCAL);
         if (!handle) throw std::runtime_error("could not load enabled core");
         try {
@@ -426,6 +428,17 @@ struct OpenCore {
                     !api3->capabilities_json || !api3->fast_probe_json ||
                     !api3->plan_read || !api3->read_rom)
                     throw std::runtime_error("core v3 ABI invalid");
+            }
+            void *flash_symbol = ::dlsym(handle, "retrode3_core_get_flash_operations_v1");
+            if (flash_symbol) {
+                retrode3_core_flash_operations_v1_fn getflash =
+                    reinterpret_cast<retrode3_core_flash_operations_v1_fn>(flash_symbol);
+                flash = getflash();
+                if (!flash || flash->abi_version != RETRODE3_CORE_FLASH_ABI_V1 ||
+                    flash->struct_size < sizeof(*flash) ||
+                    !flash->capabilities_json || !flash->probe ||
+                    !flash->plan_write || !flash->write_verify)
+                    throw std::runtime_error("core flash ABI invalid");
             }
         } catch (...) {
             ::dlclose(handle);
@@ -1002,6 +1015,105 @@ void emit_capabilities_v3(retrode3::NdjsonProtocol &stream,
         + retrode3::stringify_json_v3(schema) + "}");
 }
 
+// Optional flash ABI discovery is intentionally separate from read capabilities.
+// No bus access occurs here. In particular, this cannot initiate CFI mode.
+void emit_flash_capabilities(retrode3::NdjsonProtocol &stream,
+                             std::string const &id, Core const &core,
+                             OpenCore &module)
+{
+    if (!module.flash) {
+        stream.emit(prefix("flash_capabilities", id)
+            + ",\\\"system\\\":" + retrode3::NdjsonProtocol::quote(core.id)
+            + ",\\\"core\\\":" + retrode3::NdjsonProtocol::quote(core.id)
+            + ",\\\"slot\\\":" + retrode3::NdjsonProtocol::quote(core.slot)
+            + ",\\\"available\\\":false,\\\"write_supported\\\":false}");
+        return;
+    }
+    char response[4096] = {};
+    char error[256] = {};
+    if (module.flash->capabilities_json(response, sizeof(response),
+                                         error, sizeof(error)) != 0)
+        throw std::runtime_error(error[0] ? safe_cstr(error, sizeof(error)) :
+                                 "flash capability lookup failed");
+    retrode3::JsonV3 document = retrode3::parse_json_v3(
+        safe_cstr(response, sizeof(response)));
+    if (document.kind != retrode3::JsonV3::Object ||
+        !document.has("write_supported") ||
+        document.at("write_supported").kind != retrode3::JsonV3::Boolean)
+        throw std::runtime_error("invalid flash capability document");
+    stream.emit(prefix("flash_capabilities", id)
+        + ",\\\"system\\\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\\\"core\\\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\\\"slot\\\":" + retrode3::NdjsonProtocol::quote(core.slot)
+        + ",\\\"available\\\":true,\\\"write_supported\\\":" +
+          (document.at("write_supported").boolean ? "true" : "false")
+        + ",\\\"capabilities\\\":" + retrode3::stringify_json_v3(document) + "}");
+}
+
+// CFI probing is NEVER part of slot auto-detection. It can require writes to
+// enter flash query mode. Explicit user selection and the BusLock are required.
+void emit_flash_probe(retrode3::NdjsonProtocol &stream,
+                      std::string const &id, Core const &core,
+                      OpenCore &module)
+{
+    if (!module.flash) throw std::runtime_error("core has no flash capability");
+    retrode3_flash_probe_v1 probe;
+    std::memset(&probe, 0, sizeof(probe));
+    probe.struct_size = sizeof(probe);
+    char error[256] = {};
+    if (module.flash->probe(&probe, error, sizeof(error)) != 0)
+        throw std::runtime_error(error[0] ? safe_cstr(error, sizeof(error)) :
+                                 "flash probe failed");
+    if (probe.struct_size != sizeof(probe) || probe.cfi_valid > 1 ||
+        probe.write_supported > 1 || probe.verify_supported > 1 ||
+        probe.reserved != 0 || probe.region_count > RETRODE3_FLASH_MAX_REGIONS_V1)
+        throw std::runtime_error("invalid flash probe response");
+    const std::string profile = safe_cstr(probe.adapter_profile, sizeof(probe.adapter_profile));
+    const std::string diagnostic = safe_cstr(probe.diagnostic, sizeof(probe.diagnostic));
+    std::uint64_t total = 0;
+    std::string regions = "[";
+    if (probe.cfi_valid) {
+        if (!probe.capacity_bytes || !probe.region_count)
+            throw std::runtime_error("incomplete CFI flash geometry");
+        for (unsigned i = 0; i < probe.region_count; ++i) {
+            const retrode3_flash_region_v1 &region = probe.regions[i];
+            const std::uint64_t length =
+                static_cast<std::uint64_t>(region.block_bytes) * region.blocks;
+            if (!region.block_bytes || !region.blocks || region.start_bytes != total ||
+                length > probe.capacity_bytes - total)
+                throw std::runtime_error("invalid CFI erase geometry");
+            if (i) regions += ",";
+            regions += "{\\\"start_bytes\\\":" + std::to_string(region.start_bytes)
+                     + ",\\\"block_bytes\\\":" + std::to_string(region.block_bytes)
+                     + ",\\\"blocks\\\":" + std::to_string(region.blocks) + "}";
+            total += length;
+        }
+        if (total != probe.capacity_bytes)
+            throw std::runtime_error("incomplete CFI erase geometry");
+    } else if (probe.write_supported || probe.verify_supported ||
+               probe.region_count || probe.capacity_bytes) {
+        throw std::runtime_error("unidentified flash cannot advertise write support");
+    }
+    if (probe.write_supported && !probe.verify_supported)
+        throw std::runtime_error("flash writer without verification is forbidden");
+    regions += "]";
+    stream.emit(prefix("flash_probe_result", id)
+        + ",\\\"system\\\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\\\"core\\\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\\\"slot\\\":" + retrode3::NdjsonProtocol::quote(core.slot)
+        + ",\\\"identified\\\":" + (probe.cfi_valid ? "true" : "false")
+        + ",\\\"write_supported\\\":" + (probe.write_supported ? "true" : "false")
+        + ",\\\"verify_supported\\\":" + (probe.verify_supported ? "true" : "false")
+        + ",\\\"manufacturer_id\\\":" + std::to_string(probe.manufacturer_id)
+        + ",\\\"device_id\\\":" + std::to_string(probe.device_id)
+        + ",\\\"primary_command_set\\\":" + std::to_string(probe.primary_command_set)
+        + ",\\\"interface_code\\\":" + std::to_string(probe.interface_code)
+        + ",\\\"capacity_bytes\\\":" + std::to_string(probe.capacity_bytes)
+        + ",\\\"regions\\\":" + regions
+        + ",\\\"adapter_profile\\\":" + retrode3::NdjsonProtocol::quote(profile)
+        + ",\\\"diagnostic\\\":" + retrode3::NdjsonProtocol::quote(diagnostic) + "}");
+}
+
 std::string probe_event_v3(std::string const &id, Core const &core,
                            OpenCore &module)
 {
@@ -1466,6 +1578,11 @@ void interactive(std::string const &available, std::string const &enabled)
                 throw std::runtime_error("missing core identifier");
             std::vector<Core> cores = discover(available, enabled);
             Core core_info = find_usable(cores, command.core);
+            if (command.action == "get_flash_capabilities") {
+                OpenCore module(available + "/" + core_info.id + ".so");
+                emit_flash_capabilities(stream, command.request_id, core_info, module);
+                continue;
+            }
             if (command.action == "get_capabilities") {
                 if (core_info.has_v3) {
                     OpenCore module(available + "/" + core_info.id + ".so");
@@ -1475,6 +1592,10 @@ void interactive(std::string const &available, std::string const &enabled)
             }
             BusLock lock(enabled);
             OpenCore module(available + "/" + core_info.id + ".so");
+            if (command.action == "flash_probe") {
+                emit_flash_probe(stream, command.request_id, core_info, module);
+                continue;
+            }
             if (module.api3 && (command.action == "probe" ||
                                 command.has_selection || !module.api2)) {
                 if (command.action == "probe")
@@ -1531,6 +1652,8 @@ int main(int argc, char **argv)
             action = argv[++i];
             if (action == "read-rom") action = "read_rom";
             if (action == "probe-slot") action = "probe_slot";
+            if (action == "flash-probe") action = "flash_probe";
+            if (action == "get-flash-capabilities") action = "get_flash_capabilities";
         } else if (arg == "--output" && i + 1 < argc && output.empty()) {
             output = argv[++i];
         }
@@ -1555,9 +1678,11 @@ int main(int argc, char **argv)
         (!action.empty() && ((action == "probe_slot" ?
                                 (!core_id.empty() || !is_slug(slot_id)) :
                                 (!is_slug(core_id) || !slot_id.empty())) ||
-                             (action != "probe" && action != "read_rom" && action != "probe_slot") ||
+                             (action != "probe" && action != "read_rom" && action != "probe_slot" &&
+                              action != "flash_probe" && action != "get_flash_capabilities") ||
                              (action == "read_rom" && output.empty()) ||
-                             ((action == "probe" || action == "probe_slot") && !output.empty())))) {
+                             ((action == "probe" || action == "probe_slot" || action == "flash_probe" ||
+                               action == "get_flash_capabilities") && !output.empty())))) {
         std::fprintf(stderr, "invalid Retrode3 command mode/options\n");
         return 2;
     }
@@ -1575,8 +1700,17 @@ int main(int argc, char **argv)
                     return 0;
                 }
                 Core const &c = find_usable(installed, core_id);
+                if (action == "get_flash_capabilities") {
+                    OpenCore module(available + "/" + c.id + ".so");
+                    emit_flash_capabilities(stream, "cli", c, module);
+                    return 0;
+                }
                 BusLock lock(enabled);
                 OpenCore module(available + "/" + c.id + ".so");
+                if (action == "flash_probe") {
+                    emit_flash_probe(stream, "cli", c, module);
+                    return 0;
+                }
                 if (module.api3 && !module.api2) {
                     if (action == "probe") {
                         emit_probe_v3(stream, "cli", c, module);
