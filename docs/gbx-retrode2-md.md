@@ -1,7 +1,9 @@
 # Retrode2 GBx-0011 adapter on the MegaDrive slot (GB/GBC/GBA)
 
-Status: **portable ROM-only reader mock-tested**; **no physical GBx bus
-transport, no OSCR firmware integration and no Retrode3 `.so` yet**.
+Status: **portable ROM-only reader mock-tested**; experimental
+Retrode3 kernel transport source and manual hardware header test now exist
+on separate feature branches. **No real hardware acceptance yet, no
+OSCR firmware integration and no Retrode3 dynamic `.so` yet**.
 This is a feature-branch experiment, not a released or voltage-safe core.
 
 ## Source of truth and scope
@@ -128,6 +130,36 @@ first scaffold is not claimed to be the complete generated Sanni core.
   same physical object; the host must enforce slot sense, locking and
   cancellation. The host owns final CRC32, database lookup, atomic
   publication and `verified` status. No match means **not verified**.
+
+For a manually selected physical hardware test, after building and
+loading the experimental kernel module from branch
+`feature/gbx-md-read-7.3`, run with **no GB/GBC/GBA cartridge inserted**:
+
+```sh
+python3 tools/gbx-md-hwtest.py arm
+```
+
+This sends an empty GBx bench read that puts MD A19 in high
+impedance. Only then insert the cartridge and run the desired probe:
+
+```sh
+python3 tools/gbx-md-hwtest.py gb
+python3 tools/gbx-md-hwtest.py gba
+```
+
+Only run the command for the actually inserted cartridge family. The probe
+always applies 3.3 V. After a valid manual GB/GBC probe the optional
+no-MBC 32-KiB dump can switch to 5 V and restore 3.3 V:
+
+```sh
+python3 tools/gbx-md-hwtest.py gb --dump /tmp/gbx-test.gb
+python3 tools/gbx-md-hwtest.py gba --mib 1 --dump /tmp/gba-test.gba
+```
+
+The GBA ROM size must be supplied explicitly. The test is not yet a
+dynamic CLI plugin; normal cartridge bus modes remain blocked while
+the GBx bench is armed or has been used. Unplug the adapter, unload
+and reload the module before returning to normal MD/SMS/SNES/NES work.
 
 Local mock validation, without accessing `/dev/slot-md`:
 
