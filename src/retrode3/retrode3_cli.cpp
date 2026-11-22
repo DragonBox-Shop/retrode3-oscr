@@ -1023,10 +1023,10 @@ void emit_flash_capabilities(retrode3::NdjsonProtocol &stream,
 {
     if (!module.flash) {
         stream.emit(prefix("flash_capabilities", id)
-            + ",\\\"system\\\":" + retrode3::NdjsonProtocol::quote(core.id)
-            + ",\\\"core\\\":" + retrode3::NdjsonProtocol::quote(core.id)
-            + ",\\\"slot\\\":" + retrode3::NdjsonProtocol::quote(core.slot)
-            + ",\\\"available\\\":false,\\\"write_supported\\\":false}");
+            + ",\"system\":" + retrode3::NdjsonProtocol::quote(core.id)
+            + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
+            + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
+            + ",\"available\":false,\"write_supported\":false}");
         return;
     }
     char response[4096] = {};
@@ -1042,12 +1042,12 @@ void emit_flash_capabilities(retrode3::NdjsonProtocol &stream,
         document.at("write_supported").kind != retrode3::JsonV3::Boolean)
         throw std::runtime_error("invalid flash capability document");
     stream.emit(prefix("flash_capabilities", id)
-        + ",\\\"system\\\":" + retrode3::NdjsonProtocol::quote(core.id)
-        + ",\\\"core\\\":" + retrode3::NdjsonProtocol::quote(core.id)
-        + ",\\\"slot\\\":" + retrode3::NdjsonProtocol::quote(core.slot)
-        + ",\\\"available\\\":true,\\\"write_supported\\\":" +
+        + ",\"system\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
+        + ",\"available\":true,\"write_supported\":" +
           (document.at("write_supported").boolean ? "true" : "false")
-        + ",\\\"capabilities\\\":" + retrode3::stringify_json_v3(document) + "}");
+        + ",\"capabilities\":" + retrode3::stringify_json_v3(document) + "}");
 }
 
 // CFI probing is NEVER part of slot auto-detection. It can require writes to
@@ -1083,9 +1083,9 @@ void emit_flash_probe(retrode3::NdjsonProtocol &stream,
                 length > probe.capacity_bytes - total)
                 throw std::runtime_error("invalid CFI erase geometry");
             if (i) regions += ",";
-            regions += "{\\\"start_bytes\\\":" + std::to_string(region.start_bytes)
-                     + ",\\\"block_bytes\\\":" + std::to_string(region.block_bytes)
-                     + ",\\\"blocks\\\":" + std::to_string(region.blocks) + "}";
+            regions += "{\"start_bytes\":" + std::to_string(region.start_bytes)
+                     + ",\"block_bytes\":" + std::to_string(region.block_bytes)
+                     + ",\"blocks\":" + std::to_string(region.blocks) + "}";
             total += length;
         }
         if (total != probe.capacity_bytes)
@@ -1098,20 +1098,20 @@ void emit_flash_probe(retrode3::NdjsonProtocol &stream,
         throw std::runtime_error("flash writer without verification is forbidden");
     regions += "]";
     stream.emit(prefix("flash_probe_result", id)
-        + ",\\\"system\\\":" + retrode3::NdjsonProtocol::quote(core.id)
-        + ",\\\"core\\\":" + retrode3::NdjsonProtocol::quote(core.id)
-        + ",\\\"slot\\\":" + retrode3::NdjsonProtocol::quote(core.slot)
-        + ",\\\"identified\\\":" + (probe.cfi_valid ? "true" : "false")
-        + ",\\\"write_supported\\\":" + (probe.write_supported ? "true" : "false")
-        + ",\\\"verify_supported\\\":" + (probe.verify_supported ? "true" : "false")
-        + ",\\\"manufacturer_id\\\":" + std::to_string(probe.manufacturer_id)
-        + ",\\\"device_id\\\":" + std::to_string(probe.device_id)
-        + ",\\\"primary_command_set\\\":" + std::to_string(probe.primary_command_set)
-        + ",\\\"interface_code\\\":" + std::to_string(probe.interface_code)
-        + ",\\\"capacity_bytes\\\":" + std::to_string(probe.capacity_bytes)
-        + ",\\\"regions\\\":" + regions
-        + ",\\\"adapter_profile\\\":" + retrode3::NdjsonProtocol::quote(profile)
-        + ",\\\"diagnostic\\\":" + retrode3::NdjsonProtocol::quote(diagnostic) + "}");
+        + ",\"system\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
+        + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
+        + ",\"identified\":" + (probe.cfi_valid ? "true" : "false")
+        + ",\"write_supported\":" + (probe.write_supported ? "true" : "false")
+        + ",\"verify_supported\":" + (probe.verify_supported ? "true" : "false")
+        + ",\"manufacturer_id\":" + std::to_string(probe.manufacturer_id)
+        + ",\"device_id\":" + std::to_string(probe.device_id)
+        + ",\"primary_command_set\":" + std::to_string(probe.primary_command_set)
+        + ",\"interface_code\":" + std::to_string(probe.interface_code)
+        + ",\"capacity_bytes\":" + std::to_string(probe.capacity_bytes)
+        + ",\"regions\":" + regions
+        + ",\"adapter_profile\":" + retrode3::NdjsonProtocol::quote(profile)
+        + ",\"diagnostic\":" + retrode3::NdjsonProtocol::quote(diagnostic) + "}");
 }
 
 std::string probe_event_v3(std::string const &id, Core const &core,
