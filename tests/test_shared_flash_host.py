@@ -57,7 +57,7 @@ class FlashJobContract(unittest.TestCase):
             self.cmd("get_capabilities", "caps"),
             self.cmd("probe_flash", "probe")])
         actions = events[1]["cores"][0]["actions"]
-        for action in ("probe_flash", "write_flash", "verify_flash"):
+        for action in ("probe_flash", "write_flash", "verify_flash", "flash_operation"):
             self.assertIn(action, actions)
         self.assertTrue(events[2]["write_operations"])
         self.assertEqual(events[3]["event"], "flash_probe_result")
@@ -103,6 +103,72 @@ class FlashJobContract(unittest.TestCase):
                            {"RETRODE3_TEST_FLASH_BAD_ID": "1"})
         self.assertEqual(events[-1]["event"], "error")
         self.assertFalse(any(e["event"] == "progress" for e in events))
+
+
+    def stage(self, erase, write, verify, passes, source=None, request="stages"):
+        job = {"command": "flash_operation", "core": "flash-mock",
+               "request_id": request, "erase": erase, "write": write,
+               "verify": verify, "verify_passes": passes}
+        if source:
+            job["source"] = source
+        return job
+
+    def test_independent_erase_without_rom_erases_entire_chip(self):
+        events = self.call([self.stage(True, False, False, 0)])
+        result = events[-1]
+        self.assertEqual(result["event"], "result")
+        self.assertEqual(result["sectors_erased"], 71)
+        self.assertEqual(result["bytes_programmed"], 0)
+        self.assertEqual(result["flash_verification"]["status"], "not_checked")
+        self.assertFalse(result["flash_verification"]["verified"])
+        self.assertEqual(set(x["phase"] for x in events
+                             if x["event"] == "progress"), {"erase"})
+
+    def test_erase_write_without_verify(self):
+        events = self.call([self.stage(True, True, False, 0, self.source)])
+        result = events[-1]
+        self.assertEqual(result["event"], "result")
+        self.assertEqual(result["bytes_programmed"], 1024)
+        self.assertEqual(result["sectors_erased"], 1)
+        self.assertEqual(result["flash_verification"]["status"], "not_checked")
+        self.assertEqual(set(x["phase"] for x in events
+                             if x["event"] == "progress"), {"erase", "program"})
+
+    def test_verify_only_with_multiple_passes_and_no_programming(self):
+        events = self.call([self.stage(False, False, True, 4, self.blank)])
+        result = events[-1]
+        self.assertEqual(result["event"], "result")
+        self.assertEqual(result["flash_verification"]["passes_completed"], 4)
+        self.assertEqual(result["flash_verification"]["status"], "verified")
+        self.assertEqual(result["bytes_compared"], 2048)
+        states = [x for x in events if x["event"] == "progress"]
+        self.assertEqual(set(x["phase"] for x in states), {"verify"})
+        self.assertEqual(states[-1]["verify_pass"], 4)
+        self.assertEqual(states[-1]["verify_passes"], 4)
+        self.assertEqual(states[-1]["percent"], 100)
+
+    def test_mismatch_in_repeated_verify_does_not_claim_success(self):
+        events = self.call([self.stage(True, True, True, 3, self.source)],
+                           {"RETRODE3_TEST_FLASH_MISMATCH": "1"})
+        self.assertEqual(events[-1]["event"], "error")
+        self.assertIn("pass 1/3", events[-1]["message"])
+        self.assertFalse(any(x["event"] == "result" for x in events))
+
+    def test_invalid_stage_combinations_rejected(self):
+        invalid = [
+            self.stage(False, False, False, 0),
+            self.stage(False, True, False, 0),
+            self.stage(True, False, True, 0, self.blank),
+            self.stage(True, False, False, 1),
+            self.stage(True, True, True, 100, self.source),
+            self.stage(True, True, True, -1, self.source),
+        ]
+        for i, item in enumerate(invalid):
+            item["request_id"] = "bad" + str(i)
+        events = self.call(invalid)
+        self.assertEqual(len([x for x in events if x["event"] == "error"]),
+                         len(invalid))
+        self.assertFalse(any(x["event"] == "result" for x in events))
 
 
 if __name__ == "__main__":
