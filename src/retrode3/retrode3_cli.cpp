@@ -1718,7 +1718,11 @@ void interactive(std::string const &available, std::string const &enabled)
             }
             BusLock lock(enabled);
             OpenCore module(available + "/" + core_info.id + ".so");
-            if (module.api3 && (command.action == "probe" ||
+            if (command.action == "probe_flash" ||
+                command.action == "write_flash" ||
+                command.action == "verify_flash") {
+                flash_job(stream, command, module, core_info.slot);
+            } else if (module.api3 && (command.action == "probe" ||
                                 command.has_selection || !module.api2)) {
                 if (command.action == "probe")
                     emit_probe_v3(stream, command.request_id, core_info, module);
@@ -1756,8 +1760,9 @@ int main(int argc, char **argv)
 {
     std::string available = "/usr/lib/retrode3/cores-available";
     std::string enabled = "/etc/retrode3/cores-enabled";
-    std::string core_id, action, output, slot_id;
+    std::string core_id, action, output, slot_id, source;
     bool list = false, streamed = false, run_interactive = false;
+    bool confirm_erase = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--list-cores" && !list) list = true;
@@ -1774,8 +1779,15 @@ int main(int argc, char **argv)
             action = argv[++i];
             if (action == "read-rom") action = "read_rom";
             if (action == "probe-slot") action = "probe_slot";
+            if (action == "probe-flash") action = "probe_flash";
+            if (action == "write-flash") action = "write_flash";
+            if (action == "verify-flash") action = "verify_flash";
         } else if (arg == "--output" && i + 1 < argc && output.empty()) {
             output = argv[++i];
+        } else if (arg == "--source" && i + 1 < argc && source.empty()) {
+            source = argv[++i];
+        } else if (arg == "--confirm-erase" && !confirm_erase) {
+            confirm_erase = true;
         }
 #ifdef RETRODE3_TESTING
         else if (arg == "--available-dir" && i + 1 < argc)
@@ -1787,20 +1799,29 @@ int main(int argc, char **argv)
             std::fprintf(stderr,
                 "usage: retrode3-cli --list-cores | --protocol ndjson-v1 "
                 "--interactive | --protocol ndjson-v1 --core ID "
-                "--action probe|read-rom|probe-slot [--slot ID] [--output FILE]\n");
+                "--action probe|read-rom|probe-slot|probe-flash|write-flash|verify-flash "
+                "[--slot ID] [--output FILE] [--source FILE] [--confirm-erase]\n");
             return 2;
         }
     }
     unsigned mode_count = (list ? 1u : 0u) + (run_interactive ? 1u : 0u)
                         + (!action.empty() ? 1u : 0u);
+    const bool flash_job_requested = (action == "probe_flash" ||
+                                      action == "write_flash" ||
+                                      action == "verify_flash");
     if (mode_count != 1 || ((run_interactive || !action.empty()) && !streamed) ||
-        ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() || !output.empty())) ||
+        ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() ||
+                                      !output.empty() || !source.empty() || confirm_erase)) ||
         (!action.empty() && ((action == "probe_slot" ?
                                 (!core_id.empty() || !is_slug(slot_id)) :
                                 (!is_slug(core_id) || !slot_id.empty())) ||
-                             (action != "probe" && action != "read_rom" && action != "probe_slot") ||
+                             (action != "probe" && action != "read_rom" &&
+                              action != "probe_slot" && !flash_job_requested) ||
                              (action == "read_rom" && output.empty()) ||
-                             ((action == "probe" || action == "probe_slot") && !output.empty())))) {
+                             (action != "read_rom" && !output.empty()) ||
+                             ((action == "write_flash" || action == "verify_flash") != !source.empty()) ||
+                             (action == "write_flash" && !confirm_erase) ||
+                             (action != "write_flash" && confirm_erase)))) {
         std::fprintf(stderr, "invalid Retrode3 command mode/options\n");
         return 2;
     }
@@ -1820,7 +1841,15 @@ int main(int argc, char **argv)
                 Core const &c = find_usable(installed, core_id);
                 BusLock lock(enabled);
                 OpenCore module(available + "/" + c.id + ".so");
-                if (module.api3 && !module.api2) {
+                if (flash_job_requested) {
+                    retrode3::WebCommand command;
+                    command.action = action;
+                    command.core = c.id;
+                    command.request_id = "cli";
+                    command.source = source;
+                    command.confirm_erase = confirm_erase;
+                    flash_job(stream, command, module, c.slot);
+                } else if (module.api3 && !module.api2) {
                     if (action == "probe") {
                         emit_probe_v3(stream, "cli", c, module);
                     } else {
