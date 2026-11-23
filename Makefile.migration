@@ -280,7 +280,7 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module test-shared-flash-host
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module test-shared-flash-host test-native-gba-md-module
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
@@ -381,3 +381,34 @@ stage-sms-md-module: native-sms-md-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
 	install -m 644 build/migration/sms-md.so build/migration/stage/usr/lib/retrode3/cores-available/sms-md.so
 	install -m 644 packaging/cores/sms-md.core build/migration/stage/usr/lib/retrode3/cores-available/sms-md.core
+
+# Manual GBx-0011 GBA v3 core (read-only, TEST-KERNEL ONLY).
+# Do not add to stage-all-shared-cores or enable it automatically.
+GBA_MD_SOURCES = src/retrode3/oscr_gba_md_adapter.cpp src/gbx/retrode2_readonly.cpp
+GBA_MD_HEADERS = include/retrode3/core_descriptor_v1.h \
+	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v3.h \
+	include/retrode3/json_v3.h include/gbx/retrode2_readonly.h
+
+build/migration/gba-md.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS)
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		$(GBA_MD_SOURCES) -o $@
+
+build/migration/gba-md-test.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS)
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING -fPIC -shared -Wl,-z,defs \
+		$(NATIVE_INCLUDES) $(GBA_MD_SOURCES) -o $@
+
+.PHONY: native-gba-md-module test-native-gba-md-module stage-gba-md-module
+native-gba-md-module: build/migration/gba-md.so
+
+test-native-gba-md-module: build/migration/gba-md-test.so
+	RETRODE3_GBA_TEST_MODULE=$(CURDIR)/build/migration/gba-md-test.so \
+		python3 -m unittest discover -s tests -p 'test_gba_md_core.py' -v
+
+stage-gba-md-module: native-gba-md-module
+	install -d -m 755 build/migration/stage/usr/lib/retrode3/cores-available
+	install -m 644 build/migration/gba-md.so \
+		build/migration/stage/usr/lib/retrode3/cores-available/gba-md.so
+	install -m 644 packaging/cores/gba-md.core \
+		build/migration/stage/usr/lib/retrode3/cores-available/gba-md.core
