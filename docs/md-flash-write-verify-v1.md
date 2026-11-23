@@ -27,9 +27,16 @@ normal `--list-cores` and `get_capabilities` responses.
 2. **Detect Flash** reads manufacturer/device ID and CFI geometry.
    **Unrecognized or unsupported carts must not be writable.**
 3. User selects a ROM from that system's existing logical ROM folder.
-4. **Write Cart** erases affected sectors, programs the ROM and verifies
-   **every byte** against the source. **Verify only** independently
-   compares the ROM and sends no erase or program commands.
+4. In **Write Cart**, independently select **Erase**, **Write** and
+   **Verify**, then click one Start button. Verify can run **1..99**
+   complete byte-for-byte passes. All three are selected by default,
+   but any nonempty combination is supported.
+   - Erase only, without an uploaded ROM: erase all detected Flash sectors.
+   - Erase with an uploaded ROM: erase only sectors overlapping the image.
+   - Write without Erase: program into already-erased Flash (normal
+     1-to-0 bit transition rules still apply).
+   - Verify without Erase or Write: compare a previously written image.
+   - No Verify: report `not_checked`, **never** `verified`.
 
 The Web backend invokes the same shared CLI under its normal
 `www-data` identity as for ROM reading. The SysV runtime grants access
@@ -48,9 +55,21 @@ initiate Flash commands or erase anything.
 ```sh
 retrode3-cli --protocol ndjson-v1 --core md --action probe-flash
 
-retrode3-cli --protocol ndjson-v1 --core md --action write-flash \
+# Independent stages, 3 complete Verify passes:
+retrode3-cli --protocol ndjson-v1 --core md --action flash-operation \
+  --erase --write --verify-passes 3 \
   --source /usr/local/games/ROMs/MD/game.md
 
+# Erase entire detected Flash (no ROM required):
+retrode3-cli --protocol ndjson-v1 --core md --action flash-operation --erase
+
+# Standalone repeated Verify without erase/program:
+retrode3-cli --protocol ndjson-v1 --core md --action flash-operation \
+  --verify-passes 5 --source /usr/local/games/ROMs/MD/game.md
+
+# The original one-shot compatibility aliases still exist:
+retrode3-cli --protocol ndjson-v1 --core md --action write-flash \
+  --source /usr/local/games/ROMs/MD/game.md
 retrode3-cli --protocol ndjson-v1 --core md --action verify-flash \
   --source /usr/local/games/ROMs/MD/game.md
 ```
@@ -78,6 +97,25 @@ the entire selected ROM has been read back and compared byte-for-byte.
 The `flash_verification` result records verified bytes or the first
 differing byte offset. The older ROM-database `verification` field on
 `read_rom` is independent of post-write Flash verification.
+
+## Erase performance and EBUSY diagnostics
+
+The kernel now polls for sector-erase completion but **does not** read
+all 32,768 words in a 64 KiB sector a second time before continuing.
+That per-sector full scan caused needless GPIO reads and significant
+latency. If Verify is selected, the shared CLI performs full image
+readback after all programmed sectors and repeats the entire image
+comparison for each selected pass. Programming still polls individual
+Flash words to ensure the device is ready for the next command.
+
+A previous physical test stopped after 33/57 sectors with kernel
+`ioctl 0x800c52f2 failed (-16)` (`EBUSY`), **not** a DQ6/DQ5
+erase-completion or verification failure. The kernel now waits for
+short `select_lock` contention, and logs which incompatible bus mode
+or other occupied slot causes a persistent EBUSY. The observed
+`3300mV` after the failed CLI operation is consistent with the
+hardware scope restoring the prior slot voltage; it does not prove
+the Flash was erased at 3.3V.
 
 Cancellation is supported at safe chunk/sector boundaries. An
 in-progress physical erase/program pulse is allowed to finish before
