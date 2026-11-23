@@ -100,7 +100,9 @@ int capabilities_json_v3(char *out, size_t capacity, char *err, size_t cap)
 "probe_voltage_mv":3300,"read_voltage_mv":5000,
 "hardware_access":{"version":1,
  "probe":{"voltage_mv":3300,"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false}},
- "read":{"voltage_mv":5000,"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false}}},
+ "read":{"voltage_mv":5000,"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false}},
+ "flash_probe":{"voltage_mv":5000,"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false,"flash_cfi_test":true}},
+ "flash_write":{"voltage_mv":5000,"module_parameters":{"legacy_bridge_hiz_test":false,"sms_mapper_write_test":false,"flash_cfi_test":true,"flash_write_test":true}}},
 "automatic_voltage_switch":true
 })V3";
     if (!out || sizeof(schema) > capacity)
