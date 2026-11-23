@@ -103,6 +103,8 @@ jobs:
           make -f Makefile.migration native-md-flash-lab
           nm -D build/migration/md-flash-lab/md.so | grep -Fq retrode3_core_get_flash_operations_v1
           ! nm -D build/migration/md.so | grep -Fq retrode3_core_get_flash_operations_v1
+      - name: Verify shared Flash progress and byte-compare using mock hardware
+        run: make -f Makefile.migration test-shared-flash-host
       - name: Validate original-Sanni NES module and source guard
         run: make -f Makefile.migration test-native-nes-module
       - name: Validate all three original-derived Cores share one host
