@@ -1,10 +1,27 @@
 # Retrode2 GBx-0011 adapter on the MegaDrive slot (GB/GBC/GBA)
 
-Status: **portable ROM-only reader mock-tested**; experimental
-Retrode3 kernel transport source and manual hardware header test now exist
-on separate feature branches. **No real hardware acceptance yet, no
-OSCR firmware integration and no Retrode3 dynamic `.so` yet**.
-This is a feature-branch experiment, not a released or voltage-safe core.
+Status: **portable ROM-only reader mock-tested** and **real Retrode3 manual
+GB/GBA header probes passed at 3.3 V** on separate feature branches.
+Full cartridge ROM dumps, MBC support, electrical validation, OSCR firmware
+integration and Retrode3 dynamic `.so` plugins are **not yet accepted**.
+This remains a feature-branch experiment, not a released production core.
+
+## Physical validation so far (2026-11-23)
+
+The experimental Letux 7.3 kernel `feature/gbx-md-read-7.3` and this
+branch's `tools/gbx-md-hwtest.py` successfully probed a real Game Boy
+**PINBALL** cartridge twice with byte-identical valid headers
+(`type=01`, `ROM=01`, `RAM=00`), and a real GBA **SHININGFORCE**
+cartridge (`game_code=AF5P`) with a valid GBA Nintendo-logo sum and
+header checksum, all at **3.3 V**. GBA originally returned `0xFF` or
+wrong sequential ROM words. A consistent **+1 offset** in the adapter
+MD A-pin to Retrode3 `addr-gpios[]` mapping affected both the GB data
+window and GBA control lines. Correcting the entire adapter-specific
+GPIO mapping yielded a valid GBA header. These are **header-only tests**:
+complete ROM/CRC validation, mapper banking, GBC-specific tests and
+regression of GB after the final control-line remap remain outstanding.
+The standard MegaDrive driver and web interface were not changed for
+this experiment.
 
 ## Source of truth and scope
 
