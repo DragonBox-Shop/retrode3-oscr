@@ -6,6 +6,7 @@ from __future__ import print_function
 import argparse
 import os
 import sys
+import time
 import zlib
 
 DEV = "/dev/slot-md"
@@ -15,6 +16,7 @@ GB = 23
 GBA_LOW = 24
 GBA_HIGH = 25
 GB_PINS = 26  # diagnostic GPIO mask (A7..A18), GB address * 2
+GBA_TRACE = 27  # 8 byte record per ROM word, four 16-bit GPIO snapshots
 WINDOW = 0x1000000
 
 
@@ -83,6 +85,23 @@ def diagnose_gb_pins(fd):
               (addr, known, known >> 7, high or "(none)", mask))
 
 
+def diagnose_gba_timing(fd):
+    """Read the four GBA data GPIO states in the same /CS + /RD cycle."""
+    addresses = (0x0000, 0x0002, 0x0004, 0x0006, 0x0008,
+                 0x000A, 0x00A0, 0x00AC, 0x00B0)
+    print("GBA ROM bus trace at 3.3V (16-bit GPIO values)")
+    print("Byte addr  Address driven  /CS low  Inputs /RD high  /RD low")
+    for byte_addr in addresses:
+        # Mode-27 address = 8 bytes per physical GBA 16-bit word.
+        data = bytearray(get(fd, GBA_TRACE, (byte_addr // 2) * 8, 8))
+        values = tuple(data[i] | (data[i + 1] << 8)
+                       for i in range(0, 8, 2))
+        print("%08X      %04X            %04X      %04X             %04X" %
+              ((byte_addr,) + values))
+    print("If /RD low still reads FFFF after inputs are released,")
+    print("the cartridge is not driving MD D0..D15 in this cycle.")
+
+
 def dump(fd, family, length, path):
     partial = path + ".partial"
     if os.path.exists(path) or os.path.exists(partial):
@@ -116,10 +135,12 @@ def main():
                         help="Print raw header bytes even if header validation fails")
     parser.add_argument("--pins", action="store_true",
                         help="GB only: inspect read-only GPIO A7..A18 during /RD (kernel mode 26)")
+    parser.add_argument("--trace", action="store_true",
+                        help="GBA only: show four data-bus stages per ROM word (kernel mode 27)")
     parser.add_argument("--mib", type=int, choices=(1, 2, 4, 8, 16, 32),
                         help="GBA ROM size, required for GBA dump")
     a = parser.parse_args()
-    if a.system == "arm" and (a.dump or a.mib or a.raw or a.pins):
+    if a.system == "arm" and (a.dump or a.mib or a.raw or a.pins or a.trace):
         parser.error("arm takes no dump parameters")
     if a.system == "gba" and a.dump and not a.mib:
         parser.error("GBA dump requires --mib")
@@ -127,6 +148,8 @@ def main():
         parser.error("--mib is only for GBA")
     if a.system != "gb" and a.pins:
         parser.error("--pins only works for GB/GBC")
+    if a.system != "gba" and a.trace:
+        parser.error("--trace only works for GBA")
 
     # Both header probes ALWAYS use 3.3 V.
     voltage(3300)
@@ -159,8 +182,15 @@ def main():
         print("Insert the GB/GBC or GBA cartridge, then run the header test.")
         return
 
+    if a.system == "gba":
+        # Match Sanni GameBoyAdvance::setROM() initial 500ms settle.
+        # This is a delay only; no voltage or writing changes.
+        time.sleep(0.5)
+
     fd = os.open(DEV, os.O_RDONLY)
     try:
+        if a.trace:
+            diagnose_gba_timing(fd)
         if a.raw:
             mode, pos, n = ((GB, 0x100, 0x50) if a.system == "gb"
                             else (GBA_LOW, 0, 0xc0))
