@@ -9,6 +9,39 @@ return-to-ROM readback were verified on a real Retrode3 on 2026-11-23.
 The separate kernel experiment is still a Draft PR. Manufacturer/device
 identification and safe sector erase/program are not yet hardware accepted.
 
+## Current implementation status (2026-11-23)
+
+In this **Draft experimental branch**, the optional C ABI is implemented
+in `include/retrode3/core_flash_v1.h`, with a MegaDrive transport adapter
+`src/retrode3/oscr_md_flash_lab.cpp` and the separate target
+`make -f Makefile.migration native-md-flash-lab` yielding
+`build/migration/md-flash-lab/md.so`. The regular
+`build/migration/md.so` remains **read-only**.
+
+The shared `retrode3-cli` implements `probe_flash`, `write_flash` and
+`verify_flash` in its existing NDJSON host and one-shot CLI.
+For **operator testing only** on an isolated, root-run test install with
+an experimental Retrode3 kernel and an expendable 4MiB Eon cartridge:
+
+```sh
+# Once matching test kernel and Flash-enabled test .so are installed:
+retrode3-cli --protocol ndjson-v1 --core md --action probe-flash
+retrode3-cli --protocol ndjson-v1 --core md --action verify-flash \
+  --source /usr/local/games/ROMs/MD/known-good.md
+retrode3-cli --protocol ndjson-v1 --core md --action write-flash \
+  --source /usr/local/games/ROMs/MD/known-good.md --confirm-erase
+```
+
+The host owns the bus lock, scoped 5V profile, kernel test-only gates,
+progress and byte-for-byte verify. **Do not run a second independent
+`flock` around the common CLI invocation**, which already acquires it.
+An **administrator** must run this lab flow; no generic Web root access,
+no auto-probe writes, and no production installer are included here.
+The narrow privileged Web bridge and tested Web Write Cart page remain
+pending. MIPS build and real erase/program verification remain pending.
+The kernel test-ioctl implementation is tracked separately in
+`DragonBox-Shop/retrode3-kernel#7`.
+
 ## Architecture
 
 - One shared `retrode3-cli` owns NDJSON framing, request IDs, bus locking,
