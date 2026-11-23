@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
@@ -1532,16 +1533,27 @@ void check_flash_cancel(retrode3::NdjsonProtocol &stream,
         throw std::runtime_error("cancelled");
 }
 
+typedef std::chrono::steady_clock FlashClock;
+
+/* Measured average bytes/s since start of the CURRENT phase.
+ * Do not estimate rate from browser polling intervals: those are noisy.
+ * Erase uses sectors, so no byte rate is displayed for that phase. */
 void flash_progress(retrode3::NdjsonProtocol &stream,
                     std::string const &request_id,
                     std::string const &phase, std::uint64_t done,
                     std::uint64_t total, bool sectors,
-                    int &last_percent) {
-    unsigned percent = total ?
+                    int &last_percent, FlashClock::time_point phase_started,
+                    unsigned verify_pass = 0, unsigned verify_passes = 0) {
+    const unsigned percent = total ?
         static_cast<unsigned>((done * 100u) / total) : 100u;
     if (percent == static_cast<unsigned>(last_percent) && done < total)
         return;
     last_percent = static_cast<int>(percent);
+    const std::uint64_t elapsed_ms = static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            FlashClock::now() - phase_started).count());
+    const std::uint64_t bytes_per_second = (!sectors && elapsed_ms) ?
+        done * 1000u / elapsed_ms : 0u;
     stream.emit(prefix("progress", request_id)
         + ",\"phase\":" + retrode3::NdjsonProtocol::quote(phase)
         + ",\"units\":" + (sectors ? "\"sectors\"" : "\"bytes\"")
@@ -1549,7 +1561,13 @@ void flash_progress(retrode3::NdjsonProtocol &stream,
             std::to_string(done)
         + (sectors ? ",\"units_total\":" : ",\"bytes_total\":") +
             std::to_string(total)
-        + ",\"percent\":" + std::to_string(percent) + "}");
+        + ",\"percent\":" + std::to_string(percent)
+        + (!sectors ? ",\"bytes_per_second\":" +
+            std::to_string(bytes_per_second) +
+            ",\"elapsed_ms\":" + std::to_string(elapsed_ms) : "")
+        + (verify_passes ? ",\"verify_pass\":" + std::to_string(verify_pass) +
+                           ",\"verify_passes\":" + std::to_string(verify_passes) : "")
+        + "}");
 }
 
 /* The runtime owns all three independently selectable stages.
@@ -1641,9 +1659,10 @@ void flash_job(retrode3::NdjsonProtocol &stream,
     }
     stream.reset_cancel();
     int last_percent = -1;
+    FlashClock::time_point phase_started = FlashClock::now();
     if (erase) {
         flash_progress(stream, cmd.request_id, "erase", 0,
-                       sectors.size(), true, last_percent);
+                       sectors.size(), true, last_percent, phase_started);
         for (std::size_t i = 0; i < sectors.size(); ++i) {
             check_flash_cancel(stream, cmd.request_id);
             std::memset(error, 0, sizeof(error));
@@ -1654,13 +1673,14 @@ void flash_job(retrode3::NdjsonProtocol &stream,
                     std::to_string(sectors[i]) + "): " +
                     flash_error(error, sizeof(error), "hardware error"));
             flash_progress(stream, cmd.request_id, "erase", i + 1,
-                           sectors.size(), true, last_percent);
+                           sectors.size(), true, last_percent, phase_started);
         }
     }
     if (write) {
         last_percent = -1;
+        phase_started = FlashClock::now();
         flash_progress(stream, cmd.request_id, "program", 0,
-                       source->size, false, last_percent);
+                       source->size, false, last_percent, phase_started);
         unsigned char block[512];
         for (std::size_t p = 0; p < source->size; ) {
             check_flash_cancel(stream, cmd.request_id);
@@ -1674,16 +1694,17 @@ void flash_job(retrode3::NdjsonProtocol &stream,
                     ": " + flash_error(error, sizeof(error), "hardware error"));
             p += n;
             flash_progress(stream, cmd.request_id, "program", p,
-                           source->size, false, last_percent);
+                           source->size, false, last_percent, phase_started);
         }
     }
 
     if (verify) {
         last_percent = -1;
+        phase_started = FlashClock::now();
         const std::uint64_t total = static_cast<std::uint64_t>(source->size) * passes;
         unsigned char expected[4096], observed[4096];
         flash_progress(stream, cmd.request_id, "verify", 0, total,
-                       false, last_percent);
+                       false, last_percent, phase_started, 1, passes);
         for (unsigned pass = 0; pass < passes; ++pass) {
             for (std::size_t p = 0; p < source->size; ) {
                 check_flash_cancel(stream, cmd.request_id);
@@ -1705,18 +1726,9 @@ void flash_job(retrode3::NdjsonProtocol &stream,
                     static_cast<std::uint64_t>(pass) * source->size + p;
                 /* Emit a pass transition even if the percentage hasn't changed. */
                 if (p == n) last_percent = -1;
-                unsigned percent = static_cast<unsigned>(done * 100u / total);
-                if (percent != static_cast<unsigned>(last_percent) ||
-                    done == total) {
-                    last_percent = static_cast<int>(percent);
-                    stream.emit(prefix("progress", cmd.request_id)
-                        + ",\"phase\":\"verify\",\"units\":\"bytes\""
-                        ",\"bytes_done\":" + std::to_string(done)
-                        + ",\"bytes_total\":" + std::to_string(total)
-                        + ",\"percent\":" + std::to_string(percent)
-                        + ",\"verify_pass\":" + std::to_string(pass + 1)
-                        + ",\"verify_passes\":" + std::to_string(passes) + "}");
-                }
+                flash_progress(stream, cmd.request_id, "verify", done,
+                               total, false, last_percent, phase_started,
+                               pass + 1, passes);
             }
         }
     }
