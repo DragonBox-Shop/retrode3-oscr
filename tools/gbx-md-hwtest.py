@@ -17,6 +17,8 @@ GBA_LOW = 24
 GBA_HIGH = 25
 GB_PINS = 26  # diagnostic GPIO mask (A8..A18), GB address * 2
 GBA_TRACE = 27  # 8 byte record per ROM word, four 16-bit GPIO snapshots
+GBA_BURST_LOW = 28  # optional sequential burst, benchmark against mode 24
+GBA_BURST_HIGH = 29  # optional sequential burst, benchmark against mode 25
 WINDOW = 0x1000000
 
 
@@ -50,8 +52,8 @@ def probe_gb(fd):
     return (title, h[0x47], h[0x48], h[0x49], h[0x4d])
 
 
-def probe_gba(fd):
-    h = get(fd, GBA_LOW, 0, 0xc0)
+def probe_gba(fd, mode=GBA_LOW):
+    h = get(fd, mode, 0, 0xc0)
     if sum(bytearray(h[4:0xa0])) != 0x4b1b:
         raise RuntimeError("GBA logo sum failed")
     chk = (-sum(bytearray(h[0xa0:0xbd])) - 0x19) & 255
@@ -102,7 +104,7 @@ def diagnose_gba_timing(fd):
     print("the cartridge is not driving MD D0..D15 in this cycle.")
 
 
-def dump(fd, family, length, path):
+def dump(fd, family, length, path, fast=False):
     partial = path + ".partial"
     if os.path.exists(path) or os.path.exists(partial):
         raise RuntimeError("Output or partial file already exists")
@@ -113,7 +115,9 @@ def dump(fd, family, length, path):
                 if family == "gb":
                     buf = get(fd, GB, offset, 512)
                 else:
-                    mode = GBA_LOW if offset < WINDOW else GBA_HIGH
+                    mode = ((GBA_BURST_LOW if offset < WINDOW
+                             else GBA_BURST_HIGH) if fast
+                            else (GBA_LOW if offset < WINDOW else GBA_HIGH))
                     buf = get(fd, mode, offset % WINDOW, 512)
                 output.write(buf)
                 crc = zlib.crc32(buf, crc)
@@ -137,10 +141,12 @@ def main():
                         help="GB only: inspect read-only GPIO A8..A18 during /RD (kernel mode 26)")
     parser.add_argument("--trace", action="store_true",
                         help="GBA only: show four data-bus stages per ROM word (kernel mode 27)")
+    parser.add_argument("--fast", action="store_true",
+                        help="GBA only: experimental sequential burst reader (modes 28/29)")
     parser.add_argument("--mib", type=int, choices=(1, 2, 4, 8, 16, 32),
                         help="GBA ROM size, required for GBA dump")
     a = parser.parse_args()
-    if a.system == "arm" and (a.dump or a.mib or a.raw or a.pins or a.trace):
+    if a.system == "arm" and (a.dump or a.mib or a.raw or a.pins or a.trace or a.fast):
         parser.error("arm takes no dump parameters")
     if a.system == "gba" and a.dump and not a.mib:
         parser.error("GBA dump requires --mib")
@@ -150,6 +156,8 @@ def main():
         parser.error("--pins only works for GB/GBC")
     if a.system != "gba" and a.trace:
         parser.error("--trace only works for GBA")
+    if a.system != "gba" and a.fast:
+        parser.error("--fast only works for GBA")
 
     # Both header probes ALWAYS use 3.3 V.
     voltage(3300)
@@ -193,7 +201,8 @@ def main():
             diagnose_gba_timing(fd)
         if a.raw:
             mode, pos, n = ((GB, 0x100, 0x50) if a.system == "gb"
-                            else (GBA_LOW, 0, 0xc0))
+                            else (GBA_BURST_LOW if a.fast else GBA_LOW,
+                                  0, 0xc0))
             raw = get(fd, mode, pos, n)
             for i in range(0, n, 16):
                 print("%04X: %s" % (pos + i,
@@ -217,12 +226,15 @@ def main():
                     voltage(3300)
                 print("Wrote 32768 bytes: %s CRC32=%08X" % (a.dump, crc))
         else:
-            header = probe_gba(fd)
-            print("GBA at 3.3V: title=%r game_code=%s" % header[:2])
+            mode = GBA_BURST_LOW if a.fast else GBA_LOW
+            header = probe_gba(fd, mode)
+            print("GBA at 3.3V: title=%r game_code=%s mode=%s" %
+                  (header[0], header[1], "burst" if a.fast else "legacy"))
             if a.dump:
-                if probe_gba(fd) != header:
+                if probe_gba(fd, mode) != header:
                     raise RuntimeError("GBA header changed")
-                crc = dump(fd, "gba", a.mib * 1024 * 1024, a.dump)
+                crc = dump(fd, "gba", a.mib * 1024 * 1024,
+                           a.dump, fast=a.fast)
                 print("Wrote %d MiB: %s CRC32=%08X" % (a.mib, a.dump, crc))
     finally:
         os.close(fd)
