@@ -2,7 +2,9 @@
 
 Status: **portable ROM-only reader mock-tested** and **real Retrode3 manual
 GB/GBA header probes passed at 3.3 V** on separate feature branches.
-Full cartridge ROM dumps, MBC support, electrical validation, OSCR firmware
+One **complete 16 MiB GBA cartridge dump** has now passed the known
+reference CRC32 and SHA256 checks. MBC support, GB/GBC full ROM dumps,
+GBA >16 MiB window testing, electrical validation, OSCR firmware
 integration and Retrode3 dynamic `.so` plugins are **not yet accepted**.
 This remains a feature-branch experiment, not a released production core.
 
@@ -17,9 +19,10 @@ header checksum, all at **3.3 V**. GBA originally returned `0xFF` or
 wrong sequential ROM words. A consistent **+1 offset** in the adapter
 MD A-pin to Retrode3 `addr-gpios[]` mapping affected both the GB data
 window and GBA control lines. Correcting the entire adapter-specific
-GPIO mapping yielded a valid GBA header. The later 1 MiB GBA burst test below extends this evidence beyond
-headers, but full-cartridge verification, mapper banking, and GBC-specific
-tests remain outstanding. **On 2026-11-23,
+GPIO mapping yielded a valid GBA header. The later 1 MiB burst comparison
+and complete 16 MiB GBA reference-matched dump below extend this evidence
+beyond headers; GB/GBC banking, >16 MiB GBA window access, and
+GBC-specific tests remain outstanding. **On 2026-11-23,
 regression after the complete control-line remap passed:** two repeated
 GBA `--raw` probes of `SHININGFORCE` / `AF5P` returned byte-identical
 valid 192-byte headers, followed by two repeated GB `--raw` probes of
@@ -50,6 +53,39 @@ Speedup approximately **6.64x** for this 1 MiB test. This is
 full-cartridge correctness, behavior at 16 MiB window boundaries,
 or correctness with other cartridges. Keep the baseline modes 24/25
 intact and the burst mode opt-in until further acceptance tests.
+
+## Complete 16 MiB GBA reference-matched ROM dump (2026-11-23)
+
+Real Shining Force GBA cartridge (`title='SHININGFORCE'`, game code
+`AF5P`) was dumped from the Retrode3 at 3.3 V using the opt-in
+sequential burst reader (mode 28):
+
+```sh
+time python3 tools/gbx-md-hwtest.py gba --fast --mib 16 --dump /tmp/shiningforce-full.gba
+wc -c /tmp/shiningforce-full.gba
+sha256sum /tmp/shiningforce-full.gba
+```
+
+Hardware results:
+
+- Length: **16,777,216 bytes (16 MiB)**
+- CRC32: **`07B06994`** (matches previously identified ROM reference)
+- SHA256: **`8a8485e100d9747e44e3a4255058af7cc2a425709a7172fcddd05ad87cc2c1e1`**
+  (matches the previously identified ROM reference)
+- Wall clock **2m04.915s**, user **4.019s**, system **1m54.402s**
+- Average throughput about **131 KiB/s**
+- A prior 1 MiB cross-check also matched the slow reference reader
+  byte-for-byte (`cmp`, CRC32, SHA256)
+
+This is the **first full-ROM GBA hardware acceptance result** for
+this experimental transport. It confirms the complete first 16 MiB
+address window on this cartridge, including block-boundary handling.
+It does **not** yet validate the 16-32 MiB second window, other GBA
+cartridges, save types, GB/GBC MBC switching, voltage transitions, or
+normal-plugin operation. Keep all changes in feature branches until
+those remaining integration tests are performed. The kernel's
+`develop` branch was already advanced to the GBx bench commit for
+other kernel work; do not alter it merely to record this benchmark.
 
 ## Source of truth and scope
 
