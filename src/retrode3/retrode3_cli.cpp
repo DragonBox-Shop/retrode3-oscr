@@ -6,6 +6,7 @@
 #include "retrode3/core_operations_v1.h"
 #include "retrode3/core_operations_v2.h"
 #include "retrode3/core_operations_v3.h"
+#include "retrode3/core_flash_v1.h"
 #include "retrode3/json_v3.h"
 #include "retrode3/hardware_scope_v1.h"
 #include "retrode3/ndjson_protocol.h"
@@ -40,6 +41,7 @@ struct Core {
     bool can_read_rom;
     bool has_v2;
     bool has_v3;
+    bool has_flash;
 };
 
 bool is_slug(std::string const &s)
@@ -133,7 +135,7 @@ Core load_manifest(std::string const &path, std::string const &expected_id)
     }
     if (input.bad()) throw std::runtime_error("core manifest read failed");
     Core c = {fields["id"], fields["name"], fields["version"],
-              fields["slot"], "disabled", false, false, false, false, false};
+              fields["slot"], "disabled", false, false, false, false, false, false};
     if (fields.size() != 4 || c.id != expected_id || !is_slug(c.id) ||
         !is_slug(c.slot) || !valid_text(c.name, 128) ||
         !valid_text(c.version, 64))
@@ -173,7 +175,7 @@ bool valid_operations(const retrode3_core_operations_v1 *api)
 
 // -1 = invalid, 0 = valid metadata only, 1 = runnable operation ABI.
 int compatible(std::string const &file, Core const &core,
-               bool &can_read_rom, bool &has_v2, bool &has_v3)
+               bool &can_read_rom, bool &has_v2, bool &has_v3, bool &has_flash)
 {
     void *handle = ::dlopen(file.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!handle) { note(core.id, "module load failed"); return -1; }
@@ -229,6 +231,23 @@ int compatible(std::string const &file, Core const &core,
                                 else { has_v3 = true; can_read_rom = true; }
                             }
                         }
+                        if (status == 1) {
+                            void *fsym = ::dlsym(handle,
+                                "retrode3_core_get_flash_operations_v1");
+                            if (fsym) {
+                                retrode3_core_get_flash_operations_v1_fn getflash =
+                                    reinterpret_cast<retrode3_core_get_flash_operations_v1_fn>(fsym);
+                                const retrode3_core_flash_operations_v1 *flash = getflash();
+                                if (!flash ||
+                                    flash->abi_version != RETRODE3_CORE_FLASH_ABI_V1 ||
+                                    flash->struct_size < sizeof(*flash) ||
+                                    !flash->identify || !flash->erase_sector ||
+                                    !flash->program || !flash->readback)
+                                    status = -1;
+                                else
+                                    has_flash = true;
+                            }
+                        }
                     } else status = -1;
                 }
             }
@@ -274,7 +293,7 @@ std::vector<Core> discover(std::string const &available,
                 core.status = "invalid_link";
                 note(id, "enablement must be a trusted link to the packaged module");
             } else if (valid) {
-                int result = compatible(base + ".so", core, core.can_read_rom, core.has_v2, core.has_v3);
+                int result = compatible(base + ".so", core, core.can_read_rom, core.has_v2, core.has_v3, core.has_flash);
                 core.usable = (result == 1);
                 core.status = result == 1 ? "ready" :
                     (result == 0 ? "discovered" : "incompatible");
@@ -310,7 +329,9 @@ std::string to_json(std::vector<Core> const &cores,
               + ",\"status\":" + retrode3::NdjsonProtocol::quote(c.status)
               + ",\"usable\":" + (c.usable ? "true" : "false")
               + ",\"actions\":" + (c.usable
-                    ? (c.can_read_rom ? "[\"probe\",\"read_rom\"]" : "[\"probe\"]")
+                    ? ((c.can_read_rom ? "[\"probe\",\"read_rom" : "[\"probe") +
+                         (c.has_flash ? "\",\"probe_flash\",\"write_flash\",\"verify_flash\""
+                                      : "\"") + "]")
                     : "[]") + "}";
     }
     return json + "]}";
@@ -394,7 +415,8 @@ struct OpenCore {
     const retrode3_core_operations_v1 *api;
     const retrode3_core_operations_v2 *api2;
     const retrode3_core_operations_v3 *api3;
-    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL), api2(NULL), api3(NULL) {
+    const retrode3_core_flash_operations_v1 *flash;
+    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL), api2(NULL), api3(NULL), flash(NULL) {
         handle = ::dlopen(module.c_str(), RTLD_NOW | RTLD_LOCAL);
         if (!handle) throw std::runtime_error("could not load enabled core");
         try {
@@ -426,6 +448,17 @@ struct OpenCore {
                     !api3->capabilities_json || !api3->fast_probe_json ||
                     !api3->plan_read || !api3->read_rom)
                     throw std::runtime_error("core v3 ABI invalid");
+            }
+            void *fsym = ::dlsym(handle, "retrode3_core_get_flash_operations_v1");
+            if (fsym) {
+                retrode3_core_get_flash_operations_v1_fn getflash =
+                    reinterpret_cast<retrode3_core_get_flash_operations_v1_fn>(fsym);
+                flash = getflash();
+                if (!flash || flash->abi_version != RETRODE3_CORE_FLASH_ABI_V1 ||
+                    flash->struct_size < sizeof(*flash) ||
+                    !flash->identify || !flash->erase_sector ||
+                    !flash->program || !flash->readback)
+                    throw std::runtime_error("core Flash ABI invalid");
             }
         } catch (...) {
             ::dlclose(handle);
@@ -997,8 +1030,10 @@ void emit_capabilities_v3(retrode3::NdjsonProtocol &stream,
         + ",\"system\":" + retrode3::NdjsonProtocol::quote(core.id)
         + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
         + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
-        + ",\"enabled\":true,\"usable\":true,\"commands\":[\"probe\",\"read_rom\",\"cancel\",\"get_capabilities\"]"
-        + ",\"write_operations\":false,\"selection_schema\":"
+        + ",\"enabled\":true,\"usable\":true,\"commands\":[\"probe\",\"read_rom\",\"cancel\",\"get_capabilities\"" +
+          (module.flash ? ",\"probe_flash\",\"write_flash\",\"verify_flash\"" : "") + "]"
+        + ",\"write_operations\":" + (module.flash ? "true" : "false")
+        + ",\"selection_schema\":"
         + retrode3::stringify_json_v3(schema) + "}");
 }
 
