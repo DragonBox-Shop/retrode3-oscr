@@ -128,3 +128,26 @@ privilegiert zu startende Schalter heißt
 `/usr/local/bin/oscr`-Installation bleibt bis zum Paket-Upgrade als
 Legacy-System unangetastet. Nach dem MIPS-Build muss das OS-Repo die
 Dateien unter getrennten Paketstaging-Wurzeln verarbeiten.
+
+
+### Automatische Sanni-Upstream-Pruefung
+
+`.github/workflows/sanni-upstream-review.yml` vergleicht taeglich sowie
+auf manuellen Start den Gitlink von
+`third_party/oscr-firmware` mit `oscartreader/oscr-firmware/main`.
+Bei einer neuen Upstream-Revision erzeugt die Action nur einen Pull Request
+gegen `retrode3-oscr/develop` auf `upstream/sanni-firmware-review`.
+Der Release-Kernel, `master` und die ausgelieferten Debian-Pakete werden
+**niemals automatisch** auf den neuen Sanni-Stand gesetzt.
+
+Der Pull Request muss die bestehenden Quellkonverter, Sanni-Datenbanken,
+native Regressionstests und falls noetig echte Hardwaretests bestehen.
+Eine reine Gitlink-Aktualisierung ist keine Hardware-Freigabe. Erst nach
+Review/Tests und Merge nach `develop` erkennt der OS-Buildserver den
+neuen Commit und baut daraus `testing`-Pakete. `stable` bleibt bei
+`retrode3-oscr/master` bis zur gesonderten Freigabe.
+
+Die Erstellung von PRs aus GitHub Actions kann durch Repository-/Org-Policies
+gesperrt sein. In diesem Fall muss der Workflow so konfiguriert werden, dass
+GitHub Actions Pull Requests erstellen darf. CI-/GitHub-Berechtigungen werden
+nicht durch eine Source-Code-Aenderung erzwungen.
