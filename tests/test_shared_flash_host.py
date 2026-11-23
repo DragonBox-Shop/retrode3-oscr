@@ -78,6 +78,20 @@ class FlashJobContract(unittest.TestCase):
         self.assertTrue(events[-1]["flash_verification"]["verified"])
         self.assertEqual(events[-1]["bytes_compared"], 1024)
 
+    def test_program_and_verify_progress_report_measured_byte_rates(self):
+        events = self.call([self.cmd("write_flash", source=self.source)])
+        progress = [e for e in events if e["event"] == "progress"]
+        for event in progress:
+            if event["phase"] in ("program", "verify"):
+                self.assertEqual(event["units"], "bytes")
+                self.assertIn("elapsed_ms", event)
+                self.assertIn("bytes_per_second", event)
+                self.assertGreaterEqual(event["elapsed_ms"], 0)
+                self.assertGreaterEqual(event["bytes_per_second"], 0)
+            else:
+                self.assertNotIn("bytes_per_second", event)
+        self.assertEqual(events[-1]["event"], "result")
+
     def test_mismatch_never_succeeds_and_reports_offset(self):
         events = self.call([self.cmd("write_flash", source=self.source)],
                            {"RETRODE3_TEST_FLASH_MISMATCH": "1"})
