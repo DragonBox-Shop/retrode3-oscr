@@ -1,7 +1,9 @@
 # Flash write and verify: shared CLI / plugin contract (proposal v1)
 
-Status: **design and implementation staging only**. This document does not
-authorize, implement, or enable any Flash erase/program operation. The first
+Status: **experimental test-build contract**. Erase, program and verify
+MUST be exposed together as soon as their functional paths are implemented,
+so the operator can run actual hardware acceptance tests. No additional
+\"already hardware approved\" gate may prevent the first tests. The first
 MegaDrive CFI query (AMD/Fujitsu command set 0x0002, 4 MiB geometry) and
 return-to-ROM readback were verified on a real Retrode3 on 2026-11-23.
 The separate kernel experiment is still a Draft PR. Manufacturer/device
@@ -14,10 +16,13 @@ identification and safe sector erase/program are not yet hardware accepted.
   Cartridge-specific operations live in optional versioned core capabilities.
   The browser must not know MD chip-specific commands or erase layouts.
 - A Flash-capable core must advertise **independent** capabilities
-  `probe_flash`, `write_flash` and `verify_flash` only when their
-  respective implementations and safety constraints are complete.
-  Do not change the existing `probe` / `read_rom` ABI or re-purpose
-  ROM-database `verification` as physical Flash verification.
+  `probe_flash`, `write_flash` and `verify_flash` in the experimental
+  build as soon as the corresponding implementations exist. The core
+  must NOT require prior successful physical hardware testing just to
+  expose them to the test operator. Ordinary production builds may
+  withhold experimental capabilities until acceptance. Do not change
+  the existing `probe` / `read_rom` ABI or re-purpose ROM-database
+  `verification` as physical Flash verification.
 - Flash probing includes a command write. It is **explicit user action
   only**, never part of automatic insertion detection.
   `sense=active` means occupied, not approved for Flash access.
@@ -102,9 +107,12 @@ phase instead of pretending this is a single monotonic percentage.
   the cart as possibly partially programmed. No automatic resume, retry,
   fallback to another voltage or guessed manufacturer command.
 - The existing passive ROM reader, NES/SNES/SMS adapters and SRAM paths
-  must remain unchanged. Keep `write_flash` unavailable until full
-  electrical validation of a known expendable cartridge and independent
-  byte-for-byte verify on physical hardware.
+  must remain unchanged. Experimental `write_flash` and `verify_flash`
+  MUST be callable **before** the first physical tests, otherwise those
+  tests cannot occur. Keep the scope limited to a positively identified,
+  supported cartridge, an explicit user confirmation, an expendable test
+  cart, an experimental kernel-module gate and exclusive bus ownership.
+  Do not ship the same experimental privilege to production by default.
 
 ## Acceptance matrix before exposing Write Cartridge
 
@@ -117,8 +125,10 @@ phase instead of pretending this is a single monotonic percentage.
   direction; successful full erase, full programming, independent
   byte-for-byte readback, CRC summary, post-command reset and
   re-insertion readback. Test interruption/recovery on a disposable
-  cart. Only then expose the corresponding write capability and
-  connect Web v2's Write Cartridge screen.
+  cart. **Expose test-build operations before these tests**, not after.
+  Only after passing them remove the experimental label and release to
+  production. Web v2's Write Cartridge screen may invoke the test-only
+  flow from the outset; never treat the test workflow as customer-ready.
 - Run `./tools/preflight-ci.sh` in the full checkout before ABI, CLI,
   core or test changes are pushed. Leave any implementation that has
   only GitHub-connector review on a short-lived Draft PR branch until
