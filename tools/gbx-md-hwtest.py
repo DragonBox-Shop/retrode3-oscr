@@ -15,7 +15,7 @@ PARAM = "/sys/module/retrode3/parameters/gbx_md_test"
 GB = 23
 GBA_LOW = 24
 GBA_HIGH = 25
-GB_PINS = 26  # diagnostic GPIO mask (A7..A18), GB address * 2
+GB_PINS = 26  # diagnostic GPIO mask (A8..A18), GB address * 2
 GBA_TRACE = 27  # 8 byte record per ROM word, four 16-bit GPIO snapshots
 WINDOW = 0x1000000
 
@@ -74,13 +74,13 @@ def diagnose_gb_pins(fd):
         (0x010a, 0x00), (0x010b, 0x0b),
         (0x010f, 0x83), (0x0118, 0x88),
         (0x0119, 0x89), (0x0134, 0x50))
-    print("GB INPUT GPIO SNAPSHOT: A7..A18, 3.3V, /RD active")
-    print("Address  Expected  D7  MD pins HIGH (A7..A18)   mask")
+    print("GB INPUT GPIO SNAPSHOT: A8..A18, 3.3V, /RD active")
+    print("Address  Expected  D7  MD pins HIGH (A8..A18)   mask")
     for addr, known in expected:
         raw = get(fd, GB_PINS, addr * 2, 2)
         mask = raw[0] | (raw[1] << 8)
-        high = ",".join("A%d" % pin for pin in range(7, 19)
-                        if mask & (1 << (pin - 7)))
+        high = ",".join("A%d" % pin for pin in range(8, 19)
+                        if mask & (1 << (pin - 8)))
         print("%04X       %02X        %d   %-27s %03X" %
               (addr, known, known >> 7, high or "(none)", mask))
 
@@ -134,7 +134,7 @@ def main():
     parser.add_argument("--raw", action="store_true",
                         help="Print raw header bytes even if header validation fails")
     parser.add_argument("--pins", action="store_true",
-                        help="GB only: inspect read-only GPIO A7..A18 during /RD (kernel mode 26)")
+                        help="GB only: inspect read-only GPIO A8..A18 during /RD (kernel mode 26)")
     parser.add_argument("--trace", action="store_true",
                         help="GBA only: show four data-bus stages per ROM word (kernel mode 27)")
     parser.add_argument("--mib", type=int, choices=(1, 2, 4, 8, 16, 32),
