@@ -122,10 +122,8 @@ int gba_word(void *context, std::uint32_t byte_addr, std::uint16_t *word)
 }
 gbx::GbaHeader read_header(RomDevice &device)
 {
-    gbx::Bus bus = {};
-    bus.context = &device;
-    bus.gba_read16 = gba_word;
-    gbx::GbaHeader header = {};
+    gbx::Bus bus = {&device, NULL, gba_word, NULL};
+    gbx::GbaHeader header = {{0}, {0}, 0};
     if (gbx::probe_gba(bus, &header) != gbx::Ok)
         throw std::runtime_error("invalid GBA Nintendo logo, header checksum or ROM bus read");
     return header;
