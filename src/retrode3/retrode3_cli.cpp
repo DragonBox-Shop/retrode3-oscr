@@ -1559,8 +1559,6 @@ void flash_job(retrode3::NdjsonProtocol &stream,
     if (cmd.has_selection || cmd.has_manual || !cmd.output.empty() ||
         cmd.has_size || !cmd.mapping.empty())
         throw std::runtime_error("Flash job cannot carry ROM-read parameters");
-    if (cmd.action == "write_flash" && !cmd.confirm_erase)
-        throw std::runtime_error("Flash erase requires explicit confirmation");
     if (cmd.action != "probe_flash" && cmd.source.empty())
         throw std::runtime_error("Flash job requires ROM source file");
 
@@ -1762,7 +1760,6 @@ int main(int argc, char **argv)
     std::string enabled = "/etc/retrode3/cores-enabled";
     std::string core_id, action, output, slot_id, source;
     bool list = false, streamed = false, run_interactive = false;
-    bool confirm_erase = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--list-cores" && !list) list = true;
@@ -1786,8 +1783,6 @@ int main(int argc, char **argv)
             output = argv[++i];
         } else if (arg == "--source" && i + 1 < argc && source.empty()) {
             source = argv[++i];
-        } else if (arg == "--confirm-erase" && !confirm_erase) {
-            confirm_erase = true;
         }
 #ifdef RETRODE3_TESTING
         else if (arg == "--available-dir" && i + 1 < argc)
@@ -1800,7 +1795,7 @@ int main(int argc, char **argv)
                 "usage: retrode3-cli --list-cores | --protocol ndjson-v1 "
                 "--interactive | --protocol ndjson-v1 --core ID "
                 "--action probe|read-rom|probe-slot|probe-flash|write-flash|verify-flash "
-                "[--slot ID] [--output FILE] [--source FILE] [--confirm-erase]\n");
+                "[--slot ID] [--output FILE] [--source FILE]\n");
             return 2;
         }
     }
@@ -1811,7 +1806,7 @@ int main(int argc, char **argv)
                                       action == "verify_flash");
     if (mode_count != 1 || ((run_interactive || !action.empty()) && !streamed) ||
         ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() ||
-                                      !output.empty() || !source.empty() || confirm_erase)) ||
+                                      !output.empty() || !source.empty())) ||
         (!action.empty() && ((action == "probe_slot" ?
                                 (!core_id.empty() || !is_slug(slot_id)) :
                                 (!is_slug(core_id) || !slot_id.empty())) ||
@@ -1820,8 +1815,7 @@ int main(int argc, char **argv)
                              (action == "read_rom" && output.empty()) ||
                              (action != "read_rom" && !output.empty()) ||
                              ((action == "write_flash" || action == "verify_flash") != !source.empty()) ||
-                             (action == "write_flash" && !confirm_erase) ||
-                             (action != "write_flash" && confirm_erase)))) {
+                             false))) {
         std::fprintf(stderr, "invalid Retrode3 command mode/options\n");
         return 2;
     }
@@ -1847,7 +1841,6 @@ int main(int argc, char **argv)
                     command.core = c.id;
                     command.request_id = "cli";
                     command.source = source;
-                    command.confirm_erase = confirm_erase;
                     flash_job(stream, command, module, c.slot);
                 } else if (module.api3 && !module.api2) {
                     if (action == "probe") {
