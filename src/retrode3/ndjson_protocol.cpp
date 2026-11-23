@@ -127,8 +127,7 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
             i->first != "mapper" && i->first != "submapper" &&
             i->first != "prg_kib" && i->first != "chr_kib" &&
             i->first != "mirroring" && i->first != "battery" &&
-            i->first != "selection" && i->first != "source" &&
-            i->first != "confirm_erase")
+            i->first != "selection" && i->first != "source")
             throw std::runtime_error("unknown command field: " + i->first);
     WebCommand cmd;
     cmd.action = field(obj, "command", true);
@@ -191,11 +190,6 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
         cmd.source.find('\n') != std::string::npos ||
         cmd.source.find('\r') != std::string::npos)
         throw std::runtime_error("invalid Flash source path");
-    if (obj.has("confirm_erase")) {
-        if (obj.at("confirm_erase").kind != JsonV3::Boolean)
-            throw std::runtime_error("confirm_erase must be boolean");
-        cmd.confirm_erase = obj.at("confirm_erase").boolean;
-    }
     cmd.mapping = field(obj, "mapping");
     if (!cmd.mapping.empty() && cmd.mapping != "lo" && cmd.mapping != "hi")
         throw std::runtime_error("invalid mapping");
@@ -225,10 +219,6 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     if ((cmd.action == "write_flash" || cmd.action == "verify_flash") &&
         (cmd.source.empty() || cmd.source[0] != '/'))
         throw std::runtime_error("Flash jobs require an absolute source path");
-    if (cmd.action == "write_flash" && !cmd.confirm_erase)
-        throw std::runtime_error("write_flash requires explicit confirm_erase");
-    if (cmd.action != "write_flash" && obj.has("confirm_erase"))
-        throw std::runtime_error("confirm_erase only applies to write_flash");
     if (cmd.action != "write_flash" && cmd.action != "verify_flash" &&
         !cmd.source.empty())
         throw std::runtime_error("source only applies to Flash jobs");
