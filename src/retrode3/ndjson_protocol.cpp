@@ -127,7 +127,8 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
             i->first != "mapper" && i->first != "submapper" &&
             i->first != "prg_kib" && i->first != "chr_kib" &&
             i->first != "mirroring" && i->first != "battery" &&
-            i->first != "selection")
+            i->first != "selection" && i->first != "source" &&
+            i->first != "confirm_erase")
             throw std::runtime_error("unknown command field: " + i->first);
     WebCommand cmd;
     cmd.action = field(obj, "command", true);
@@ -185,6 +186,16 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
         check_selection(cmd, obj.at("selection"));
     }
     cmd.output = field(obj, "output");
+    cmd.source = field(obj, "source");
+    if (cmd.source.size() > 1024 ||
+        cmd.source.find('\n') != std::string::npos ||
+        cmd.source.find('\r') != std::string::npos)
+        throw std::runtime_error("invalid Flash source path");
+    if (obj.has("confirm_erase")) {
+        if (obj.at("confirm_erase").kind != JsonV3::Boolean)
+            throw std::runtime_error("confirm_erase must be boolean");
+        cmd.confirm_erase = obj.at("confirm_erase").boolean;
+    }
     cmd.mapping = field(obj, "mapping");
     if (!cmd.mapping.empty() && cmd.mapping != "lo" && cmd.mapping != "hi")
         throw std::runtime_error("invalid mapping");
@@ -200,7 +211,9 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     }
     if (cmd.action != "probe" && cmd.action != "read_rom" &&
         cmd.action != "cancel" && cmd.action != "get_capabilities" &&
-        cmd.action != "list_cores" && cmd.action != "probe_slot")
+        cmd.action != "list_cores" && cmd.action != "probe_slot" &&
+        cmd.action != "probe_flash" && cmd.action != "write_flash" &&
+        cmd.action != "verify_flash")
         throw std::runtime_error("unsupported command");
     if (cmd.action == "list_cores" && (!cmd.core.empty() || !cmd.slot.empty()))
         throw std::runtime_error("list_cores takes no core identifier");
@@ -209,6 +222,16 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
             throw std::runtime_error("probe_slot requires slot and forbids core");
     } else if (!cmd.slot.empty())
         throw std::runtime_error("slot only allowed for probe_slot");
+    if ((cmd.action == "write_flash" || cmd.action == "verify_flash") &&
+        (cmd.source.empty() || cmd.source[0] != '/'))
+        throw std::runtime_error("Flash jobs require an absolute source path");
+    if (cmd.action == "write_flash" && !cmd.confirm_erase)
+        throw std::runtime_error("write_flash requires explicit confirm_erase");
+    if (cmd.action != "write_flash" && obj.has("confirm_erase"))
+        throw std::runtime_error("confirm_erase only applies to write_flash");
+    if (cmd.action != "write_flash" && cmd.action != "verify_flash" &&
+        !cmd.source.empty())
+        throw std::runtime_error("source only applies to Flash jobs");
     if (cmd.action == "read_rom" && cmd.output.empty())
         throw std::runtime_error("read_rom requires output");
     if (cmd.action != "read_rom" &&
