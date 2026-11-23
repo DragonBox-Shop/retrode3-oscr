@@ -329,7 +329,7 @@ std::string to_json(std::vector<Core> const &cores,
               + ",\"status\":" + retrode3::NdjsonProtocol::quote(c.status)
               + ",\"usable\":" + (c.usable ? "true" : "false")
               + ",\"actions\":" + (c.usable
-                    ? ((c.can_read_rom ? "[\"probe\",\"read_rom" : "[\"probe") +
+                    ? (std::string(c.can_read_rom ? "[\"probe\",\"read_rom" : "[\"probe") +
                          (c.has_flash ? "\",\"probe_flash\",\"write_flash\",\"verify_flash\""
                                       : "\"") + "]")
                     : "[]") + "}";
