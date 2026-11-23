@@ -1,0 +1,73 @@
+name: Track upstream Sanni OSCR firmware (review required)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 5 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sanni-submodule-review
+  cancel-in-progress: false
+
+jobs:
+  propose-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+          submodules: true
+          persist-credentials: true
+      - name: Compare with Sanni upstream, never update master directly
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          upstream=https://github.com/oscartreader/oscr-firmware.git
+          latest="$(git ls-remote --exit-code "$upstream" refs/heads/main | cut -f1)"
+          previous="$(git rev-parse HEAD:third_party/oscr-firmware)"
+          [[ "$latest" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$previous" =~ ^[a-f0-9]{40}$ ]]
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+          if [[ "$latest" == "$previous" ]]; then
+            echo "Sanni firmware is current: $latest"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git -C third_party/oscr-firmware fetch --no-tags origin main
+          git -C third_party/oscr-firmware checkout --detach "$latest"
+          test "$(git -C third_party/oscr-firmware rev-parse HEAD)" = "$latest"
+          git add third_party/oscr-firmware
+          git diff --cached --submodule=short --stat
+          {
+            echo "### Sanni upstream update candidate"
+            echo "Old submodule gitlink: `$previous`"
+            echo "New upstream main: `$latest`"
+            echo "This is review-only; never auto-merge into develop/master."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Propose pinned submodule update for source review
+        if: steps.upstream.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          base: develop
+          branch: upstream/sanni-firmware-review
+          delete-branch: true
+          commit-message: "chore: propose newer Sanni OSCR submodule"
+          title: "Upstream Sanni OSCR firmware update (manual review)"
+          body: |
+            The official `oscartreader/oscr-firmware` main branch advanced.
+            Previous pin: `${{ steps.upstream.outputs.previous }}`
+            Proposed pin: `${{ steps.upstream.outputs.latest }}`
+
+            **Do not merge automatically.** Verify upstream code and databases
+            against the Retrode3 OSCR converter allowlists, run native
+            regression tests, and hardware-test any affected bus timing,
+            mapper, flash, cartridge write, voltage or save behavior before
+            promoting the pin into `develop` or `master`.
