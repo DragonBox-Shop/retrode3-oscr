@@ -98,6 +98,34 @@ The `flash_verification` result records verified bytes or the first
 differing byte offset. The older ROM-database `verification` field on
 `read_rom` is independent of post-write Flash verification.
 
+## Measured throughput and one-time chip authorization
+
+The shared CLI now sends `elapsed_ms` and `bytes_per_second` with the
+`program` and `verify` progress events. These are **actual average
+rates since that phase began**, measured with a monotonic clock in the
+CLI. Repeated Verify passes are included in one cumulative Verify
+timer. The Web v2 client displays `bytes_per_second / 1024` as
+`KiB/s` next to byte progress. Erase progress is in sectors; no
+fictional erase byte rate is displayed.
+
+The previously observed Write speed was about **32 KiB in 6 s**.
+Investigation found that each 512-byte chunk previously opened
+`/dev/slot-md` separately and caused a fresh kernel CFI query plus
+AMD autoselect. For a 4 MiB image, that was **8192 redundant
+identifications**. The MegaDrive Flash adapter now holds a single
+FD throughout Identify, Erase, Write and Verify; the kernel binds
+successful identity authorization to that FD and invalidates it on
+close or any observed cartridge-detect change. Every destructive
+ioctl still checks the native MD slot, 5V connector setting, current
+presence and incompatible bus modes. New kernel and MD core binaries
+**must be installed together** for Flash writes to continue working.
+
+This is a private experimental behavior change without changing the
+existing ioctl numbers or payload structs. The kernel and MD core
+are not independently compatible across the old and new session
+implementations. Neither full hardware throughput nor new cartridge
+handling has yet been measured.
+
 ## Erase performance and EBUSY diagnostics
 
 The kernel now polls for sector-erase completion but **does not** read
@@ -133,8 +161,14 @@ These tests cannot replace physical tests.
 responded to CFI QRY with 4MiB/71-sector geometry and returned to ROM
 mode (header `SEGA GENESIS` at 0x100).
 
-**Still requiring real device tests:** manufacturer/device autoselect,
-sector erase, programming, full readback, interruption and repeated
-reads. The feature branch remains separate from `develop`/`master`
-until those tests pass. This is only a release process; the functions
-are callable on the device immediately after installing the branch.
+**Confirmed subsequently on hardware (2026-11-23):** one complete
+3.13 MiB ROM was erased, programmed and byte-for-byte verified
+(1 pass) on the Retrode3, and the resulting cartridge worked in
+an original MegaDrive console. This validates the **previous**
+kernel/Flash implementation, not the newly introduced per-FD
+authorization or measured-speed code.
+
+**Still requiring real-device tests:** new per-FD identity lifecycle,
+new writing throughput, media-removal handling, interrupts and
+repeated Verify passes. The feature branch remains separate from
+`develop`/`master` pending those tests.
