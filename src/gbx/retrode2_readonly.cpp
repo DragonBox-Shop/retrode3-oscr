@@ -63,7 +63,7 @@ Status probe_gb(const Bus &bus, GbHeader *header)
         check = static_cast<uint8_t>(check - bytes[address - 0x100u] - 1u);
     if (check != bytes[0x4d]) return InvalidHeader;
 
-    GbHeader result = {};
+    GbHeader result = {{0}, 0, 0, 0, 0, false};
     copy_printable(result.title, sizeof(result.title), &bytes[0x34], 16);
     result.cart_type = bytes[0x47];
     result.rom_size_code = bytes[0x48];
@@ -98,7 +98,7 @@ Status probe_gba(const Bus &bus, GbaHeader *header)
     check = static_cast<uint8_t>(check - 0x19u);
     if (check != bytes[0xbd]) return InvalidHeader;
 
-    GbaHeader result = {};
+    GbaHeader result = {{0}, {0}, 0};
     copy_printable(result.title, sizeof(result.title), &bytes[0xa0], 12);
     copy_printable(result.game_code, sizeof(result.game_code), &bytes[0xac], 4);
     result.header_checksum = bytes[0xbd];
@@ -110,7 +110,7 @@ Status read_gb_linear_32k(const Bus &bus, const Sink &sink,
                           const GbHeader *expected)
 {
     if (!sink.write || !bus.gb_read8) return BadArgument;
-    GbHeader current = {};
+    GbHeader current = {{0}, 0, 0, 0, 0, false};
     const Status probed = probe_gb(bus, &current);
     if (probed != Ok) return probed;
     if (!current.linear_32k_supported) return UnsupportedLayout;
@@ -140,7 +140,7 @@ Status read_gba_linear(const Bus &bus, const Sink &sink,
         size_bytes != 8u * 1024u * 1024u &&
         size_bytes != 16u * 1024u * 1024u &&
         size_bytes != 32u * 1024u * 1024u) return UnsupportedLayout;
-    GbaHeader current = {};
+    GbaHeader current = {{0}, {0}, 0};
     const Status probed = probe_gba(bus, &current);
     if (probed != Ok) return probed;
     if (expected && !same_gba(*expected, current)) return CartridgeChanged;
