@@ -12,7 +12,6 @@ struct WebCommand {
     std::string request_id;
     std::string output;
     std::string source;
-    bool confirm_erase;
     std::string mapping;
     std::string candidate_id;
     std::string layout_id;
@@ -27,7 +26,7 @@ struct WebCommand {
     std::map<std::string, JsonV3> selection_parameters;
     std::size_t size_bytes;
     bool has_size;
-    WebCommand() : confirm_erase(false), mapper(0), submapper(0), prg_kib(0), chr_kib(0), battery(0), has_manual(false), has_selection(false), size_bytes(0), has_size(false) {}
+    WebCommand() : mapper(0), submapper(0), prg_kib(0), chr_kib(0), battery(0), has_manual(false), has_selection(false), size_bytes(0), has_size(false) {}
 };
 
 class NdjsonProtocol {
