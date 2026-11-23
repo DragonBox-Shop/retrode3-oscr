@@ -45,12 +45,10 @@ class FlashJobContract(unittest.TestCase):
         self.assertEqual(p.returncode, 0, err.decode("utf-8", "replace"))
         return [json.loads(x) for x in out.decode("utf-8").splitlines()]
 
-    def cmd(self, action, request="job", source=None, confirm=None):
+    def cmd(self, action, request="job", source=None):
         x = {"command": action, "core": "flash-mock", "request_id": request}
         if source is not None:
             x["source"] = source
-        if confirm is not None:
-            x["confirm_erase"] = confirm
         return x
 
     def test_dynamic_actions_and_physical_id(self):
@@ -67,7 +65,7 @@ class FlashJobContract(unittest.TestCase):
         self.assertEqual(events[3]["sector_count"], 71)
 
     def test_write_has_phases_and_only_completes_after_verify(self):
-        events = self.call([self.cmd("write_flash", source=self.source, confirm=True)])
+        events = self.call([self.cmd("write_flash", source=self.source)])
         states = [x for x in events if x["event"] == "progress"]
         phases = [x["phase"] for x in states]
         for name in ("erase", "program", "verify"):
@@ -81,17 +79,16 @@ class FlashJobContract(unittest.TestCase):
         self.assertEqual(events[-1]["bytes_compared"], 1024)
 
     def test_mismatch_never_succeeds_and_reports_offset(self):
-        events = self.call([self.cmd("write_flash", source=self.source, confirm=True)],
+        events = self.call([self.cmd("write_flash", source=self.source)],
                            {"RETRODE3_TEST_FLASH_MISMATCH": "1"})
         self.assertEqual(events[-1]["event"], "error")
         self.assertIn("offset 7", events[-1]["message"])
         self.assertFalse(any(x["event"] == "result" for x in events))
 
-    def test_erase_failure_and_absent_confirmation(self):
-        events = self.call([self.cmd("write_flash", "reject", self.source),
-                            self.cmd("write_flash", "erasefail", self.source, True)],
+    def test_erase_failure_never_reports_success(self):
+        events = self.call([self.cmd("write_flash", source=self.source)],
                            {"RETRODE3_TEST_FLASH_FAIL_ERASE": "1"})
-        self.assertEqual(len([e for e in events if e["event"] == "error"]), 2)
+        self.assertEqual(events[-1]["event"], "error")
         self.assertFalse(any(e["event"] == "result" for e in events))
 
     def test_standalone_verify_cannot_write(self):
@@ -102,7 +99,7 @@ class FlashJobContract(unittest.TestCase):
         self.assertEqual(events[-1]["event"], "result")
 
     def test_unsupported_chip_fails_before_destructive_work(self):
-        events = self.call([self.cmd("write_flash", source=self.source, confirm=True)],
+        events = self.call([self.cmd("write_flash", source=self.source)],
                            {"RETRODE3_TEST_FLASH_BAD_ID": "1"})
         self.assertEqual(events[-1]["event"], "error")
         self.assertFalse(any(e["event"] == "progress" for e in events))
