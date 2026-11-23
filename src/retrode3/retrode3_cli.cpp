@@ -1475,6 +1475,214 @@ void read_rom_v3(retrode3::NdjsonProtocol &stream,
     }
 }
 
+
+/* Shared Flash jobs, available only when a trusted core exports the optional
+ * Flash ABI. Explicit user request, never an insertion-time ROM probe.
+ * All phase progress, source-file ownership and readback verification are
+ * centralized here, never in the MegaDrive adapter or kernel. */
+struct FlashSource {
+    int fd;
+    std::size_t size;
+    FlashSource(std::string const &source, std::size_t capacity) : fd(-1), size(0) {
+        if (source.empty() || source[0] != '/' || source.size() > 1024 ||
+            source.find("/../") != std::string::npos ||
+            source.find("/./") != std::string::npos ||
+            ends_with(source, "/..") || ends_with(source, "/."))
+            throw std::runtime_error("invalid Flash source path");
+        fd = ::open(source.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+        if (fd < 0)
+            throw std::runtime_error("cannot open Flash ROM source");
+        struct stat st;
+        if (::fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
+            st.st_size < 512 || st.st_size > static_cast<off_t>(capacity) ||
+            (st.st_size & 1)) {
+            ::close(fd);
+            fd = -1;
+            throw std::runtime_error("Flash source must be an even-sized ROM file within capacity");
+        }
+        size = static_cast<std::size_t>(st.st_size);
+    }
+    ~FlashSource() { if (fd >= 0) ::close(fd); }
+    void get(std::size_t offset, void *bytes, std::size_t count) const {
+        unsigned char *p = static_cast<unsigned char *>(bytes);
+        std::size_t done = 0;
+        while (done < count) {
+            ssize_t n = ::pread(fd, p + done, count - done,
+                                static_cast<off_t>(offset + done));
+            if (n <= 0)
+                throw std::runtime_error("Flash ROM source truncated/unreadable");
+            done += static_cast<std::size_t>(n);
+        }
+    }
+private:
+    FlashSource(FlashSource const &);
+    FlashSource &operator=(FlashSource const &);
+};
+
+std::string flash_error(char const *message, std::size_t limit,
+                        char const *fallback) {
+    return message[0] ? safe_cstr(message, limit) : std::string(fallback);
+}
+
+void check_flash_cancel(retrode3::NdjsonProtocol &stream,
+                        std::string const &request_id) {
+    stream.poll_cancel(request_id);
+    if (stream.cancelled())
+        throw std::runtime_error("cancelled");
+}
+
+void flash_progress(retrode3::NdjsonProtocol &stream,
+                    std::string const &request_id,
+                    std::string const &phase, std::uint64_t done,
+                    std::uint64_t total, bool sectors,
+                    int &last_percent) {
+    unsigned percent = total ?
+        static_cast<unsigned>((done * 100u) / total) : 100u;
+    if (percent == static_cast<unsigned>(last_percent) && done < total)
+        return;
+    last_percent = static_cast<int>(percent);
+    stream.emit(prefix("progress", request_id)
+        + ",\"phase\":" + retrode3::NdjsonProtocol::quote(phase)
+        + ",\"units\":" + (sectors ? "\"sectors\"" : "\"bytes\"")
+        + (sectors ? ",\"units_done\":" : ",\"bytes_done\":") +
+            std::to_string(done)
+        + (sectors ? ",\"units_total\":" : ",\"bytes_total\":") +
+            std::to_string(total)
+        + ",\"percent\":" + std::to_string(percent) + "}");
+}
+
+void flash_job(retrode3::NdjsonProtocol &stream,
+               retrode3::WebCommand const &cmd, OpenCore &core,
+               std::string const &slot) {
+    if (!core.flash || !core.api3)
+        throw std::runtime_error("Flash support not installed in selected core");
+    if (cmd.has_selection || cmd.has_manual || !cmd.output.empty() ||
+        cmd.has_size || !cmd.mapping.empty())
+        throw std::runtime_error("Flash job cannot carry ROM-read parameters");
+    if (cmd.action == "write_flash" && !cmd.confirm_erase)
+        throw std::runtime_error("Flash erase requires explicit confirmation");
+    if (cmd.action != "probe_flash" && cmd.source.empty())
+        throw std::runtime_error("Flash job requires ROM source file");
+
+    const retrode3::JsonV3 schema = capability_schema_v3(core);
+    // Scoped hardware profile restores 5V selection and root-only module
+    // gates even on failure. Caller holds the common bus lock for this scope.
+    retrode3::HardwareScopeV1 hardware(schema, slot,
+        cmd.action == "write_flash" ? "flash_write" : "flash_probe");
+    retrode3_flash_identity_v1 identity;
+    std::memset(&identity, 0, sizeof(identity));
+    identity.struct_size = sizeof(identity);
+    char error[256] = {};
+    if (core.flash->identify(&identity, error, sizeof(error)))
+        throw std::runtime_error(flash_error(error, sizeof(error),
+                                             "Flash identification failed"));
+    if (identity.struct_size != sizeof(identity) ||
+        identity.size_bytes < 512 || identity.size_bytes > 4194304u ||
+        identity.region_count == 0 ||
+        identity.region_count > RETRODE3_FLASH_MAX_REGIONS_V1)
+        throw std::runtime_error("invalid Flash geometry returned by core");
+
+    std::vector<std::uint32_t> all_sectors;
+    std::uint64_t offset = 0;
+    for (std::uint32_t i = 0; i < identity.region_count; ++i) {
+        const retrode3_flash_region_v1 &r = identity.regions[i];
+        if (r.start_bytes != offset || !r.sector_bytes || !r.count ||
+            (r.sector_bytes & 1u) || r.count > 1024)
+            throw std::runtime_error("invalid Flash region");
+        for (std::uint32_t j = 0; j < r.count; ++j) {
+            if (offset >= identity.size_bytes || all_sectors.size() >= 1024)
+                throw std::runtime_error("Flash region exceeds capacity");
+            all_sectors.push_back(static_cast<std::uint32_t>(offset));
+            offset += r.sector_bytes;
+        }
+    }
+    if (offset != identity.size_bytes)
+        throw std::runtime_error("Flash region total mismatches capacity");
+
+    if (cmd.action == "probe_flash") {
+        stream.emit(prefix("flash_probe_result", cmd.request_id)
+            + ",\"system\":" + retrode3::NdjsonProtocol::quote(cmd.core)
+            + ",\"slot\":" + retrode3::NdjsonProtocol::quote(slot)
+            + ",\"manufacturer_id\":" + std::to_string(identity.manufacturer_id)
+            + ",\"device_id\":" + std::to_string(identity.device_id)
+            + ",\"capacity_bytes\":" + std::to_string(identity.size_bytes)
+            + ",\"sector_count\":" + std::to_string(all_sectors.size())
+            + ",\"write_supported\":true,\"verify_supported\":true}");
+        return;
+    }
+
+    FlashSource source(cmd.source, identity.size_bytes);
+    std::vector<std::uint32_t> sectors;
+    for (std::size_t i = 0; i < all_sectors.size(); ++i) {
+        if (all_sectors[i] < source.size)
+            sectors.push_back(all_sectors[i]);
+    }
+    stream.reset_cancel();
+    int last_percent = -1;
+    if (cmd.action == "write_flash") {
+        flash_progress(stream, cmd.request_id, "erase", 0,
+                       sectors.size(), true, last_percent);
+        for (std::size_t i = 0; i < sectors.size(); ++i) {
+            check_flash_cancel(stream, cmd.request_id);
+            std::memset(error, 0, sizeof(error));
+            if (core.flash->erase_sector(sectors[i], error, sizeof(error)))
+                throw std::runtime_error(flash_error(error, sizeof(error),
+                    "Flash sector erase failed; contents may be damaged"));
+            flash_progress(stream, cmd.request_id, "erase", i + 1,
+                           sectors.size(), true, last_percent);
+        }
+        last_percent = -1;
+        flash_progress(stream, cmd.request_id, "program", 0,
+                       source.size, false, last_percent);
+        unsigned char block[512];
+        for (std::size_t p = 0; p < source.size; ) {
+            check_flash_cancel(stream, cmd.request_id);
+            std::size_t n = std::min(sizeof(block), source.size - p);
+            source.get(p, block, n);
+            std::memset(error, 0, sizeof(error));
+            if (core.flash->program(static_cast<std::uint32_t>(p), block, n,
+                                    error, sizeof(error)))
+                throw std::runtime_error(flash_error(error, sizeof(error),
+                    "Flash programming failed; contents may be damaged"));
+            p += n;
+            flash_progress(stream, cmd.request_id, "program", p,
+                           source.size, false, last_percent);
+        }
+    }
+
+    last_percent = -1;
+    flash_progress(stream, cmd.request_id, "verify", 0,
+                   source.size, false, last_percent);
+    unsigned char expected[4096], observed[4096];
+    for (std::size_t p = 0; p < source.size; ) {
+        check_flash_cancel(stream, cmd.request_id);
+        std::size_t n = std::min(sizeof(expected), source.size - p);
+        source.get(p, expected, n);
+        std::memset(error, 0, sizeof(error));
+        if (core.flash->readback(static_cast<std::uint32_t>(p), observed, n,
+                                 error, sizeof(error)))
+            throw std::runtime_error(flash_error(error, sizeof(error),
+                "Flash readback failed"));
+        for (std::size_t j = 0; j < n; ++j) {
+            if (expected[j] != observed[j])
+                throw std::runtime_error("Flash verify mismatch at byte offset " +
+                                          std::to_string(p + j));
+        }
+        p += n;
+        flash_progress(stream, cmd.request_id, "verify", p,
+                       source.size, false, last_percent);
+    }
+    stream.emit(prefix("result", cmd.request_id)
+        + ",\"ok\":true,\"system\":" +
+            retrode3::NdjsonProtocol::quote(cmd.core)
+        + ",\"command\":" + retrode3::NdjsonProtocol::quote(cmd.action)
+        + ",\"bytes_compared\":" + std::to_string(source.size)
+        + ",\"flash_verification\":{\"status\":\"verified\","
+          "\"method\":\"byte_compare\",\"verified\":true,"
+          "\"bytes_compared\":" + std::to_string(source.size)
+        + ",\"first_mismatch_offset\":null}}");
+}
+
 void interactive(std::string const &available, std::string const &enabled)
 {
     retrode3::NdjsonProtocol stream(true);
