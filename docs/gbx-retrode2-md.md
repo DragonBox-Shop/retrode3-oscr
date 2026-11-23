@@ -17,9 +17,9 @@ header checksum, all at **3.3 V**. GBA originally returned `0xFF` or
 wrong sequential ROM words. A consistent **+1 offset** in the adapter
 MD A-pin to Retrode3 `addr-gpios[]` mapping affected both the GB data
 window and GBA control lines. Correcting the entire adapter-specific
-GPIO mapping yielded a valid GBA header. These are **header-only tests**:
-complete ROM/CRC validation, mapper banking, GBC-specific tests and
-full ROM/CRC verification remains outstanding. **On 2026-11-23,
+GPIO mapping yielded a valid GBA header. The later 1 MiB GBA burst test below extends this evidence beyond
+headers, but full-cartridge verification, mapper banking, and GBC-specific
+tests remain outstanding. **On 2026-11-23,
 regression after the complete control-line remap passed:** two repeated
 GBA `--raw` probes of `SHININGFORCE` / `AF5P` returned byte-identical
 valid 192-byte headers, followed by two repeated GB `--raw` probes of
@@ -27,6 +27,29 @@ valid 192-byte headers, followed by two repeated GB `--raw` probes of
 checksum-valid. All at 3.3 V on the same corrected test module.
 The standard MegaDrive driver and web interface were not changed for
 this experiment.
+
+## Verified 1 MiB GBA burst test (2026-11-23)
+
+Shining Force GBA `AF5P` was read as two 1 MiB files with the baseline
+random-access transport (mode 24) and once with the opt-in sequential
+burst transport (mode 28). The baseline copies were byte-identical.
+The experimental burst copy was also **byte-identical** to baseline
+according to `cmp`, CRC32 `309284CE` and SHA256
+`b26b394da0f5e3dd91442cea2dbe530ed49f534ca491c7facb672092659357ef`.
+Both readers passed the GBA header check at 3.3 V.
+
+Measured `time` on the target Retrode3:
+
+| Mode | 1 MiB real | user | sys | Throughput |
+|---|---:|---:|---:|---:|
+| Random access (24) | 59.368 s | 0.919 s | 55.311 s | 17.3 KiB/s |
+| Sequential burst (28) | 8.943 s | 0.848 s | 7.157 s | 114.5 KiB/s |
+
+Speedup approximately **6.64x** for this 1 MiB test. This is
+**hardware-validated for one 1 MiB ROM prefix**, not proof of
+full-cartridge correctness, behavior at 16 MiB window boundaries,
+or correctness with other cartridges. Keep the baseline modes 24/25
+intact and the burst mode opt-in until further acceptance tests.
 
 ## Source of truth and scope
 
