@@ -1,103 +1,70 @@
-# Flash write and verify: shared CLI / plugin contract (proposal v1)
+# MegaDrive Flash: shared CLI and normal core capability
 
-Status: **experimental test-build contract**. Erase, program and verify
-MUST be exposed together as soon as their functional paths are implemented,
-so the operator can run actual hardware acceptance tests. No additional
-\"already hardware approved\" gate may prevent the first tests. The first
-MegaDrive CFI query (AMD/Fujitsu command set 0x0002, 4 MiB geometry) and
-return-to-ROM readback were verified on a real Retrode3 on 2026-11-23.
-The separate kernel experiment is still a Draft PR. Manufacturer/device
-identification and safe sector erase/program are not yet hardware accepted.
+## Runtime architecture
 
-## Current implementation status (2026-11-23)
+All Cartridge features use the **same** executable:
+`/usr/bin/retrode3-cli` and the same versioned, dynamically loaded
+`md.so` (built via `make -f Makefile.migration native-md-module`).
+No separate lab core, elevated Web process, privileged Flash helper,
+root opt-in, sudoers file or extra confirmation flag is required.
 
-In this **Draft experimental branch**, the optional C ABI is implemented
-in `include/retrode3/core_flash_v1.h`, with a MegaDrive transport adapter
-`src/retrode3/oscr_md_flash_lab.cpp` and the separate target
-`make -f Makefile.migration native-md-flash-lab` yielding
-`build/migration/md-flash-lab/md.so`. The regular
-`build/migration/md.so` remains **read-only**.
+The MegaDrive core implements the optional
+`include/retrode3/core_flash_v1.h` interface:
 
-The shared `retrode3-cli` implements `probe_flash`, `write_flash` and
-`verify_flash` in its existing NDJSON host and one-shot CLI.
-For **operator testing only** on an isolated, root-run test install with
-an experimental Retrode3 kernel and an expendable 4MiB Eon cartridge:
+- `identify` (CFI and manufacturer/device ID)
+- `erase_sector` (native aligned sector erase)
+- `program` (bounded x16 programming)
+- `readback` (array read, for full ROM verification)
+
+The core exports `retrode3_core_get_flash_operations_v1` alongside the
+existing ROM read ABIs. The common host discovers the Flash capability
+and advertises `probe_flash`, `write_flash`, `verify_flash` in the
+normal `--list-cores` and `get_capabilities` responses.
+
+## Customer-facing workflow
+
+1. User opens **Write Cartridge**, inserts a cart and selects its core.
+2. **Detect Flash** reads manufacturer/device ID and CFI geometry.
+   **Unrecognized or unsupported carts must not be writable.**
+3. User selects a ROM from that system's existing logical ROM folder.
+4. **Write Cart** erases affected sectors, programs the ROM and verifies
+   **every byte** against the source. **Verify only** independently
+   compares the ROM and sends no erase or program commands.
+
+The Web backend invokes the same shared CLI under its normal
+`www-data` identity as for ROM reading. The SysV runtime grants access
+to the cartridge device and scoped voltage control with the
+`retrode3-reader` group. The kernel checks slot, selected 5V connector
+level, CFI geometry, supported Flash identity and valid write addresses
+on every destructive operation.
+
+This is standard device compatibility, not a human authorization gate.
+Identifying a supported cartridge is a technical prerequisite to writing,
+not an operator opt-in. Insertion detection alone does **not**
+initiate Flash commands or erase anything.
+
+## Shared CLI commands
 
 ```sh
-# Once matching test kernel and Flash-enabled test .so are installed:
 retrode3-cli --protocol ndjson-v1 --core md --action probe-flash
-retrode3-cli --protocol ndjson-v1 --core md --action verify-flash \
-  --source /usr/local/games/ROMs/MD/known-good.md
+
 retrode3-cli --protocol ndjson-v1 --core md --action write-flash \
-  --source /usr/local/games/ROMs/MD/known-good.md --confirm-erase
+  --source /usr/local/games/ROMs/MD/game.md
+
+retrode3-cli --protocol ndjson-v1 --core md --action verify-flash \
+  --source /usr/local/games/ROMs/MD/game.md
 ```
 
-The host owns the bus lock, scoped 5V profile, kernel test-only gates,
-progress and byte-for-byte verify. **Do not run a second independent
-`flock` around the common CLI invocation**, which already acquires it.
-An **administrator** must run this lab flow; no generic Web root access,
-no auto-probe writes, and no production installer are included here.
-The narrow privileged Web bridge and tested Web Write Cart page remain
-pending. MIPS build and real erase/program verification remain pending.
-The kernel test-ioctl implementation is tracked separately in
-`DragonBox-Shop/retrode3-kernel#7`.
+These commands need **no** `sudo`, `--confirm-erase` or kernel
+test-parameter toggles when the caller belongs to the normal device
+access group. The host acquires the shared
+`/run/lock/retrode3/bus.lock`; do not take a second external
+`flock` around the CLI.
 
-## Architecture
+## Genuine phase progress
 
-- One shared `retrode3-cli` owns NDJSON framing, request IDs, bus locking,
-  progress, cancellation, result validation and verification summaries.
-  Cartridge-specific operations live in optional versioned core capabilities.
-  The browser must not know MD chip-specific commands or erase layouts.
-- A Flash-capable core must advertise **independent** capabilities
-  `probe_flash`, `write_flash` and `verify_flash` in the experimental
-  build as soon as the corresponding implementations exist. The core
-  must NOT require prior successful physical hardware testing just to
-  expose them to the test operator. Ordinary production builds may
-  withhold experimental capabilities until acceptance. Do not change
-  the existing `probe` / `read_rom` ABI or re-purpose ROM-database
-  `verification` as physical Flash verification.
-- Flash probing includes a command write. It is **explicit user action
-  only**, never part of automatic insertion detection.
-  `sense=active` means occupied, not approved for Flash access.
-- The shared CLI mediates trusted, bounded source-file access; a browser
-  may select a file from the approved ROM library but must never send
-  arbitrary device paths, raw addresses, raw write commands or
-  caller-selected voltage. A Flash write requires positively matching
-  physical-slot identity, approved chip ID, CFI geometry, board/voltage
-  profile, filename/length and a user confirmation. These checks are
-  repeated immediately before the first destructive command.
-
-## User workflow
-
-1. In **Write Cartridge** choose an occupied physical slot and explicitly
-   request **Detect Flash**. Display chip manufacturer/device ID, size,
-   geometry and whether this exact hardware combination supports writing.
-   If identification is missing/ambiguous, disable **Write** and **Verify**.
-2. Select a ROM file from the trusted shared file library. Reject an image
-   larger than Flash capacity, unsupported mapping and incompatible sector
-   boundaries. Show a confirmation with image size, target and that
-   existing Flash contents will be erased.
-3. **Write Cartridge** runs the phases `erase`, `program`, `verify`.
-   Verify is **enabled by default**, and success requires a complete
-   byte-for-byte readback comparison to the selected source file.
-   The user cannot silently interpret completion of `program` as
-   successful verification.
-4. **Verify Cartridge** is also offered as a **separate read-only job**
-   for a selected ROM file and a positively identified Flash cartridge.
-   It makes no erase/program commands, compares precisely the file's
-   bytes to the corresponding Flash range and reports a mismatch
-   with its first differing byte offset. Flash capacity can exceed ROM
-   length; untouched tail bytes are not part of this verification unless
-   the selected layout explicitly says otherwise.
-5. Any mismatch, unexpected ID/geometry, short read, communication error,
-   cartridge removal or incomplete job fails closed. Never report
-   `ok:true` merely because all bytes were transmitted to Flash.
-
-## Progress in existing NDJSON v1 envelope
-
-The shared host emits progress in the same event stream as `read_rom`.
-A new progress phase may reset `percent` to zero; the UI MUST label the
-phase instead of pretending this is a single monotonic percentage.
+The normal NDJSON v1 `progress` event reports actual completed work,
+using the existing request ID and these phases:
 
 ```json
 {"protocol":"retrode3-ndjson","version":1,"event":"progress","request_id":"job1","phase":"erase","units":"sectors","units_done":3,"units_total":71,"percent":4}
@@ -105,64 +72,31 @@ phase instead of pretending this is a single monotonic percentage.
 {"protocol":"retrode3-ndjson","version":1,"event":"progress","request_id":"job1","phase":"verify","units":"bytes","bytes_done":65536,"bytes_total":4194304,"percent":1}
 ```
 
-- Each phase is reported from **completed actual work**, never elapsed
-  time or a speculative estimate. In `erase`, count only sectors whose
-  completion/polling passed. In `program`, count only confirmed programmed
-  bytes. In `verify`, count only read-back bytes already compared to
-  the source. For `read_rom` preserve the current `bytes_done`,
-  `bytes_total`, `phase` and `percent` contract.
-- A normal finished phase may reach 100%, but the **whole job** succeeds
-  only after mandatory verification if chosen. No terminal success event
-  for an erased, partially written, failed or cancelled cartridge.
-- A job `result` may carry
-  `flash_verification:{"status":"verified","method":"byte_compare","bytes_compared":4194304,"first_mismatch_offset":null}`.
-  For mismatches the job fails and reports
-  `flash_verification.status="mismatch"` with the first mismatch
-  offset. The older `verification` object in `read_rom` refers to a
-  **ROM database match**, not a post-write cartridge comparison.
-  Make this distinction explicit in the UI.
-- A standalone `verify_flash` job emits only the `verify` phase.
-  It never sets `write_operations:true` or enables a write button
-  unless write support is separately hardware accepted.
+Each phase begins at 0%, reaches 100% on completion and is labeled in
+the shared Web progress panel. A write job does not report success until
+the entire selected ROM has been read back and compared byte-for-byte.
+The `flash_verification` result records verified bytes or the first
+differing byte offset. The older ROM-database `verification` field on
+`read_rom` is independent of post-write Flash verification.
 
-## Cancellation and hardware safety
+Cancellation is supported at safe chunk/sector boundaries. An
+in-progress physical erase/program pulse is allowed to finish before
+stopping, and the driver restores array mode. Interrupted or failed
+writes are reported as failed, never successful.
 
-- The host keeps the exclusive `/run/lock/retrode3/bus.lock` and
-  kernel selection lock for an operation. Normal reader and Flash jobs
-  cannot interleave; a system event or browser refresh must not trigger
-  Flash commands.
-- Cancellation between sectors/chunks may stop starting new work, but
-  must not interrupt an in-flight erase/program pulse or polling needed
-  to bring the chip to a known state. Reset the chip to array/read mode
-  and release the data GPIOs before returning. The UI must distinguish
-  `cancelling` (waiting for safe point) from `cancelled`.
-- If Flash reports power, bus or poll timeout errors, abort and mark
-  the cart as possibly partially programmed. No automatic resume, retry,
-  fallback to another voltage or guessed manufacturer command.
-- The existing passive ROM reader, NES/SNES/SMS adapters and SRAM paths
-  must remain unchanged. Experimental `write_flash` and `verify_flash`
-  MUST be callable **before** the first physical tests, otherwise those
-  tests cannot occur. Keep the scope limited to a positively identified,
-  supported cartridge, an explicit user confirmation, an expendable test
-  cart, an experimental kernel-module gate and exclusive bus ownership.
-  Do not ship the same experimental privilege to production by default.
+## Tests and release
 
-## Acceptance matrix before exposing Write Cartridge
+The current branch has compiler and mocked CLI tests for the actual
+Flash adapter, source-file and geometry validation, phase progress,
+wrong chip identity, erase failure, complete readback and mismatch.
+These tests cannot replace physical tests.
 
-- Mock tests: no write capability before positive Flash ID, invalid
-  source lengths rejected, phase counters monotonic within each phase,
-  cancellation and progress correlated to one request ID, no 100%
-  success on error, and mismatch reports exact first differing offset.
-- Real Retrode3: correct MD 5 V at connector and regulated Flash VCC;
-  manufacturer/device ID + CFI geometry; /CE /OE /WE timing and output
-  direction; successful full erase, full programming, independent
-  byte-for-byte readback, CRC summary, post-command reset and
-  re-insertion readback. Test interruption/recovery on a disposable
-  cart. **Expose test-build operations before these tests**, not after.
-  Only after passing them remove the experimental label and release to
-  production. Web v2's Write Cartridge screen may invoke the test-only
-  flow from the outset; never treat the test workflow as customer-ready.
-- Run `./tools/preflight-ci.sh` in the full checkout before ABI, CLI,
-  core or test changes are pushed. Leave any implementation that has
-  only GitHub-connector review on a short-lived Draft PR branch until
-  those tests and real hardware acceptance are complete.
+**Confirmed on hardware (2026-11-23):** EN29LV320CB on the Retrode3
+responded to CFI QRY with 4MiB/71-sector geometry and returned to ROM
+mode (header `SEGA GENESIS` at 0x100).
+
+**Still requiring real device tests:** manufacturer/device autoselect,
+sector erase, programming, full readback, interruption and repeated
+reads. The feature branch remains separate from `develop`/`master`
+until those tests pass. This is only a release process; the functions
+are callable on the device immediately after installing the branch.
