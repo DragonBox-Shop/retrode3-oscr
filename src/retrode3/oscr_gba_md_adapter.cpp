@@ -1,0 +1,327 @@
+// Retrode2 GBx-0011 on the MegaDrive slot: manual-bench GBA ROM-only v3 core.
+// Requires the experimental kernel already armed SAFELY with no cart installed.
+// No auto-arm, voltage changes, cart writes or permanent bus reconfiguration.
+#ifndef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS 64
+#endif
+#include "retrode3/core_descriptor_v1.h"
+#include "retrode3/core_operations_v1.h"
+#include "retrode3/core_operations_v3.h"
+#include "retrode3/json_v3.h"
+#include "gbx/retrode2_readonly.h"
+
+#include <cerrno>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
+#include <stdexcept>
+#include <string>
+#include <sys/types.h>
+#include <unistd.h>
+
+namespace {
+namespace gbx = OSCR::Cores::Retrode2GBx;
+const char *const SCHEMA = "gba-md-size-v1";
+const unsigned MIB = 1024u * 1024u;
+const unsigned MODE_GBA_SLOW = 24u;
+const unsigned MODE_GBA_BURST = 28u;
+
+int fail(char *error, std::size_t cap, const char *message)
+{
+    if (error && cap) std::snprintf(error, cap, "%s", message);
+    return -1;
+}
+int copy_json(const std::string &doc, char *out, std::size_t capacity,
+              char *error, std::size_t error_capacity)
+{
+    if (!out || doc.size() >= capacity)
+        return fail(error, error_capacity, "GBA JSON buffer too small");
+    std::memcpy(out, doc.c_str(), doc.size() + 1);
+    return 0;
+}
+bool nul_terminated(const char *s, std::size_t capacity)
+{
+    return std::memchr(s, '\0', capacity) != NULL;
+}
+std::string read_line(const char *name)
+{
+    int fd = ::open(name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) throw std::runtime_error(std::string("cannot read GBx hardware state: ") + name);
+    char data[64];
+    const ssize_t size = ::read(fd, data, sizeof(data) - 1);
+    const int saved_errno = errno;
+    ::close(fd);
+    if (size <= 0) {
+        (void)saved_errno;
+        throw std::runtime_error("empty GBx hardware state");
+    }
+    data[size] = '\0';
+    return std::string(data, std::strcspn(data, "\r\n"));
+}
+const char *device_path()
+{
+#ifdef RETRODE3_TESTING
+    const char *path = std::getenv("RETRODE3_GBA_TEST_DEVICE");
+    if (path && *path) return path;
+#endif
+    return "/dev/slot-md";
+}
+std::string state_root()
+{
+#ifdef RETRODE3_TESTING
+    const char *root = std::getenv("RETRODE3_GBA_TEST_STATE_ROOT");
+    if (root && *root) return root;
+#endif
+    return "/sys";
+}
+void check_bench_ready()
+{
+    const std::string root = state_root();
+    const std::string param = read_line((root + "/module/retrode3/parameters/gbx_md_test").c_str());
+    if (param != "Y" && param != "1")
+        throw std::runtime_error("GBx bench not enabled; load and arm the test kernel with the adapter empty");
+    const std::string vcc = read_line((root + "/class/retrode3/slot-md/vcc").c_str());
+    if (vcc != "3300mV")
+        throw std::runtime_error("GBA requires exactly 3300mV; refusing bus access");
+    // gbx_md_test alone is NOT the arm operation. The operator must have run
+    // gbx-md-hwtest.py arm with the slot EMPTY before inserting a cartridge.
+}
+class RomDevice {
+    int fd_;
+    RomDevice(const RomDevice &);
+    RomDevice &operator=(const RomDevice &);
+public:
+    RomDevice() : fd_(-1) {
+        check_bench_ready();
+        fd_ = ::open(device_path(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+        if (fd_ < 0) throw std::runtime_error("cannot open /dev/slot-md (GBx bench not armed?)");
+    }
+    ~RomDevice() { if (fd_ >= 0) ::close(fd_); }
+    void read_mode(unsigned mode, unsigned address, void *bytes, std::size_t size) const {
+        if (!size || (mode != MODE_GBA_SLOW && mode != MODE_GBA_BURST) ||
+            static_cast<std::uint64_t>(address) + size > 0x1000000ull)
+            throw std::runtime_error("GBA read exceeds validated low ROM window");
+        const std::uint64_t offset =
+            (static_cast<std::uint64_t>(mode) << 24) | address;
+        const ssize_t got = ::pread(fd_, bytes, size, static_cast<off_t>(offset));
+        if (got != static_cast<ssize_t>(size))
+            throw std::runtime_error("short GBA ROM read or kernel transport error");
+    }
+};
+int gba_word(void *context, std::uint32_t byte_addr, std::uint16_t *word)
+{
+    if (!context || !word || (byte_addr & 1u)) return -1;
+    unsigned char data[2];
+    try {
+        static_cast<RomDevice *>(context)->read_mode(MODE_GBA_SLOW, byte_addr, data, sizeof(data));
+        *word = static_cast<std::uint16_t>(data[0] | (data[1] << 8));
+        return 0;
+    } catch (...) { return -1; }
+}
+gbx::GbaHeader read_header(RomDevice &device)
+{
+    gbx::Bus bus = {};
+    bus.context = &device;
+    bus.gba_read16 = gba_word;
+    gbx::GbaHeader header = {};
+    if (gbx::probe_gba(bus, &header) != gbx::Ok)
+        throw std::runtime_error("invalid GBA Nintendo logo, header checksum or ROM bus read");
+    return header;
+}
+std::string title_of(const gbx::GbaHeader &header)
+{
+    return header.title[0] ? header.title : "Game Boy Advance cartridge";
+}
+std::string layout(unsigned size_mib)
+{
+    return std::string("gba-") + std::to_string(size_mib) + "m";
+}
+unsigned select_size(const retrode3_selection_v3 *selected)
+{
+    if (!selected || selected->struct_size != sizeof(*selected) ||
+        selected->protocol_version != 1u ||
+        !nul_terminated(selected->schema_id, sizeof(selected->schema_id)) ||
+        std::strcmp(selected->schema_id, SCHEMA) != 0 ||
+        !nul_terminated(selected->candidate_id, sizeof(selected->candidate_id)) ||
+        !nul_terminated(selected->layout_id, sizeof(selected->layout_id)) ||
+        selected->candidate_id[0] ||
+        selected->parameter_count > RETRODE3_MAX_PARAMETERS_V3)
+        throw std::runtime_error("invalid or stale GBA selection");
+    unsigned value = 0;
+    if (selected->mode == RETRODE3_SELECT_LAYOUT_V3) {
+        if (selected->parameter_count) throw std::runtime_error("layout cannot include parameters");
+        for (unsigned i = 1; i <= 16; i *= 2)
+            if (std::strcmp(selected->layout_id, layout(i).c_str()) == 0)
+                value = i;
+    } else if (selected->mode == RETRODE3_SELECT_OVERRIDE_V3) {
+        if (selected->layout_id[0] || selected->parameter_count != 1)
+            throw std::runtime_error("GBA override requires rom_mib only");
+        const retrode3_parameter_v3 &p = selected->parameters[0];
+        if (!nul_terminated(p.id, sizeof(p.id)) ||
+            std::strcmp(p.id, "rom_mib") ||
+            p.type != RETRODE3_PARAMETER_INTEGER_V3)
+            throw std::runtime_error("unknown or invalid GBA override field");
+        value = p.integer_value;
+    } else {
+        throw std::runtime_error("GBA ROM size is not in header; select a layout explicitly");
+    }
+    if (value != 1 && value != 2 && value != 4 && value != 8 && value != 16)
+        throw std::runtime_error("unverified GBA ROM size: 1/2/4/8/16 MiB only");
+    return value;
+}
+
+int capabilities(char *out, std::size_t cap, char *err, std::size_t ec)
+{
+    const std::string schema =
+        "{\"schema_version\":1,\"schema_id\":\"gba-md-size-v1\","
+        "\"selection_modes\":[\"layout\",\"override\"],"
+        "\"fields\":[{\"id\":\"rom_mib\",\"label\":\"ROM size (MiB)\","
+        "\"type\":\"enum\",\"required\":true,\"values\":["
+        "{\"value\":1,\"label\":\"1 MiB\"},"
+        "{\"value\":2,\"label\":\"2 MiB\"},"
+        "{\"value\":4,\"label\":\"4 MiB\"},"
+        "{\"value\":8,\"label\":\"8 MiB\"},"
+        "{\"value\":16,\"label\":\"16 MiB\"},"
+        "{\"value\":32,\"label\":\"32 MiB\",\"read_supported\":false}]}],"
+        "\"rules\":[{\"when\":{\"rom_mib\":32},\"read_supported\":false,"
+        "\"reason\":\"upper 16 MiB ROM window not hardware verified\"}],"
+        "\"probe_voltage_mv\":3300,\"read_voltage_mv\":3300,"
+        "\"automatic_voltage_switch\":false,\"probe_priority\":0,"
+        "\"bench_only\":true,\"requires_manual_empty_slot_arm\":true,"
+        "\"write_operations\":false}"
+        ;
+    return copy_json(schema, out, cap, err, ec);
+}
+int probe_json(char *out, std::size_t cap, char *err, std::size_t ec)
+{
+    try {
+        RomDevice device;
+        const gbx::GbaHeader header = read_header(device);
+        std::string layouts = "[";
+        for (unsigned size = 1; size <= 16; size *= 2) {
+            if (size != 1) layouts += ",";
+            layouts += "{\"id\":" + retrode3::json_quote_v3(layout(size)) +
+                ",\"label\":\"GBA " + std::to_string(size) +
+                " MiB (manually selected)\",\"read_supported\":true,"
+                "\"size_bytes\":" + std::to_string(size * MIB) + "}";
+        }
+        layouts += "]";
+        const std::string data =
+            std::string("{\"identification_status\":\"unknown\","
+            "\"ambiguity\":\"layouts\",\"selection_required\":true,"
+            "\"candidate_lookup\":\"header_only\",\"system_detected\":true,"
+            "\"candidates\":[],\"read_layouts\":") + layouts +
+            ",\"size_bytes\":0,\"mapping\":\"linear\",\"title\":" +
+            retrode3::json_quote_v3(title_of(header)) +
+            ",\"game_code\":" + retrode3::json_quote_v3(header.game_code) +
+            ",\"save\":{\"read_supported\":false,\"write_supported\":false}}";
+        return copy_json(data, out, cap, err, ec);
+    } catch (std::exception const &e) { return fail(err, ec, e.what()); }
+    catch (...) { return fail(err, ec, "unknown GBA probe error"); }
+}
+int v1_probe(retrode3_probe_v1 *result, char *err, std::size_t cap)
+{
+    try {
+        if (!result || result->struct_size != sizeof(*result))
+            return fail(err, cap, "invalid GBA v1 probe ABI");
+        RomDevice device;
+        const gbx::GbaHeader header = read_header(device);
+        result->rom_size_bytes = 0; // The header does NOT provide ROM geometry.
+        std::snprintf(result->title, sizeof(result->title), "%s", title_of(header).c_str());
+        std::snprintf(result->mapping, sizeof(result->mapping), "%s", "unknown");
+        result->checksum[0] = '\0';
+        return 0;
+    } catch (std::exception const &e) { return fail(err, cap, e.what()); }
+    catch (...) { return fail(err, cap, "unknown GBA v1 probe error"); }
+}
+int plan(const retrode3_selection_v3 *sel, retrode3_read_plan_v3 *result,
+         char *err, std::size_t cap)
+{
+    try {
+        if (!result || result->struct_size != sizeof(*result))
+            return fail(err, cap, "invalid GBA v3 plan ABI");
+        const unsigned mib = select_size(sel);
+        RomDevice device;
+        (void)read_header(device); // Fail before opening a temporary output.
+        result->payload_bytes = static_cast<std::uint64_t>(mib) * MIB;
+        result->prefix_bytes = 0;
+        return 0;
+    } catch (std::exception const &e) { return fail(err, cap, e.what()); }
+    catch (...) { return fail(err, cap, "unknown GBA plan error"); }
+}
+int read_rom(const retrode3_selection_v3 *sel, const retrode3_host_io_v1 *io,
+             retrode3_read_result_v3 *result, char *err, std::size_t cap)
+{
+    try {
+        if (!io || io->abi_version != RETRODE3_CORE_OPERATION_ABI_V1 ||
+            io->struct_size < sizeof(*io) || !io->write || !io->cancelled ||
+            !result || result->struct_size != sizeof(*result))
+            return fail(err, cap, "invalid GBA v3 host IO / result ABI");
+        const unsigned mib = select_size(sel);
+        if (io->cancelled(io->context)) return fail(err, cap, "cancelled");
+        RomDevice device;
+        const gbx::GbaHeader before = read_header(device);
+        unsigned char buffer[512];
+        const std::uint32_t limit = mib * MIB;
+        for (std::uint32_t pos = 0; pos < limit; pos += sizeof(buffer)) {
+            if (io->cancelled(io->context)) return fail(err, cap, "cancelled");
+            device.read_mode(MODE_GBA_BURST, pos, buffer, sizeof(buffer));
+            if (io->write(io->context, buffer, sizeof(buffer)))
+                return fail(err, cap, "host cancelled or refused GBA output");
+        }
+        const gbx::GbaHeader after = read_header(device);
+        if (std::strcmp(before.title, after.title) != 0 ||
+            std::strcmp(before.game_code, after.game_code) != 0 ||
+            before.header_checksum != after.header_checksum)
+            return fail(err, cap, "GBA cartridge header changed during dump");
+        const std::string details =
+            std::string("{\"read_configuration\":{\"layout_id\":") +
+            retrode3::json_quote_v3(layout(mib)) +
+            ",\"rom_mib\":" + std::to_string(mib) +
+            ",\"rom_size_bytes\":" + std::to_string(limit) +
+            ",\"transport\":\"gbx-0011-burst\",\"voltage_mv\":3300},"
+            "\"identity\":{\"selected_candidate_id\":null,"
+            "\"matched_candidate_id\":null,\"title\":" +
+            retrode3::json_quote_v3(title_of(before)) +
+            ",\"game_code\":" + retrode3::json_quote_v3(before.game_code) +
+            "},\"verification\":{\"status\":\"not_checked\","
+            "\"verified\":false,\"method\":\"none\","
+            "\"expected\":null,\"actual\":null}}";
+        if (details.size() >= sizeof(result->details_json))
+            return fail(err, cap, "GBA v3 result details too long");
+        result->prefix_bytes = 0;
+        result->payload_crc_known = 0; // Host computes output CRC32.
+        std::memcpy(result->details_json, details.c_str(), details.size() + 1);
+        return 0;
+    } catch (std::exception const &e) { return fail(err, cap, e.what()); }
+    catch (...) { return fail(err, cap, "unknown GBA read error"); }
+}
+void release() {} // All fd ownership stays within each bus-locked callback.
+} // namespace
+
+extern "C" const retrode3_core_descriptor_v1 *retrode3_core_describe_v1(void)
+{
+    static const retrode3_core_descriptor_v1 descriptor = {
+        RETRODE3_CORE_DISCOVERY_ABI_V1, sizeof(retrode3_core_descriptor_v1),
+        "gba-md", "Game Boy Advance (Retrode2 GBx-0011)", "0.1.0-bench", "md"
+    };
+    return &descriptor;
+}
+extern "C" const retrode3_core_operations_v1 *retrode3_core_get_operations_v1(void)
+{
+    static const retrode3_core_operations_v1 ops = {
+        RETRODE3_CORE_OPERATION_ABI_V1, sizeof(retrode3_core_operations_v1),
+        v1_probe, NULL, release
+    };
+    return &ops;
+}
+extern "C" const retrode3_core_operations_v3 *retrode3_core_get_operations_v3(void)
+{
+    static const retrode3_core_operations_v3 ops = {
+        RETRODE3_CORE_OPERATION_ABI_V3, sizeof(retrode3_core_operations_v3),
+        capabilities, probe_json, plan, read_rom
+    };
+    return &ops;
+}
