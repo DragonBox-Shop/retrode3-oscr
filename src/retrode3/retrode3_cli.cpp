@@ -1814,8 +1814,7 @@ int main(int argc, char **argv)
                               action != "probe_slot" && !flash_job_requested) ||
                              (action == "read_rom" && output.empty()) ||
                              (action != "read_rom" && !output.empty()) ||
-                             ((action == "write_flash" || action == "verify_flash") != !source.empty()) ||
-                             false))) {
+                             ((action == "write_flash" || action == "verify_flash") != !source.empty())))) {
         std::fprintf(stderr, "invalid Retrode3 command mode/options\n");
         return 2;
     }
