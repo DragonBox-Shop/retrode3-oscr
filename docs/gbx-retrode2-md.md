@@ -19,7 +19,12 @@ MD A-pin to Retrode3 `addr-gpios[]` mapping affected both the GB data
 window and GBA control lines. Correcting the entire adapter-specific
 GPIO mapping yielded a valid GBA header. These are **header-only tests**:
 complete ROM/CRC validation, mapper banking, GBC-specific tests and
-regression of GB after the final control-line remap remain outstanding.
+full ROM/CRC verification remains outstanding. **On 2026-11-23,
+regression after the complete control-line remap passed:** two repeated
+GBA `--raw` probes of `SHININGFORCE` / `AF5P` returned byte-identical
+valid 192-byte headers, followed by two repeated GB `--raw` probes of
+`PINBALL` / `type=01 ROM=01 RAM=00`, also byte-identical and
+checksum-valid. All at 3.3 V on the same corrected test module.
 The standard MegaDrive driver and web interface were not changed for
 this experiment.
 
