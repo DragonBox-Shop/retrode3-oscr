@@ -81,7 +81,7 @@ int main()
     f.gb[0x148] = 0x00; // 32 KiB
     f.gb[0x149] = 0x00;
     fix_gb_checksum(f);
-    GbHeader gh = {};
+    GbHeader gh = {{0}, 0, 0, 0, 0, false};
     assert(probe_gb(bus(f), &gh) == Ok);
     assert(gh.linear_32k_supported && gh.rom_size_code == 0);
     assert(read_gb_linear_32k(bus(f), sink(f), &gh) == Ok);
@@ -110,7 +110,7 @@ int main()
     memcpy(&f.gba[0xa0], "GBA TEST1234", 12);
     memcpy(&f.gba[0xac], "A3DE", 4);
     fix_gba_checksum(f);
-    GbaHeader ah = {};
+    GbaHeader ah = {{0}, {0}, 0};
     assert(probe_gba(bus(f), &ah) == Ok);
     assert(strcmp(ah.game_code, "A3DE") == 0);
     assert(read_gba_linear(bus(f), sink(f), &ah, 256 * 1024) == UnsupportedLayout);
