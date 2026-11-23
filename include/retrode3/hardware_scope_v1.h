@@ -182,7 +182,9 @@ public:
 #endif
         if (!schema.has("hardware_access")) return; // legacy v3 compatibility
         if (!identifier(slot) || !phase ||
-            (std::strcmp(phase, "probe") && std::strcmp(phase, "read")))
+            (std::strcmp(phase, "probe") && std::strcmp(phase, "read") &&
+             std::strcmp(phase, "flash_probe") &&
+             std::strcmp(phase, "flash_write")))
             throw std::runtime_error("invalid hardware access scope");
         const JsonV3 &access = schema.at("hardware_access");
         if (access.kind != JsonV3::Object ||
