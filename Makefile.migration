@@ -84,6 +84,19 @@ native-md-module: build/migration/oscr_md_core.pic.o
 		src/retrode3/oscr_md_adapter.cpp build/migration/retrode3-lib.pic.o \
 		build/migration/oscr_md_core.pic.o -o build/migration/md.so
 
+# Experimental only: this dynamically loaded MD core exports the optional
+# Flash ABI in addition to its regular v1/v3 read-only operations.
+# NEVER stage as ordinary md.so or overwrite a working installed core.
+.PHONY: native-md-flash-lab
+native-md-flash-lab: build/migration/oscr_md_core.pic.o
+	mkdir -p build/migration/md-flash-lab
+	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/md-flash-lab/retrode3-lib.pic.o
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp \
+		src/retrode3/oscr_md_adapter.cpp src/retrode3/oscr_md_flash_lab.cpp \
+		build/migration/md-flash-lab/retrode3-lib.pic.o \
+		build/migration/oscr_md_core.pic.o -o build/migration/md-flash-lab/md.so
+
 # Run real original-OSCR adapter against a mocked MD kernel and compare its
 # bytes to the prior hardware-proven standalone acceptance reader.
 test-native-md-module: build/migration/oscr_md_core.pic.o test-native-md test-core-registry test-md-save-layout
@@ -188,8 +201,9 @@ stage-nes-module: native-nes-module
 REGISTRY_CLI_SOURCES = src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp
 REGISTRY_CLI_HEADERS = include/retrode3/core_descriptor_v1.h \
 	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v2.h \
-	include/retrode3/core_operations_v3.h include/retrode3/json_v3.h \
-	include/retrode3/ndjson_protocol.h include/retrode3/hardware_scope_v1.h
+	include/retrode3/core_operations_v3.h include/retrode3/core_flash_v1.h \
+	include/retrode3/json_v3.h include/retrode3/ndjson_protocol.h \
+	include/retrode3/hardware_scope_v1.h
 
 build/migration/retrode3-cli: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
 	mkdir -p build/migration
