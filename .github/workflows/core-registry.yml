@@ -98,6 +98,11 @@ jobs:
         run: make -f Makefile.migration test-native-snes-module
       - name: Compare actual OSCR MegaDrive .so against accepted standalone reader
         run: make -f Makefile.migration test-native-md-module
+      - name: Build opt-in MD Flash plugin without enabling production writes
+        run: |
+          make -f Makefile.migration native-md-flash-lab
+          nm -D build/migration/md-flash-lab/md.so | grep -Fq retrode3_core_get_flash_operations_v1
+          ! nm -D build/migration/md.so | grep -Fq retrode3_core_get_flash_operations_v1
       - name: Validate original-Sanni NES module and source guard
         run: make -f Makefile.migration test-native-nes-module
       - name: Validate all three original-derived Cores share one host
