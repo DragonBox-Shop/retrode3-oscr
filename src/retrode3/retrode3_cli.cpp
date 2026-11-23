@@ -22,6 +22,7 @@
 #include <dlfcn.h>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -330,7 +331,7 @@ std::string to_json(std::vector<Core> const &cores,
               + ",\"usable\":" + (c.usable ? "true" : "false")
               + ",\"actions\":" + (c.usable
                     ? (std::string(c.can_read_rom ? "[\"probe\",\"read_rom" : "[\"probe") +
-                         (c.has_flash ? "\",\"probe_flash\",\"write_flash\",\"verify_flash\""
+                         (c.has_flash ? "\",\"probe_flash\",\"write_flash\",\"verify_flash\",\"flash_operation\""
                                       : "\"") + "]")
                     : "[]") + "}";
     }
@@ -1031,7 +1032,7 @@ void emit_capabilities_v3(retrode3::NdjsonProtocol &stream,
         + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
         + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
         + ",\"enabled\":true,\"usable\":true,\"commands\":[\"probe\",\"read_rom\",\"cancel\",\"get_capabilities\"" +
-          (module.flash ? ",\"probe_flash\",\"write_flash\",\"verify_flash\"" : "") + "]"
+          (module.flash ? ",\"probe_flash\",\"write_flash\",\"verify_flash\",\"flash_operation\"" : "") + "]"
         + ",\"write_operations\":" + (module.flash ? "true" : "false")
         + ",\"selection_schema\":"
         + retrode3::stringify_json_v3(schema) + "}");
@@ -1551,6 +1552,11 @@ void flash_progress(retrode3::NdjsonProtocol &stream,
         + ",\"percent\":" + std::to_string(percent) + "}");
 }
 
+/* The runtime owns all three independently selectable stages.
+ * Erase-only without a source erases the entire detected chip; with an
+ * uploaded source it erases only sectors overlapping that ROM. No full
+ * sector readback here: the kernel polls completion, and optional Verify
+ * compares the finished image afterward, as many times as requested. */
 void flash_job(retrode3::NdjsonProtocol &stream,
                retrode3::WebCommand const &cmd, OpenCore &core,
                std::string const &slot) {
@@ -1559,14 +1565,27 @@ void flash_job(retrode3::NdjsonProtocol &stream,
     if (cmd.has_selection || cmd.has_manual || !cmd.output.empty() ||
         cmd.has_size || !cmd.mapping.empty())
         throw std::runtime_error("Flash job cannot carry ROM-read parameters");
-    if (cmd.action != "probe_flash" && cmd.source.empty())
-        throw std::runtime_error("Flash job requires ROM source file");
+
+    const bool erase = cmd.action == "flash_operation" ?
+                       cmd.flash_erase : cmd.action == "write_flash";
+    const bool write = cmd.action == "flash_operation" ?
+                       cmd.flash_write : cmd.action == "write_flash";
+    const bool verify = cmd.action == "flash_operation" ?
+                        cmd.flash_verify : cmd.action == "write_flash" ||
+                                            cmd.action == "verify_flash";
+    const unsigned passes = cmd.action == "flash_operation" ?
+                            cmd.flash_verify_passes : (verify ? 1u : 0u);
+    if (cmd.action != "probe_flash" &&
+        (!erase && !write && !verify))
+        throw std::runtime_error("Select at least one Flash operation");
+    if (verify && (passes == 0 || passes > 99))
+        throw std::runtime_error("Invalid Verify pass count");
+    if ((write || verify) && cmd.source.empty())
+        throw std::runtime_error("Write or Verify requires a ROM source");
 
     const retrode3::JsonV3 schema = capability_schema_v3(core);
-    // Scoped hardware profile restores 5V selection and root-only module
-    // gates even on failure. Caller holds the common bus lock for this scope.
     retrode3::HardwareScopeV1 hardware(schema, slot,
-        cmd.action == "write_flash" ? "flash_write" : "flash_probe");
+        (erase || write) ? "flash_write" : "flash_probe");
     retrode3_flash_identity_v1 identity;
     std::memset(&identity, 0, sizeof(identity));
     identity.struct_size = sizeof(identity);
@@ -1609,75 +1628,118 @@ void flash_job(retrode3::NdjsonProtocol &stream,
         return;
     }
 
-    FlashSource source(cmd.source, identity.size_bytes);
+    std::unique_ptr<FlashSource> source;
+    if (!cmd.source.empty())
+        source.reset(new FlashSource(cmd.source, identity.size_bytes));
     std::vector<std::uint32_t> sectors;
-    for (std::size_t i = 0; i < all_sectors.size(); ++i) {
-        if (all_sectors[i] < source.size)
-            sectors.push_back(all_sectors[i]);
+    const std::size_t extent = source.get() ? source->size : identity.size_bytes;
+    if (erase) {
+        for (std::size_t i = 0; i < all_sectors.size(); ++i) {
+            if (all_sectors[i] < extent)
+                sectors.push_back(all_sectors[i]);
+        }
     }
     stream.reset_cancel();
     int last_percent = -1;
-    if (cmd.action == "write_flash") {
+    if (erase) {
         flash_progress(stream, cmd.request_id, "erase", 0,
                        sectors.size(), true, last_percent);
         for (std::size_t i = 0; i < sectors.size(); ++i) {
             check_flash_cancel(stream, cmd.request_id);
             std::memset(error, 0, sizeof(error));
             if (core.flash->erase_sector(sectors[i], error, sizeof(error)))
-                throw std::runtime_error(flash_error(error, sizeof(error),
-                    "Flash sector erase failed; contents may be damaged"));
+                throw std::runtime_error(
+                    "Flash erase failed at sector " + std::to_string(i + 1) +
+                    "/" + std::to_string(sectors.size()) + " (0x" +
+                    std::to_string(sectors[i]) + " bytes): " +
+                    flash_error(error, sizeof(error), "hardware error"));
             flash_progress(stream, cmd.request_id, "erase", i + 1,
                            sectors.size(), true, last_percent);
         }
+    }
+    if (write) {
         last_percent = -1;
         flash_progress(stream, cmd.request_id, "program", 0,
-                       source.size, false, last_percent);
+                       source->size, false, last_percent);
         unsigned char block[512];
-        for (std::size_t p = 0; p < source.size; ) {
+        for (std::size_t p = 0; p < source->size; ) {
             check_flash_cancel(stream, cmd.request_id);
-            std::size_t n = std::min(sizeof(block), source.size - p);
-            source.get(p, block, n);
+            const std::size_t n = std::min(sizeof(block), source->size - p);
+            source->get(p, block, n);
             std::memset(error, 0, sizeof(error));
             if (core.flash->program(static_cast<std::uint32_t>(p), block, n,
                                     error, sizeof(error)))
-                throw std::runtime_error(flash_error(error, sizeof(error),
-                    "Flash programming failed; contents may be damaged"));
+                throw std::runtime_error(
+                    "Flash programming failed at byte " + std::to_string(p) +
+                    ": " + flash_error(error, sizeof(error), "hardware error"));
             p += n;
             flash_progress(stream, cmd.request_id, "program", p,
-                           source.size, false, last_percent);
+                           source->size, false, last_percent);
         }
     }
 
-    last_percent = -1;
-    flash_progress(stream, cmd.request_id, "verify", 0,
-                   source.size, false, last_percent);
-    unsigned char expected[4096], observed[4096];
-    for (std::size_t p = 0; p < source.size; ) {
-        check_flash_cancel(stream, cmd.request_id);
-        std::size_t n = std::min(sizeof(expected), source.size - p);
-        source.get(p, expected, n);
-        std::memset(error, 0, sizeof(error));
-        if (core.flash->readback(static_cast<std::uint32_t>(p), observed, n,
-                                 error, sizeof(error)))
-            throw std::runtime_error(flash_error(error, sizeof(error),
-                "Flash readback failed"));
-        for (std::size_t j = 0; j < n; ++j) {
-            if (expected[j] != observed[j])
-                throw std::runtime_error("Flash verify mismatch at byte offset " +
-                                          std::to_string(p + j));
+    if (verify) {
+        last_percent = -1;
+        const std::uint64_t total = static_cast<std::uint64_t>(source->size) * passes;
+        unsigned char expected[4096], observed[4096];
+        flash_progress(stream, cmd.request_id, "verify", 0, total,
+                       false, last_percent);
+        for (unsigned pass = 0; pass < passes; ++pass) {
+            for (std::size_t p = 0; p < source->size; ) {
+                check_flash_cancel(stream, cmd.request_id);
+                const std::size_t n = std::min(sizeof(expected), source->size - p);
+                source->get(p, expected, n);
+                std::memset(error, 0, sizeof(error));
+                if (core.flash->readback(static_cast<std::uint32_t>(p), observed,
+                                         n, error, sizeof(error)))
+                    throw std::runtime_error(flash_error(error, sizeof(error),
+                        "Flash readback failed"));
+                for (std::size_t j = 0; j < n; ++j) {
+                    if (expected[j] != observed[j])
+                        throw std::runtime_error("Flash verify mismatch on pass " +
+                            std::to_string(pass + 1) + "/" + std::to_string(passes) +
+                            " at byte offset " + std::to_string(p + j));
+                }
+                p += n;
+                const std::uint64_t done =
+                    static_cast<std::uint64_t>(pass) * source->size + p;
+                /* Emit a pass transition even if the percentage hasn't changed. */
+                if (p == n) last_percent = -1;
+                unsigned percent = static_cast<unsigned>(done * 100u / total);
+                if (percent != static_cast<unsigned>(last_percent) ||
+                    done == total) {
+                    last_percent = static_cast<int>(percent);
+                    stream.emit(prefix("progress", cmd.request_id)
+                        + ",\"phase\":\"verify\",\"units\":\"bytes\""
+                        ",\"bytes_done\":" + std::to_string(done)
+                        + ",\"bytes_total\":" + std::to_string(total)
+                        + ",\"percent\":" + std::to_string(percent)
+                        + ",\"verify_pass\":" + std::to_string(pass + 1)
+                        + ",\"verify_passes\":" + std::to_string(passes) + "}");
+                }
+            }
         }
-        p += n;
-        flash_progress(stream, cmd.request_id, "verify", p,
-                       source.size, false, last_percent);
     }
+
     stream.emit(prefix("result", cmd.request_id)
         + ",\"ok\":true,\"system\":" +
             retrode3::NdjsonProtocol::quote(cmd.core)
         + ",\"command\":" + retrode3::NdjsonProtocol::quote(cmd.action)
-        + ",\"bytes_compared\":" + std::to_string(source.size)
-        + ",\"flash_verification\":{\"status\":\"verified\","
-          "\"method\":\"byte_compare\",\"verified\":true,"
-          "\"bytes_compared\":" + std::to_string(source.size)
+        + ",\"operations\":{\"erase\":" + (erase ? "true" : "false")
+        + ",\"write\":" + (write ? "true" : "false")
+        + ",\"verify\":" + (verify ? "true" : "false") + "}"
+        + ",\"sectors_erased\":" + std::to_string(sectors.size())
+        + ",\"bytes_programmed\":" + std::to_string(write ? source->size : 0u)
+        + ",\"bytes_compared\":" +
+            std::to_string(verify ? static_cast<std::uint64_t>(source->size) * passes : 0u)
+        + ",\"flash_verification\":{\"status\":\"" +
+            (verify ? "verified" : "not_checked") + "\","
+          "\"method\":\"" + (verify ? "byte_compare" : "none") + "\","
+          "\"verified\":" + (verify ? "true" : "false")
+        + ",\"passes_completed\":" + std::to_string(verify ? passes : 0u)
+        + ",\"passes_requested\":" + std::to_string(passes)
+        + ",\"bytes_compared\":" +
+            std::to_string(verify ? static_cast<std::uint64_t>(source->size) * passes : 0u)
         + ",\"first_mismatch_offset\":null}}");
 }
 
@@ -1718,7 +1780,8 @@ void interactive(std::string const &available, std::string const &enabled)
             OpenCore module(available + "/" + core_info.id + ".so");
             if (command.action == "probe_flash" ||
                 command.action == "write_flash" ||
-                command.action == "verify_flash") {
+                command.action == "verify_flash" ||
+                command.action == "flash_operation") {
                 flash_job(stream, command, module, core_info.slot);
             } else if (module.api3 && (command.action == "probe" ||
                                 command.has_selection || !module.api2)) {
