@@ -1650,8 +1650,8 @@ void flash_job(retrode3::NdjsonProtocol &stream,
             if (core.flash->erase_sector(sectors[i], error, sizeof(error)))
                 throw std::runtime_error(
                     "Flash erase failed at sector " + std::to_string(i + 1) +
-                    "/" + std::to_string(sectors.size()) + " (0x" +
-                    std::to_string(sectors[i]) + " bytes): " +
+                    "/" + std::to_string(sectors.size()) + " (byte offset " +
+                    std::to_string(sectors[i]) + "): " +
                     flash_error(error, sizeof(error), "hardware error"));
             flash_progress(stream, cmd.request_id, "erase", i + 1,
                            sectors.size(), true, last_percent);
@@ -1823,6 +1823,9 @@ int main(int argc, char **argv)
     std::string enabled = "/etc/retrode3/cores-enabled";
     std::string core_id, action, output, slot_id, source;
     bool list = false, streamed = false, run_interactive = false;
+    bool flash_erase_arg = false, flash_write_arg = false;
+    unsigned verify_passes_arg = 0;
+    bool verify_passes_specified = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--list-cores" && !list) list = true;
@@ -1842,10 +1845,25 @@ int main(int argc, char **argv)
             if (action == "probe-flash") action = "probe_flash";
             if (action == "write-flash") action = "write_flash";
             if (action == "verify-flash") action = "verify_flash";
+            if (action == "flash-operation") action = "flash_operation";
         } else if (arg == "--output" && i + 1 < argc && output.empty()) {
             output = argv[++i];
         } else if (arg == "--source" && i + 1 < argc && source.empty()) {
             source = argv[++i];
+        } else if (arg == "--erase" && !flash_erase_arg) {
+            flash_erase_arg = true;
+        } else if (arg == "--write" && !flash_write_arg) {
+            flash_write_arg = true;
+        } else if (arg == "--verify-passes" && i + 1 < argc && !verify_passes_specified) {
+            std::string value = argv[++i];
+            char *tail = NULL;
+            unsigned long count = std::strtoul(value.c_str(), &tail, 10);
+            if (!tail || *tail || value.empty() || count < 1 || count > 99) {
+                std::fprintf(stderr, "verify-passes must be 1..99\n");
+                return 2;
+            }
+            verify_passes_arg = static_cast<unsigned>(count);
+            verify_passes_specified = true;
         }
 #ifdef RETRODE3_TESTING
         else if (arg == "--available-dir" && i + 1 < argc)
@@ -1857,8 +1875,9 @@ int main(int argc, char **argv)
             std::fprintf(stderr,
                 "usage: retrode3-cli --list-cores | --protocol ndjson-v1 "
                 "--interactive | --protocol ndjson-v1 --core ID "
-                "--action probe|read-rom|probe-slot|probe-flash|write-flash|verify-flash "
-                "[--slot ID] [--output FILE] [--source FILE]\n");
+                "--action probe|read-rom|probe-slot|probe-flash|write-flash|verify-flash|flash-operation "
+                "[--slot ID] [--output FILE] [--source FILE] "
+                "[--erase] [--write] [--verify-passes 1..99]\n");
             return 2;
         }
     }
@@ -1866,10 +1885,13 @@ int main(int argc, char **argv)
                         + (!action.empty() ? 1u : 0u);
     const bool flash_job_requested = (action == "probe_flash" ||
                                       action == "write_flash" ||
-                                      action == "verify_flash");
+                                      action == "verify_flash" ||
+                                       action == "flash_operation");
     if (mode_count != 1 || ((run_interactive || !action.empty()) && !streamed) ||
         ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() ||
-                                      !output.empty() || !source.empty())) ||
+                                      !output.empty() || !source.empty() ||
+                                       flash_erase_arg || flash_write_arg ||
+                                       verify_passes_specified)) ||
         (!action.empty() && ((action == "probe_slot" ?
                                 (!core_id.empty() || !is_slug(slot_id)) :
                                 (!is_slug(core_id) || !slot_id.empty())) ||
@@ -1877,7 +1899,13 @@ int main(int argc, char **argv)
                               action != "probe_slot" && !flash_job_requested) ||
                              (action == "read_rom" && output.empty()) ||
                              (action != "read_rom" && !output.empty()) ||
-                             ((action == "write_flash" || action == "verify_flash") != !source.empty())))) {
+                             ((action == "write_flash" || action == "verify_flash") != !source.empty()) ||
+                             (action != "flash_operation" &&
+                              (flash_erase_arg || flash_write_arg || verify_passes_specified)) ||
+                             (action == "flash_operation" &&
+                              ((!flash_erase_arg && !flash_write_arg && !verify_passes_specified) ||
+                               ((flash_write_arg || verify_passes_specified) && source.empty()) ||
+                               (!source.empty() && source[0] != '/')))))) {
         std::fprintf(stderr, "invalid Retrode3 command mode/options\n");
         return 2;
     }
@@ -1903,6 +1931,13 @@ int main(int argc, char **argv)
                     command.core = c.id;
                     command.request_id = "cli";
                     command.source = source;
+                    if (action == "flash_operation") {
+                        command.flash_erase = flash_erase_arg;
+                        command.flash_write = flash_write_arg;
+                        command.flash_verify = verify_passes_specified;
+                        command.flash_verify_passes = verify_passes_arg;
+                        command.has_flash_flags = true;
+                    }
                     flash_job(stream, command, module, c.slot);
                 } else if (module.api3 && !module.api2) {
                     if (action == "probe") {
