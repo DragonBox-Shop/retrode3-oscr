@@ -32,6 +32,27 @@ int open_slot(char *err, size_t cap) {
         return sysfail(err, cap, "Cannot open Flash MD slot");
     return fd;
 }
+
+/* All calls in a Flash job belong to a single CLI worker. Keep the slot FD
+ * open from explicit Identify through Erase/Write/Verify: the kernel ties
+ * the one-time CFI authorization to this FD and revokes it on cart removal.
+ * A new Identify starts a fresh session; process exit closes it automatically. */
+struct FlashSlotSession {
+    int fd;
+    FlashSlotSession() : fd(-1) {}
+    ~FlashSlotSession() { reset(); }
+    void reset() {
+        if (fd >= 0) ::close(fd);
+        fd = -1;
+    }
+    int begin(char *err, size_t cap) {
+        reset();
+        fd = open_slot(err, cap);
+        return fd;
+    }
+};
+FlashSlotSession session;
+
 int identify(retrode3_flash_identity_v1 *identity,
              char *err, size_t cap) {
     if (!identity || identity->struct_size != sizeof(*identity))
@@ -39,13 +60,13 @@ int identify(retrode3_flash_identity_v1 *identity,
     retrode3_flash_id_v1 id;
     std::memset(&id, 0, sizeof(id));
     id.abi_version = RETRODE3_FLASH_CFI_ABI_V1;
-    int fd = open_slot(err, cap);
+    int fd = session.begin(err, cap);
     if (fd < 0) return -1;
     int rc = ::ioctl(fd, RETRODE3_FLASH_IOC_IDENTIFY, &id);
     const int saved_errno = errno;
-    ::close(fd);
     if (rc != 0) {
         errno = saved_errno;
+        session.reset();
         return sysfail(err, cap, "Flash identify rejected");
     }
     if (id.capacity_bytes != FLASH_SIZE || id.command_set != 2u ||
@@ -70,11 +91,12 @@ int erase_sector(uint32_t offset, char *err, size_t cap) {
     std::memset(&job, 0, sizeof(job));
     job.abi_version = RETRODE3_FLASH_CFI_ABI_V1;
     job.offset_bytes = offset;
-    int fd = open_slot(err, cap);
+    int fd = session.fd;
+    if (fd < 0)
+        return fail(err, cap, "Flash session is not identified; run Detect Flash first");
     if (fd < 0) return -1;
     int rc = ::ioctl(fd, RETRODE3_FLASH_IOC_ERASE, &job);
     int saved_errno = errno;
-    ::close(fd);
     if (rc != 0) {
         errno = saved_errno;
         return sysfail(err, cap, "Flash sector erase rejected");
@@ -93,11 +115,12 @@ int program(uint32_t addr, const void *data, size_t count,
     job.offset_bytes = addr;
     job.length = static_cast<__u32>(count);
     std::memcpy(job.data, data, count);
-    int fd = open_slot(err, cap);
+    int fd = session.fd;
+    if (fd < 0)
+        return fail(err, cap, "Flash session is not identified; run Detect Flash first");
     if (fd < 0) return -1;
     int rc = ::ioctl(fd, RETRODE3_FLASH_IOC_PROGRAM, &job);
     int saved_errno = errno;
-    ::close(fd);
     if (rc != 0) {
         errno = saved_errno;
         return sysfail(err, cap, "Flash chunk program rejected");
@@ -109,12 +132,13 @@ int readback(uint32_t addr, void *data, size_t count,
     if (!data || !count || count > 4096u ||
         addr >= FLASH_SIZE || count > FLASH_SIZE - addr)
         return fail(err, cap, "Invalid Flash readback length");
-    int fd = open_slot(err, cap);
+    int fd = session.fd;
+    if (fd < 0)
+        return fail(err, cap, "Flash session is not identified; run Detect Flash first");
     if (fd < 0) return -1;
     if (::lseek(fd, static_cast<off_t>(addr), SEEK_SET) !=
         static_cast<off_t>(addr)) {
         int saved_errno = errno;
-        ::close(fd);
         errno = saved_errno;
         return sysfail(err, cap, "Cannot seek MD Flash");
     }
@@ -124,13 +148,11 @@ int readback(uint32_t addr, void *data, size_t count,
                            count - done);
         if (n <= 0) {
             int saved_errno = errno;
-            ::close(fd);
             errno = saved_errno;
             return sysfail(err, cap, "Incomplete Flash readback");
         }
         done += static_cast<size_t>(n);
     }
-    ::close(fd);
     return 0;
 }
 } // namespace
