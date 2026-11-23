@@ -285,7 +285,7 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module test-shared-flash-host
 stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
@@ -311,6 +311,14 @@ test-generic-selection-v3: native-core-registry
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
 	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
+
+# Experimental Flash ABI: independent host-owned progress and verify checks.
+# The synthetic plugin has no GPIO or real kernel linkage.
+.PHONY: test-shared-flash-host
+test-shared-flash-host: build/migration/retrode3-cli-mock
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		tests/mock_flash_core_v1.cpp -o build/migration/mock-flash-core.so
+	python3 -m unittest discover -s tests -p 'test_shared_flash_host.py' -v
 
 # Two independent v3 adapters sharing one mock physical slot.
 .PHONY: test-slot-autoprobe
