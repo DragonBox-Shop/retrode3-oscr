@@ -105,14 +105,29 @@ public:
     }
     ~RomDevice() { if (fd_ >= 0) ::close(fd_); }
     void read_mode(unsigned mode, unsigned address, void *bytes, std::size_t size) const {
+        const unsigned window = 16u * MIB;
         if (!size || (mode != MODE_GBA_SLOW && mode != MODE_GBA_BURST) ||
-            static_cast<std::uint64_t>(address) + size > 0x1000000ull)
-            throw std::runtime_error("GBA read exceeds validated low ROM window");
-        const std::uint64_t offset =
-            (static_cast<std::uint64_t>(mode) << 24) | address;
-        const ssize_t got = ::pread(fd_, bytes, size, static_cast<off_t>(offset));
-        if (got != static_cast<ssize_t>(size))
-            throw std::runtime_error("short GBA ROM read or kernel transport error");
+            address >= 2u * window || size > 2u * window - address)
+            throw std::runtime_error("GBA read exceeds 32 MiB ROM address space");
+        // Kernel offsets encode the access mode above the low 24 address bits.
+        // The upper window uses mode 25 (word) or 29 (burst), never a wrapped
+        // mode-24/28 read. Split a request at the window boundary if necessary.
+        unsigned char *out = static_cast<unsigned char *>(bytes);
+        while (size) {
+            const unsigned local = address % window;
+            const unsigned bank_mode = mode + address / window;
+            std::size_t chunk = window - local;
+            if (chunk > size) chunk = size;
+            if (chunk > 4096) chunk = 4096;
+            const std::uint64_t offset =
+                (static_cast<std::uint64_t>(bank_mode) << 24) | local;
+            const ssize_t got = ::pread(fd_, out, chunk, static_cast<off_t>(offset));
+            if (got != static_cast<ssize_t>(chunk))
+                throw std::runtime_error("short GBA ROM read or kernel transport error");
+            out += chunk;
+            address += static_cast<unsigned>(chunk);
+            size -= chunk;
+        }
     }
 };
 #include "oscr_gba_generated.h"
@@ -146,7 +161,7 @@ std::string layout(unsigned size_mib)
 {
     return std::string("gba-") + std::to_string(size_mib) + "m";
 }
-bool supported_size(unsigned n) { return n == 1 || n == 2 || n == 4 || n == 8 || n == 16; }
+bool supported_size(unsigned n) { return n == 1 || n == 2 || n == 4 || n == 8 || n == 16 || n == 32; }
 std::string crc_text(uint32_t crc) {
     char s[9]; std::snprintf(s, sizeof(s), "%08X", crc); return s;
 }
@@ -188,7 +203,7 @@ unsigned select_size(const retrode3_selection_v3 *selected, const gbx::GbaHeader
         if (selected->candidate_id[0]) throw std::runtime_error("unexpected GBA candidate");
         if (selected->parameter_count) throw std::runtime_error("layout cannot include parameters");
         const auto found = matches(h);
-        for (unsigned i = 1; i <= 16; i *= 2) {
+        for (unsigned i = 1; i <= 32; i *= 2) {
             bool offered = found.empty();
             for (const auto *r : found) if (r->mib == i) offered = true;
             if (offered && std::strcmp(selected->layout_id, layout(i).c_str()) == 0)
@@ -206,8 +221,8 @@ unsigned select_size(const retrode3_selection_v3 *selected, const gbx::GbaHeader
     } else {
         throw std::runtime_error("GBA ROM size is not in header; select a layout explicitly");
     }
-    if (value != 1 && value != 2 && value != 4 && value != 8 && value != 16)
-        throw std::runtime_error("unverified GBA ROM size: 1/2/4/8/16 MiB only");
+    if (!supported_size(value))
+        throw std::runtime_error("unsupported GBA ROM size: 1/2/4/8/16/32 MiB only");
     return value;
 }
 
@@ -223,9 +238,8 @@ int capabilities(char *out, std::size_t cap, char *err, std::size_t ec)
         "{\"value\":4,\"label\":\"4 MiB\"},"
         "{\"value\":8,\"label\":\"8 MiB\"},"
         "{\"value\":16,\"label\":\"16 MiB\"},"
-        "{\"value\":32,\"label\":\"32 MiB\",\"read_supported\":false}]}],"
-        "\"rules\":[{\"when\":{\"rom_mib\":32},\"read_supported\":false,"
-        "\"reason\":\"upper 16 MiB ROM window not hardware verified\"}],"
+        "{\"value\":32,\"label\":\"32 MiB\"}]}],"
+        "\"rules\":[],"
         "\"probe_priority\":150,\"probe_without_sense\":true,\"output_system\":\"gba\","
         "\"hardware_access\":{\"version\":1,"
         "\"probe\":{\"voltage_mv\":3300,"

@@ -8,6 +8,7 @@ import json
 import os
 import tempfile
 import unittest
+import zlib
 
 MODULE = os.environ.get("RETRODE3_GBA_TEST_MODULE", "build/migration/gba-md-test.so")
 HEADER = bytes.fromhex("""
@@ -182,7 +183,7 @@ class CoreTest(unittest.TestCase):
         bad.parameter_count = 1
         bad.parameters[0].id = b"rom_mib"
         bad.parameters[0].type = 1
-        bad.parameters[0].integer_value = 32
+        bad.parameters[0].integer_value = 64
         self.assertNotEqual(self.call_plan(bad)[0], 0)
         good = self.selection(mode=3, name=b"")
         good.parameter_count = 1
@@ -214,6 +215,78 @@ class CoreTest(unittest.TestCase):
         self.assertFalse(details["verification"]["verified"])
         self.assertEqual(details["read_configuration"]["rom_mib"], 1)
         self.assertEqual(result.payload_crc_known, 1)
+
+    def test_32m_auto_selection_and_upper_bank_stream(self):
+        self.write_state(self.param, "1\n")
+        # Use a known 32 MiB catalog serial, but synthetic ROM content.
+        # Different 512-byte markers per address prevent a mirrored bank
+        # or repeated block from being mistaken for a successful dump.
+        header = bytearray(HEADER)
+        header[0xac:0xb0] = b"BW4P"
+        header[0xbd] = (-0x19 - sum(header[0xa0:0xbd])) & 255
+        window = 16 * 1024 * 1024
+        with open(self.device, "r+b") as f:
+            f.seek(24 << 24)
+            f.write(header)
+            f.seek(28 << 24)
+            for i in range(window // 512):
+                block = bytearray([0x31]) * 512
+                block[:4] = i.to_bytes(4, "little")
+                if i == 0:
+                    block[:192] = header
+                f.write(block)
+            f.seek(29 << 24)
+            for i in range(window // 512):
+                block = bytearray([0xc7]) * 512
+                block[:4] = (i + window // 512).to_bytes(4, "little")
+                f.write(block)
+        code, data = self.json_call(self.probe)
+        self.assertEqual(code, 0, data)
+        self.assertFalse(data["selection_required"])
+        self.assertEqual(data["size_bytes"], 2 * window)
+        self.assertEqual(data["candidates"][0]["id"], "gba-crc-94CF5B2B")
+        self.assertTrue(data["candidates"][0]["read_supported"])
+        self.assertTrue(data["read_layouts"][0]["read_supported"])
+        choice = self.selection(mode=0, name=b"")
+        candidate = self.selection(mode=1, name=b"")
+        candidate.candidate_id = b"gba-crc-94CF5B2B"
+        override = self.selection(mode=3, name=b"")
+        override.parameter_count = 1
+        override.parameters[0].id = b"rom_mib"
+        override.parameters[0].type = 1
+        override.parameters[0].integer_value = 32
+        for sel in (choice, candidate, self.selection(name=b"gba-32m"), override):
+            rc, plan, err = self.call_plan(sel)
+            self.assertEqual(rc, 0, err)
+            self.assertEqual(plan.payload_bytes, 2 * window)
+        output = bytearray()
+        @WRITE
+        def write(ctx, ptr, count):
+            output.extend(ctypes.string_at(ptr, count))
+            return 0
+        @CANCEL
+        def not_cancelled(ctx):
+            return 0
+        io = HostIO(1, ctypes.sizeof(HostIO), None, write, not_cancelled)
+        result = Result()
+        result.struct_size = ctypes.sizeof(result)
+        errors = ctypes.create_string_buffer(256)
+        rc = self.read(ctypes.byref(choice), ctypes.byref(io),
+                       ctypes.byref(result), errors, len(errors))
+        self.assertEqual(rc, 0, errors.value.decode("utf-8"))
+        self.assertEqual(len(output), 2 * window)
+        # Compare the complete stream against the two independent windows.
+        with open(self.device, "rb") as f:
+            f.seek(28 << 24)
+            for pos in range(0, window, 1024 * 1024):
+                self.assertEqual(output[pos:pos + 1024 * 1024], f.read(1024 * 1024))
+            f.seek(29 << 24)
+            for pos in range(window, 2 * window, 1024 * 1024):
+                self.assertEqual(output[pos:pos + 1024 * 1024], f.read(1024 * 1024))
+        self.assertEqual(result.payload_crc32, zlib.crc32(output) & 0xffffffff)
+        details = json.loads(result.details_json.decode("utf-8"))
+        self.assertFalse(details["verification"]["verified"])
+        self.assertEqual(details["read_configuration"]["rom_mib"], 32)
 
     def test_cancellation_and_corrupt_header(self):
         self.write_state(self.param, "1\n")
