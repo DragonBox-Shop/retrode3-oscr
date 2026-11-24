@@ -167,15 +167,15 @@ class CoreTest(unittest.TestCase):
         code, data = self.json_call(self.probe)
         self.assertEqual(code, 0)
         self.assertTrue(data["system_detected"])
-        self.assertTrue(data["selection_required"])
+        self.assertFalse(data["selection_required"])
         self.assertEqual(data["game_code"], "AF5P")
-        self.assertEqual([x["size_bytes"] for x in data["read_layouts"]],
-                         [1048576, 2097152, 4194304, 8388608, 16777216])
+        self.assertEqual(data["candidates"][0]["id"], "gba-crc-07B06994")
+        self.assertEqual(data["size_bytes"], 16777216)
 
     def test_selection_and_stream(self):
         self.write_state(self.param, "1\n")
         bad = self.selection(mode=0, name=b"")
-        self.assertNotEqual(self.call_plan(bad)[0], 0)
+        self.assertEqual(self.call_plan(bad)[1].payload_bytes, 16777216)
         bad = self.selection(mode=2, name=b"gba-32m")
         self.assertNotEqual(self.call_plan(bad)[0], 0)
         bad = self.selection(mode=3, name=b"")
@@ -206,10 +206,10 @@ class CoreTest(unittest.TestCase):
         self.assertEqual(code, 0, errors.value.decode("utf-8"))
         self.assertEqual(output, self.data)
         details = json.loads(result.details_json.decode("utf-8"))
-        self.assertEqual(details["verification"]["status"], "not_checked")
+        self.assertEqual(details["verification"]["status"], "not_found")
         self.assertFalse(details["verification"]["verified"])
         self.assertEqual(details["read_configuration"]["rom_mib"], 1)
-        self.assertEqual(result.payload_crc_known, 0)
+        self.assertEqual(result.payload_crc_known, 1)
 
     def test_cancellation_and_corrupt_header(self):
         self.write_state(self.param, "1\n")

@@ -9,12 +9,12 @@ reader is retained only as a bench/reference tool, not linked to gba-md.so.
 
 The dynamic manifest identifies the physical MD slot. The v3 hardware
 profile requests 3300 mV and GBx mode for both probe and read. Shared host
-lock and scope are retained. Do not enable in normal use until the kernel
-implements reversible direction switching, and generic slot discovery
-handles GBx adapters with unreliable sense. Both remain outstanding.
+lock and scope are retained. Use only with kernel feature/gbx-scoped-bus until physical acceptance.
+The generic slot probe supports opt-in probe_without_sense at 3300 mV.
 No Python arm helper is intended in production. No save or flash writes.
-32 MiB layout stays disabled pending hardware verification. Sanni database
-integration is still outstanding; manual size selection remains mandatory.
+32 MiB layout stays disabled pending hardware verification. Pinned Sanni GBA database (oscartridge serial, ROM size, full CRC32)
+provides candidate selection, auto size for unambiguous layouts and full
+CRC verification. Unknown cartridges retain manual size selection.
 
 Build: make -f Makefile.migration native-gba-md-module
 Test: make -f Makefile.migration test-native-gba-md-module

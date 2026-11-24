@@ -368,6 +368,9 @@ stage-sms-md-module: native-sms-md-module
 build/migration/oscr_gba_generated.h: tools/build-linux-gba-core.py third_party/oscr-firmware/src/cores/GameBoyAdvance.cpp
 	python3 tools/build-linux-gba-core.py --output $@
 
+build/migration/oscr_gba_catalog.h: tools/build-linux-gba-catalog.py third_party/oscr-gba-db.json
+	python3 tools/build-linux-gba-catalog.py
+
 # Manual GBx-0011 GBA v3 core (read-only, TEST-KERNEL ONLY).
 # Do not add to stage-all-shared-cores or enable it automatically.
 GBA_MD_SOURCES = src/retrode3/oscr_gba_md_adapter.cpp
@@ -375,12 +378,12 @@ GBA_MD_HEADERS = include/retrode3/core_descriptor_v1.h \
 	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v3.h \
 	include/retrode3/json_v3.h include/gbx/retrode2_readonly.h
 
-build/migration/gba-md.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS) build/migration/oscr_gba_generated.h
+build/migration/gba-md.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS) build/migration/oscr_gba_generated.h build/migration/oscr_gba_catalog.h
 	mkdir -p build/migration
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) -Ibuild/migration \
 		$(GBA_MD_SOURCES) -o $@
 
-build/migration/gba-md-test.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS) build/migration/oscr_gba_generated.h
+build/migration/gba-md-test.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS) build/migration/oscr_gba_generated.h build/migration/oscr_gba_catalog.h
 	mkdir -p build/migration
 	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING -fPIC -shared -Wl,-z,defs \
 		$(NATIVE_INCLUDES) -Ibuild/migration $(GBA_MD_SOURCES) -o $@

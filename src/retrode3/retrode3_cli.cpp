@@ -1135,11 +1135,20 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
     BusLock lock(enabled);
     // Prioritize specific adapter probes without any console ID in the host.
     std::map<std::string, std::uint64_t> priority;
+    std::map<std::string, bool> without_sense;
+    bool any_without_sense = false;
     for (std::size_t i = 0; i < matches.size(); ++i) {
         priority[matches[i].id] = 0;
         try {
             OpenCore module(available + "/" + matches[i].id + ".so");
             const retrode3::JsonV3 schema = capability_schema_v3(module);
+            if (schema.has("probe_without_sense") &&
+                schema.at("probe_without_sense").kind == retrode3::JsonV3::Boolean &&
+                schema.at("probe_without_sense").boolean &&
+                schema.has("probe_voltage_mv") && schema.at("probe_voltage_mv").number() == 3300) {
+                without_sense[matches[i].id] = true;
+                any_without_sense = true;
+            }
             if (schema.has("probe_priority")) {
                 const std::uint64_t value = schema.at("probe_priority").number();
                 if (value > 1000u)
@@ -1154,7 +1163,7 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
         [&priority](Core const &a, Core const &b) {
             return priority.at(a.id) > priority.at(b.id);
         });
-    if (read_slot_attribute(slot, "sense") != "active") {
+    if (read_slot_attribute(slot, "sense") != "active" && !any_without_sense) {
         stream.emit(out + ",\"detection\":\"empty\",\"core\":null,"
                     "\"candidates\":[],\"attempts\":[]}");
         return;
@@ -1178,7 +1187,8 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
         if (i) attempts += ",";
         attempts += "{\"core\":" + retrode3::NdjsonProtocol::quote(c.id);
         try {
-            if (read_slot_attribute(slot, "sense") != "active")
+            if (read_slot_attribute(slot, "sense") != "active" &&
+                (!without_sense[c.id] || vcc != "3300mV"))
                 throw std::runtime_error("cartridge_removed");
             OpenCore module(available + "/" + c.id + ".so");
             retrode3::JsonV3 schema = capability_schema_v3(module);
@@ -1227,7 +1237,8 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
     }
     attempts += "]";
     candidates += "]";
-    if (read_slot_attribute(slot, "sense") != "active") {
+    if (read_slot_attribute(slot, "sense") != "active" &&
+        (selected.empty() || !without_sense[selected])) {
         stream.emit(out + ",\"detection\":\"empty\",\"core\":null,"
                     "\"candidates\":[] ,\"attempts\":" + attempts + "}");
         return;
