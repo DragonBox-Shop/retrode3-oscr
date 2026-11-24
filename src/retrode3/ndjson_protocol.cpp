@@ -127,7 +127,9 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
             i->first != "mapper" && i->first != "submapper" &&
             i->first != "prg_kib" && i->first != "chr_kib" &&
             i->first != "mirroring" && i->first != "battery" &&
-            i->first != "selection")
+            i->first != "selection" && i->first != "source" &&
+            i->first != "erase" && i->first != "write" &&
+            i->first != "verify" && i->first != "verify_passes")
             throw std::runtime_error("unknown command field: " + i->first);
     WebCommand cmd;
     cmd.action = field(obj, "command", true);
@@ -185,6 +187,34 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
         check_selection(cmd, obj.at("selection"));
     }
     cmd.output = field(obj, "output");
+    cmd.source = field(obj, "source");
+    const bool any_flash_flags = obj.has("erase") || obj.has("write") ||
+                                 obj.has("verify") || obj.has("verify_passes");
+    if (any_flash_flags) {
+        if (cmd.action != "flash_operation" ||
+            !obj.has("erase") || !obj.has("write") ||
+            !obj.has("verify") || !obj.has("verify_passes"))
+            throw std::runtime_error("Flash operations require erase, write, verify and verify_passes");
+        const JsonV3 &erase = obj.at("erase");
+        const JsonV3 &write = obj.at("write");
+        const JsonV3 &verify = obj.at("verify");
+        if (erase.kind != JsonV3::Boolean || write.kind != JsonV3::Boolean ||
+            verify.kind != JsonV3::Boolean)
+            throw std::runtime_error("Flash stage fields must be booleans");
+        cmd.flash_erase = erase.boolean;
+        cmd.flash_write = write.boolean;
+        cmd.flash_verify = verify.boolean;
+        cmd.flash_verify_passes = integer_field(obj, "verify_passes", 99);
+        cmd.has_flash_flags = true;
+        if ((!cmd.flash_erase && !cmd.flash_write && !cmd.flash_verify) ||
+            (cmd.flash_verify && cmd.flash_verify_passes == 0) ||
+            (!cmd.flash_verify && cmd.flash_verify_passes != 0))
+            throw std::runtime_error("Invalid Flash stage combination/pass count");
+    }
+    if (cmd.source.size() > 1024 ||
+        cmd.source.find('\n') != std::string::npos ||
+        cmd.source.find('\r') != std::string::npos)
+        throw std::runtime_error("invalid Flash source path");
     cmd.mapping = field(obj, "mapping");
     if (!cmd.mapping.empty() && cmd.mapping != "lo" && cmd.mapping != "hi")
         throw std::runtime_error("invalid mapping");
@@ -200,7 +230,9 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
     }
     if (cmd.action != "probe" && cmd.action != "read_rom" &&
         cmd.action != "cancel" && cmd.action != "get_capabilities" &&
-        cmd.action != "list_cores" && cmd.action != "probe_slot")
+        cmd.action != "list_cores" && cmd.action != "probe_slot" &&
+        cmd.action != "probe_flash" && cmd.action != "write_flash" &&
+        cmd.action != "verify_flash" && cmd.action != "flash_operation")
         throw std::runtime_error("unsupported command");
     if (cmd.action == "list_cores" && (!cmd.core.empty() || !cmd.slot.empty()))
         throw std::runtime_error("list_cores takes no core identifier");
@@ -209,6 +241,20 @@ WebCommand NdjsonProtocol::parse(std::string const &line) {
             throw std::runtime_error("probe_slot requires slot and forbids core");
     } else if (!cmd.slot.empty())
         throw std::runtime_error("slot only allowed for probe_slot");
+    if (cmd.action == "flash_operation" && !cmd.has_flash_flags)
+        throw std::runtime_error("flash_operation requires explicit stages");
+    const bool source_needed = (cmd.action == "write_flash" ||
+                                cmd.action == "verify_flash" ||
+                                (cmd.action == "flash_operation" &&
+                                 (cmd.flash_write || cmd.flash_verify)));
+    if (source_needed && (cmd.source.empty() || cmd.source[0] != '/'))
+        throw std::runtime_error("Flash write/verify requires an absolute source path");
+    if (!cmd.source.empty() &&
+        cmd.action != "write_flash" && cmd.action != "verify_flash" &&
+        cmd.action != "flash_operation")
+        throw std::runtime_error("source only applies to Flash jobs");
+    if (!cmd.source.empty() && cmd.source[0] != '/')
+        throw std::runtime_error("Flash source path must be absolute");
     if (cmd.action == "read_rom" && cmd.output.empty())
         throw std::runtime_error("read_rom requires output");
     if (cmd.action != "read_rom" &&
