@@ -1,5 +1,35 @@
 # GBA-MD v3 ROM-only plugin (GBx-0011), hardware-gated
 
+## Native automatic probe (2026-11-24 integration work)
+
+The GBA core now declares the SAME v3 `hardware_access` mechanism as
+SMS-MD. The shared CLI holds the bus lock, applies the GBA-specific
+3.3V probe/read profile and `gbx_md_test=true`, calls the GBA
+`fast_probe_json` callback and rolls back the hardware parameter and
+voltage afterwards. The first mode-24 `pread()` of the GBA header
+enters `retrode3_gbx_prepare()` in the kernel and performs the
+previous Python `arm` direction preparation inline. **There must
+never be a separate Python/native arm executable or a human-run arm
+step** in the intended runtime. The new core profile has
+`probe_priority=150` (SMS-MD uses 100) and has no cart write capability.
+
+**Not yet safe to ship automatically:** the kernel's experimental
+`bus->gbx_active` latch still blocks ordinary MD bus access after a
+GBx read until module reload, and `slot_probe` requires MD sense to
+report active, which the GBx adapter may not do. These must be
+addressed and tested before enabling the core in normal auto-detect.
+Automatically starting the kernel preparation with an inserted GBx
+adapter also needs real electrical acceptance, particularly GPIO A19
+(GBA IRQ/GB audio), possible other MD-core probes, and VCC restoration.
+This integration must not simply delete the safety latch or blindly
+drive the shared pin after an unsuccessful header check.
+
+For now, the legacy Python arm instructions below remain historical
+**bench-only** reference instructions, not the intended plugin runtime.
+The C++ core's normal runtime performs no Python subprocess calls.
+
+
+
 Status: **implementation and hardware-free ABI tests only**. This is an
 opt-in, separately packaged core; no production auto-activation and no
 save/EEPROM/flash writing. Do not install/enable for general users yet.
