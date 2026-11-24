@@ -364,3 +364,40 @@ stage-sms-md-module: native-sms-md-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
 	install -m 644 build/migration/sms-md.so build/migration/stage/usr/lib/retrode3/cores-available/sms-md.so
 	install -m 644 packaging/cores/sms-md.core build/migration/stage/usr/lib/retrode3/cores-available/sms-md.core
+
+build/migration/oscr_gba_generated.h: tools/build-linux-gba-core.py third_party/oscr-firmware/src/cores/GameBoyAdvance.cpp
+	python3 tools/build-linux-gba-core.py --output $@
+
+# Manual GBx-0011 GBA v3 core (read-only, TEST-KERNEL ONLY).
+# Do not add to stage-all-shared-cores or enable it automatically.
+GBA_MD_SOURCES = src/retrode3/oscr_gba_md_adapter.cpp
+GBA_MD_HEADERS = include/retrode3/core_descriptor_v1.h \
+	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v3.h \
+	include/retrode3/json_v3.h include/gbx/retrode2_readonly.h
+
+build/migration/gba-md.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS) build/migration/oscr_gba_generated.h
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) -Ibuild/migration \
+		$(GBA_MD_SOURCES) -o $@
+
+build/migration/gba-md-test.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS) build/migration/oscr_gba_generated.h
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING -fPIC -shared -Wl,-z,defs \
+		$(NATIVE_INCLUDES) -Ibuild/migration $(GBA_MD_SOURCES) -o $@
+
+.PHONY: native-gba-md-module test-native-gba-md-module stage-gba-md-module
+native-gba-md-module: build/migration/gba-md.so
+
+test-native-gba-md-module: build/migration/gba-md-test.so
+	RETRODE3_GBA_TEST_MODULE=$(CURDIR)/build/migration/gba-md-test.so \
+		python3 -m unittest discover -s tests -p 'test_gba_md_core.py' -v
+
+stage-gba-md-module: native-gba-md-module
+	install -d -m 755 build/migration/stage/usr/lib/retrode3/cores-available
+	install -m 644 build/migration/gba-md.so \
+		build/migration/stage/usr/lib/retrode3/cores-available/gba-md.so
+	install -m 644 packaging/cores/gba-md.core \
+		build/migration/stage/usr/lib/retrode3/cores-available/gba-md.core
+
+# Include GBA host mocks in the shared preflight gate.
+test-all-shared-cores: test-native-gba-md-module

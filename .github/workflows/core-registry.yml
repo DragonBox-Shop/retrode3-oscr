@@ -26,6 +26,10 @@ on:
       - develop
     paths:
       - 'tools/build-linux-sms-core.py'
+      - 'tools/build-linux-gba-core.py'
+      - 'src/retrode3/oscr_gba_md_adapter.cpp'
+      - 'tests/test_gba_md_core.py'
+      - 'packaging/cores/gba-md.core'
       - 'tests/test_sms_oscr_generator.py'
       - 'include/retrode3/sms_*.h'
       - 'src/retrode3/oscr_sms_md_adapter.cpp'
@@ -119,6 +123,8 @@ jobs:
         run: make -f Makefile.migration test-release-stage
       - name: Exercise SMS-0007 experimental read-only v3 adapter
         run: make -f Makefile.migration test-sms-md-module
+      - name: Build and test generated original GBA core
+        run: make -f Makefile.migration test-native-gba-md-module
       - name: Verify pinned upstream checkout untouched
         run: |
           git -C third_party/oscr-firmware diff --exit-code
