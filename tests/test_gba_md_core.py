@@ -184,7 +184,11 @@ class CoreTest(unittest.TestCase):
         bad.parameters[0].type = 1
         bad.parameters[0].integer_value = 32
         self.assertNotEqual(self.call_plan(bad)[0], 0)
-        good = self.selection()
+        good = self.selection(mode=3, name=b"")
+        good.parameter_count = 1
+        good.parameters[0].id = b"rom_mib"
+        good.parameters[0].type = 1
+        good.parameters[0].integer_value = 1
         code, plan, err = self.call_plan(good)
         self.assertEqual(code, 0, err)
         self.assertEqual(plan.payload_bytes, 1048576)
@@ -213,7 +217,11 @@ class CoreTest(unittest.TestCase):
 
     def test_cancellation_and_corrupt_header(self):
         self.write_state(self.param, "1\n")
-        good = self.selection()
+        good = self.selection(mode=3, name=b"")
+        good.parameter_count = 1
+        good.parameters[0].id = b"rom_mib"
+        good.parameters[0].type = 1
+        good.parameters[0].integer_value = 1
         output = bytearray()
         @WRITE
         def write(ctx, ptr, count):

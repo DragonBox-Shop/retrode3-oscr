@@ -153,6 +153,8 @@ std::string crc_text(uint32_t crc) {
 std::string candidate_id(const GbaRecord &r) { return "gba-crc-" + crc_text(r.crc); }
 std::vector<const GbaRecord *> matches(const gbx::GbaHeader &h) {
     std::vector<const GbaRecord *> out;
+    // Generic placeholder serials are not identity evidence.
+    if (!std::strcmp(h.game_code, "0000") || !std::strcmp(h.game_code, "XXXX")) return out;
     for (const auto &r : gba_catalog)
         if (std::strcmp(r.serial, h.game_code) == 0) out.push_back(&r);
     return out;
@@ -185,9 +187,13 @@ unsigned select_size(const retrode3_selection_v3 *selected, const gbx::GbaHeader
     } else if (selected->mode == RETRODE3_SELECT_LAYOUT_V3) {
         if (selected->candidate_id[0]) throw std::runtime_error("unexpected GBA candidate");
         if (selected->parameter_count) throw std::runtime_error("layout cannot include parameters");
-        for (unsigned i = 1; i <= 16; i *= 2)
-            if (std::strcmp(selected->layout_id, layout(i).c_str()) == 0)
+        const auto found = matches(h);
+        for (unsigned i = 1; i <= 16; i *= 2) {
+            bool offered = found.empty();
+            for (const auto *r : found) if (r->mib == i) offered = true;
+            if (offered && std::strcmp(selected->layout_id, layout(i).c_str()) == 0)
                 value = i;
+        }
     } else if (selected->mode == RETRODE3_SELECT_OVERRIDE_V3) {
         if (selected->candidate_id[0] || selected->layout_id[0] || selected->parameter_count != 1)
             throw std::runtime_error("GBA override requires rom_mib only");
@@ -251,7 +257,7 @@ int probe_json(char *out, std::size_t cap, char *err, std::size_t ec)
                 ",\"read_supported\":" + (supported_size(r->mib) ? "true" : "false") + "}";
         }
         candidates += "]";
-        for (unsigned n = 1; n <= 32; n *= 2) {
+        for (unsigned n = 0; n <= 64; ++n) {
             if (!found.empty()) {
                 bool listed = false;
                 for (const auto *r : found) if (r->mib == n) listed = true;

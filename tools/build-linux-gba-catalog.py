@@ -19,7 +19,7 @@ records = json.loads(raw.decode('utf-8'))['records']
 lines = []
 for rec in records:
     serial, crc, size, name = rec['serial'], rec['crc32'], rec['size'], rec['name']
-    if not isinstance(size, int) or size <= 0 or not re.match(r'^[0-9A-Fa-f]{8}$', crc):
+    if not isinstance(size, int) or size < 0 or size > 64 or not re.match(r'^[0-9A-Fa-f]{8}$', crc):
         raise ValueError('Invalid GBA catalog geometry or CRC')
     lines.append('    {%s, %uu, 0x%su, %s},\n' %
                  (literal(serial), size, crc, literal(name)))
