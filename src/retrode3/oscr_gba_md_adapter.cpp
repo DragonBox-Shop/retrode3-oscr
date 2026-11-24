@@ -1,6 +1,8 @@
-// Retrode2 GBx-0011 on the MegaDrive slot: manual-bench GBA ROM-only v3 core.
-// Requires the experimental kernel already armed SAFELY with no cart installed.
-// No auto-arm, voltage changes, cart writes or permanent bus reconfiguration.
+// Retrode2 GBx-0011 on the MegaDrive slot: GBA ROM-only v3 core.
+// The common CLI's scoped hardware_access sets 3.3 V and gbx_md_test
+// before each probe/plan/read. The first kernel GBx pread prepares
+// safe read-only bus directions; no Python arm helper is required.
+// No cartridge writes or unscoped voltage changes.
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 #endif
@@ -81,12 +83,14 @@ void check_bench_ready()
     const std::string root = state_root();
     const std::string param = read_line((root + "/module/retrode3/parameters/gbx_md_test").c_str());
     if (param != "Y" && param != "1")
-        throw std::runtime_error("GBx bench not enabled; load and arm the test kernel with the adapter empty");
+        throw std::runtime_error("GBx read-only probe profile inactive (gbx_md_test); hardware scope required");
     const std::string vcc = read_line((root + "/class/retrode3/slot-md/vcc").c_str());
     if (vcc != "3300mV")
         throw std::runtime_error("GBA requires exactly 3300mV; refusing bus access");
-    // gbx_md_test alone is NOT the arm operation. The operator must have run
-    // gbx-md-hwtest.py arm with the slot EMPTY before inserting a cartridge.
+    // The first mode-24 kernel pread in read_header() performs the
+    // GBx pin-direction preparation before any GBA /RD strobe.
+    // The kernel must also support safely restoring the shared MD bus
+    // when the scoped probe ends. See GBx integration documentation.
 }
 class RomDevice {
     int fd_;
@@ -185,9 +189,17 @@ int capabilities(char *out, std::size_t cap, char *err, std::size_t ec)
         "{\"value\":32,\"label\":\"32 MiB\",\"read_supported\":false}]}],"
         "\"rules\":[{\"when\":{\"rom_mib\":32},\"read_supported\":false,"
         "\"reason\":\"upper 16 MiB ROM window not hardware verified\"}],"
+        "\"probe_priority\":150,"
+        "\"hardware_access\":{\"version\":1,"
+        "\"probe\":{\"voltage_mv\":3300,"
+        "\"module_parameters\":{\"gbx_md_test\":true,"
+        "\"legacy_bridge_hiz_test\":false,\"sms_mapper_write_test\":false}},"
+        "\"read\":{\"voltage_mv\":3300,"
+        "\"module_parameters\":{\"gbx_md_test\":true,"
+        "\"legacy_bridge_hiz_test\":false,\"sms_mapper_write_test\":false}}},"
         "\"probe_voltage_mv\":3300,\"read_voltage_mv\":3300,"
-        "\"automatic_voltage_switch\":false,\"probe_priority\":0,"
-        "\"bench_only\":true,\"requires_manual_empty_slot_arm\":true,"
+        "\"automatic_voltage_switch\":true,"
+        "\"bench_only\":true,\"requires_manual_empty_slot_arm\":false,"
         "\"write_operations\":false}"
         ;
     return copy_json(schema, out, cap, err, ec);
