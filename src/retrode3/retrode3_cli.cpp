@@ -6,12 +6,14 @@
 #include "retrode3/core_operations_v1.h"
 #include "retrode3/core_operations_v2.h"
 #include "retrode3/core_operations_v3.h"
+#include "retrode3/core_flash_v1.h"
 #include "retrode3/json_v3.h"
 #include "retrode3/hardware_scope_v1.h"
 #include "retrode3/ndjson_protocol.h"
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
@@ -21,6 +23,7 @@
 #include <dlfcn.h>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -40,6 +43,8 @@ struct Core {
     bool can_read_rom;
     bool has_v2;
     bool has_v3;
+    bool probe_without_sense;
+    bool has_flash;
 };
 
 bool is_slug(std::string const &s)
@@ -133,7 +138,7 @@ Core load_manifest(std::string const &path, std::string const &expected_id)
     }
     if (input.bad()) throw std::runtime_error("core manifest read failed");
     Core c = {fields["id"], fields["name"], fields["version"],
-              fields["slot"], "disabled", false, false, false, false, false};
+              fields["slot"], "disabled", false, false, false, false, false, false, false};
     if (fields.size() != 4 || c.id != expected_id || !is_slug(c.id) ||
         !is_slug(c.slot) || !valid_text(c.name, 128) ||
         !valid_text(c.version, 64))
@@ -173,7 +178,8 @@ bool valid_operations(const retrode3_core_operations_v1 *api)
 
 // -1 = invalid, 0 = valid metadata only, 1 = runnable operation ABI.
 int compatible(std::string const &file, Core const &core,
-               bool &can_read_rom, bool &has_v2, bool &has_v3)
+               bool &can_read_rom, bool &has_v2, bool &has_v3,
+               bool &probe_without_sense, bool &has_flash)
 {
     void *handle = ::dlopen(file.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!handle) { note(core.id, "module load failed"); return -1; }
@@ -226,7 +232,43 @@ int compatible(std::string const &file, Core const &core,
                                     !v3->capabilities_json || !v3->fast_probe_json ||
                                     !v3->plan_read || !v3->read_rom)
                                     status = -1;
-                                else { has_v3 = true; can_read_rom = true; }
+                                else {
+                                    has_v3 = true;
+                                    can_read_rom = true;
+                                    // Optional metadata only, never touch the bus for inventory.
+                                    char payload[16384] = {}, error[256] = {};
+                                    if (!v3->capabilities_json(payload, sizeof(payload), error, sizeof(error)) &&
+                                        std::memchr(payload, '\0', sizeof(payload))) {
+                                        try {
+                                            const retrode3::JsonV3 schema = retrode3::parse_json_v3(payload);
+                                            probe_without_sense = schema.has("probe_without_sense") &&
+                                                schema.at("probe_without_sense").kind == retrode3::JsonV3::Boolean &&
+                                                schema.at("probe_without_sense").boolean &&
+                                                schema.has("probe_voltage_mv") &&
+                                                schema.at("probe_voltage_mv").number() == 3300;
+                                        } catch (const std::exception &) {
+                                            // Invalid optional hint does not authorize a probe.
+                                            probe_without_sense = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (status == 1) {
+                            void *fsym = ::dlsym(handle,
+                                "retrode3_core_get_flash_operations_v1");
+                            if (fsym) {
+                                retrode3_core_get_flash_operations_v1_fn getflash =
+                                    reinterpret_cast<retrode3_core_get_flash_operations_v1_fn>(fsym);
+                                const retrode3_core_flash_operations_v1 *flash = getflash();
+                                if (!flash ||
+                                    flash->abi_version != RETRODE3_CORE_FLASH_ABI_V1 ||
+                                    flash->struct_size < sizeof(*flash) ||
+                                    !flash->identify || !flash->erase_sector ||
+                                    !flash->program || !flash->readback)
+                                    status = -1;
+                                else
+                                    has_flash = true;
                             }
                         }
                     } else status = -1;
@@ -274,7 +316,7 @@ std::vector<Core> discover(std::string const &available,
                 core.status = "invalid_link";
                 note(id, "enablement must be a trusted link to the packaged module");
             } else if (valid) {
-                int result = compatible(base + ".so", core, core.can_read_rom, core.has_v2, core.has_v3);
+                int result = compatible(base + ".so", core, core.can_read_rom, core.has_v2, core.has_v3, core.probe_without_sense, core.has_flash);
                 core.usable = (result == 1);
                 core.status = result == 1 ? "ready" :
                     (result == 0 ? "discovered" : "incompatible");
@@ -309,8 +351,11 @@ std::string to_json(std::vector<Core> const &cores,
               + (c.enabled ? "true" : "false")
               + ",\"status\":" + retrode3::NdjsonProtocol::quote(c.status)
               + ",\"usable\":" + (c.usable ? "true" : "false")
+              + (c.usable && c.probe_without_sense ? ",\"probe_without_sense\":true" : "")
               + ",\"actions\":" + (c.usable
-                    ? (c.can_read_rom ? "[\"probe\",\"read_rom\"]" : "[\"probe\"]")
+                    ? (std::string(c.can_read_rom ? "[\"probe\",\"read_rom" : "[\"probe") +
+                         (c.has_flash ? "\",\"probe_flash\",\"write_flash\",\"verify_flash\",\"flash_operation\""
+                                      : "\"") + "]")
                     : "[]") + "}";
     }
     return json + "]}";
@@ -394,7 +439,8 @@ struct OpenCore {
     const retrode3_core_operations_v1 *api;
     const retrode3_core_operations_v2 *api2;
     const retrode3_core_operations_v3 *api3;
-    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL), api2(NULL), api3(NULL) {
+    const retrode3_core_flash_operations_v1 *flash;
+    explicit OpenCore(std::string const &module) : handle(NULL), api(NULL), api2(NULL), api3(NULL), flash(NULL) {
         handle = ::dlopen(module.c_str(), RTLD_NOW | RTLD_LOCAL);
         if (!handle) throw std::runtime_error("could not load enabled core");
         try {
@@ -426,6 +472,17 @@ struct OpenCore {
                     !api3->capabilities_json || !api3->fast_probe_json ||
                     !api3->plan_read || !api3->read_rom)
                     throw std::runtime_error("core v3 ABI invalid");
+            }
+            void *fsym = ::dlsym(handle, "retrode3_core_get_flash_operations_v1");
+            if (fsym) {
+                retrode3_core_get_flash_operations_v1_fn getflash =
+                    reinterpret_cast<retrode3_core_get_flash_operations_v1_fn>(fsym);
+                flash = getflash();
+                if (!flash || flash->abi_version != RETRODE3_CORE_FLASH_ABI_V1 ||
+                    flash->struct_size < sizeof(*flash) ||
+                    !flash->identify || !flash->erase_sector ||
+                    !flash->program || !flash->readback)
+                    throw std::runtime_error("core Flash ABI invalid");
             }
         } catch (...) {
             ::dlclose(handle);
@@ -997,8 +1054,10 @@ void emit_capabilities_v3(retrode3::NdjsonProtocol &stream,
         + ",\"system\":" + retrode3::NdjsonProtocol::quote(core.id)
         + ",\"core\":" + retrode3::NdjsonProtocol::quote(core.id)
         + ",\"slot\":" + retrode3::NdjsonProtocol::quote(core.slot)
-        + ",\"enabled\":true,\"usable\":true,\"commands\":[\"probe\",\"read_rom\",\"cancel\",\"get_capabilities\"]"
-        + ",\"write_operations\":false,\"selection_schema\":"
+        + ",\"enabled\":true,\"usable\":true,\"commands\":[\"probe\",\"read_rom\",\"cancel\",\"get_capabilities\"" +
+          (module.flash ? ",\"probe_flash\",\"write_flash\",\"verify_flash\",\"flash_operation\"" : "") + "]"
+        + ",\"write_operations\":" + (module.flash ? "true" : "false")
+        + ",\"selection_schema\":"
         + retrode3::stringify_json_v3(schema) + "}");
 }
 
@@ -1135,11 +1194,20 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
     BusLock lock(enabled);
     // Prioritize specific adapter probes without any console ID in the host.
     std::map<std::string, std::uint64_t> priority;
+    std::map<std::string, bool> without_sense;
+    bool any_without_sense = false;
     for (std::size_t i = 0; i < matches.size(); ++i) {
         priority[matches[i].id] = 0;
         try {
             OpenCore module(available + "/" + matches[i].id + ".so");
             const retrode3::JsonV3 schema = capability_schema_v3(module);
+            if (schema.has("probe_without_sense") &&
+                schema.at("probe_without_sense").kind == retrode3::JsonV3::Boolean &&
+                schema.at("probe_without_sense").boolean &&
+                schema.has("probe_voltage_mv") && schema.at("probe_voltage_mv").number() == 3300) {
+                without_sense[matches[i].id] = true;
+                any_without_sense = true;
+            }
             if (schema.has("probe_priority")) {
                 const std::uint64_t value = schema.at("probe_priority").number();
                 if (value > 1000u)
@@ -1154,7 +1222,7 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
         [&priority](Core const &a, Core const &b) {
             return priority.at(a.id) > priority.at(b.id);
         });
-    if (read_slot_attribute(slot, "sense") != "active") {
+    if (read_slot_attribute(slot, "sense") != "active" && !any_without_sense) {
         stream.emit(out + ",\"detection\":\"empty\",\"core\":null,"
                     "\"candidates\":[],\"attempts\":[]}");
         return;
@@ -1178,7 +1246,8 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
         if (i) attempts += ",";
         attempts += "{\"core\":" + retrode3::NdjsonProtocol::quote(c.id);
         try {
-            if (read_slot_attribute(slot, "sense") != "active")
+            if (read_slot_attribute(slot, "sense") != "active" &&
+                (!without_sense[c.id] || vcc != "3300mV"))
                 throw std::runtime_error("cartridge_removed");
             OpenCore module(available + "/" + c.id + ".so");
             retrode3::JsonV3 schema = capability_schema_v3(module);
@@ -1227,7 +1296,8 @@ void probe_slot(retrode3::NdjsonProtocol &stream, const std::string &request_id,
     }
     attempts += "]";
     candidates += "]";
-    if (read_slot_attribute(slot, "sense") != "active") {
+    if (read_slot_attribute(slot, "sense") != "active" &&
+        (selected.empty() || !without_sense[selected])) {
         stream.emit(out + ",\"detection\":\"empty\",\"core\":null,"
                     "\"candidates\":[] ,\"attempts\":" + attempts + "}");
         return;
@@ -1440,6 +1510,284 @@ void read_rom_v3(retrode3::NdjsonProtocol &stream,
     }
 }
 
+
+/* Shared Flash jobs, available only when a trusted core exports the optional
+ * Flash ABI. Explicit user request, never an insertion-time ROM probe.
+ * All phase progress, source-file ownership and readback verification are
+ * centralized here, never in the MegaDrive adapter or kernel. */
+struct FlashSource {
+    int fd;
+    std::size_t size;
+    FlashSource(std::string const &source, std::size_t capacity) : fd(-1), size(0) {
+        if (source.empty() || source[0] != '/' || source.size() > 1024 ||
+            source.find("/../") != std::string::npos ||
+            source.find("/./") != std::string::npos ||
+            ends_with(source, "/..") || ends_with(source, "/."))
+            throw std::runtime_error("invalid Flash source path");
+        fd = ::open(source.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+        if (fd < 0)
+            throw std::runtime_error("cannot open Flash ROM source");
+        struct stat st;
+        if (::fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) ||
+            st.st_size < 512 || st.st_size > static_cast<off_t>(capacity) ||
+            (st.st_size & 1)) {
+            ::close(fd);
+            fd = -1;
+            throw std::runtime_error("Flash source must be an even-sized ROM file within capacity");
+        }
+        size = static_cast<std::size_t>(st.st_size);
+    }
+    ~FlashSource() { if (fd >= 0) ::close(fd); }
+    void get(std::size_t offset, void *bytes, std::size_t count) const {
+        unsigned char *p = static_cast<unsigned char *>(bytes);
+        std::size_t done = 0;
+        while (done < count) {
+            ssize_t n = ::pread(fd, p + done, count - done,
+                                static_cast<off_t>(offset + done));
+            if (n <= 0)
+                throw std::runtime_error("Flash ROM source truncated/unreadable");
+            done += static_cast<std::size_t>(n);
+        }
+    }
+private:
+    FlashSource(FlashSource const &);
+    FlashSource &operator=(FlashSource const &);
+};
+
+std::string flash_error(char const *message, std::size_t limit,
+                        char const *fallback) {
+    return message[0] ? safe_cstr(message, limit) : std::string(fallback);
+}
+
+void check_flash_cancel(retrode3::NdjsonProtocol &stream,
+                        std::string const &request_id) {
+    stream.poll_cancel(request_id);
+    if (stream.cancelled())
+        throw std::runtime_error("cancelled");
+}
+
+typedef std::chrono::steady_clock FlashClock;
+
+/* Measured average bytes/s since start of the CURRENT phase.
+ * Do not estimate rate from browser polling intervals: those are noisy.
+ * Erase uses sectors, so no byte rate is displayed for that phase. */
+void flash_progress(retrode3::NdjsonProtocol &stream,
+                    std::string const &request_id,
+                    std::string const &phase, std::uint64_t done,
+                    std::uint64_t total, bool sectors,
+                    int &last_percent, FlashClock::time_point phase_started,
+                    unsigned verify_pass = 0, unsigned verify_passes = 0) {
+    const unsigned percent = total ?
+        static_cast<unsigned>((done * 100u) / total) : 100u;
+    if (percent == static_cast<unsigned>(last_percent) && done < total)
+        return;
+    last_percent = static_cast<int>(percent);
+    const std::uint64_t elapsed_ms = static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            FlashClock::now() - phase_started).count());
+    const std::uint64_t bytes_per_second = (!sectors && elapsed_ms) ?
+        done * 1000u / elapsed_ms : 0u;
+    stream.emit(prefix("progress", request_id)
+        + ",\"phase\":" + retrode3::NdjsonProtocol::quote(phase)
+        + ",\"units\":" + (sectors ? "\"sectors\"" : "\"bytes\"")
+        + (sectors ? ",\"units_done\":" : ",\"bytes_done\":") +
+            std::to_string(done)
+        + (sectors ? ",\"units_total\":" : ",\"bytes_total\":") +
+            std::to_string(total)
+        + ",\"percent\":" + std::to_string(percent)
+        + (!sectors ? ",\"bytes_per_second\":" +
+            std::to_string(bytes_per_second) +
+            ",\"elapsed_ms\":" + std::to_string(elapsed_ms) : "")
+        + (verify_passes ? ",\"verify_pass\":" + std::to_string(verify_pass) +
+                           ",\"verify_passes\":" + std::to_string(verify_passes) : "")
+        + "}");
+}
+
+/* The runtime owns all three independently selectable stages.
+ * Erase-only without a source erases the entire detected chip; with an
+ * uploaded source it erases only sectors overlapping that ROM. No full
+ * sector readback here: the kernel polls completion, and optional Verify
+ * compares the finished image afterward, as many times as requested. */
+void flash_job(retrode3::NdjsonProtocol &stream,
+               retrode3::WebCommand const &cmd, OpenCore &core,
+               std::string const &slot) {
+    if (!core.flash || !core.api3)
+        throw std::runtime_error("Flash support not installed in selected core");
+    if (cmd.has_selection || cmd.has_manual || !cmd.output.empty() ||
+        cmd.has_size || !cmd.mapping.empty())
+        throw std::runtime_error("Flash job cannot carry ROM-read parameters");
+
+    const bool erase = cmd.action == "flash_operation" ?
+                       cmd.flash_erase : cmd.action == "write_flash";
+    const bool write = cmd.action == "flash_operation" ?
+                       cmd.flash_write : cmd.action == "write_flash";
+    const bool verify = cmd.action == "flash_operation" ?
+                        cmd.flash_verify : cmd.action == "write_flash" ||
+                                            cmd.action == "verify_flash";
+    const unsigned passes = cmd.action == "flash_operation" ?
+                            cmd.flash_verify_passes : (verify ? 1u : 0u);
+    if (cmd.action != "probe_flash" &&
+        (!erase && !write && !verify))
+        throw std::runtime_error("Select at least one Flash operation");
+    if (verify && (passes == 0 || passes > 99))
+        throw std::runtime_error("Invalid Verify pass count");
+    if ((write || verify) && cmd.source.empty())
+        throw std::runtime_error("Write or Verify requires a ROM source");
+
+    const retrode3::JsonV3 schema = capability_schema_v3(core);
+    retrode3::HardwareScopeV1 hardware(schema, slot,
+        (erase || write) ? "flash_write" : "flash_probe");
+    retrode3_flash_identity_v1 identity;
+    std::memset(&identity, 0, sizeof(identity));
+    identity.struct_size = sizeof(identity);
+    char error[256] = {};
+    if (core.flash->identify(&identity, error, sizeof(error)))
+        throw std::runtime_error(flash_error(error, sizeof(error),
+                                             "Flash identification failed"));
+    if (identity.struct_size != sizeof(identity) ||
+        identity.size_bytes < 512 || identity.size_bytes > 4194304u ||
+        identity.region_count == 0 ||
+        identity.region_count > RETRODE3_FLASH_MAX_REGIONS_V1)
+        throw std::runtime_error("invalid Flash geometry returned by core");
+
+    std::vector<std::uint32_t> all_sectors;
+    std::uint64_t offset = 0;
+    for (std::uint32_t i = 0; i < identity.region_count; ++i) {
+        const retrode3_flash_region_v1 &r = identity.regions[i];
+        if (r.start_bytes != offset || !r.sector_bytes || !r.count ||
+            (r.sector_bytes & 1u) || r.count > 1024)
+            throw std::runtime_error("invalid Flash region");
+        for (std::uint32_t j = 0; j < r.count; ++j) {
+            if (offset >= identity.size_bytes || all_sectors.size() >= 1024)
+                throw std::runtime_error("Flash region exceeds capacity");
+            all_sectors.push_back(static_cast<std::uint32_t>(offset));
+            offset += r.sector_bytes;
+        }
+    }
+    if (offset != identity.size_bytes)
+        throw std::runtime_error("Flash region total mismatches capacity");
+
+    if (cmd.action == "probe_flash") {
+        stream.emit(prefix("flash_probe_result", cmd.request_id)
+            + ",\"system\":" + retrode3::NdjsonProtocol::quote(cmd.core)
+            + ",\"slot\":" + retrode3::NdjsonProtocol::quote(slot)
+            + ",\"manufacturer_id\":" + std::to_string(identity.manufacturer_id)
+            + ",\"device_id\":" + std::to_string(identity.device_id)
+            + ",\"capacity_bytes\":" + std::to_string(identity.size_bytes)
+            + ",\"sector_count\":" + std::to_string(all_sectors.size())
+            + ",\"write_supported\":true,\"verify_supported\":true}");
+        return;
+    }
+
+    std::unique_ptr<FlashSource> source;
+    if (!cmd.source.empty())
+        source.reset(new FlashSource(cmd.source, identity.size_bytes));
+    std::vector<std::uint32_t> sectors;
+    const std::size_t extent = source.get() ? source->size : identity.size_bytes;
+    if (erase) {
+        for (std::size_t i = 0; i < all_sectors.size(); ++i) {
+            if (all_sectors[i] < extent)
+                sectors.push_back(all_sectors[i]);
+        }
+    }
+    stream.reset_cancel();
+    int last_percent = -1;
+    FlashClock::time_point phase_started = FlashClock::now();
+    if (erase) {
+        flash_progress(stream, cmd.request_id, "erase", 0,
+                       sectors.size(), true, last_percent, phase_started);
+        for (std::size_t i = 0; i < sectors.size(); ++i) {
+            check_flash_cancel(stream, cmd.request_id);
+            std::memset(error, 0, sizeof(error));
+            if (core.flash->erase_sector(sectors[i], error, sizeof(error)))
+                throw std::runtime_error(
+                    "Flash erase failed at sector " + std::to_string(i + 1) +
+                    "/" + std::to_string(sectors.size()) + " (byte offset " +
+                    std::to_string(sectors[i]) + "): " +
+                    flash_error(error, sizeof(error), "hardware error"));
+            flash_progress(stream, cmd.request_id, "erase", i + 1,
+                           sectors.size(), true, last_percent, phase_started);
+        }
+    }
+    if (write) {
+        last_percent = -1;
+        phase_started = FlashClock::now();
+        flash_progress(stream, cmd.request_id, "program", 0,
+                       source->size, false, last_percent, phase_started);
+        unsigned char block[512];
+        for (std::size_t p = 0; p < source->size; ) {
+            check_flash_cancel(stream, cmd.request_id);
+            const std::size_t n = std::min(sizeof(block), source->size - p);
+            source->get(p, block, n);
+            std::memset(error, 0, sizeof(error));
+            if (core.flash->program(static_cast<std::uint32_t>(p), block, n,
+                                    error, sizeof(error)))
+                throw std::runtime_error(
+                    "Flash programming failed at byte " + std::to_string(p) +
+                    ": " + flash_error(error, sizeof(error), "hardware error"));
+            p += n;
+            flash_progress(stream, cmd.request_id, "program", p,
+                           source->size, false, last_percent, phase_started);
+        }
+    }
+
+    if (verify) {
+        last_percent = -1;
+        phase_started = FlashClock::now();
+        const std::uint64_t total = static_cast<std::uint64_t>(source->size) * passes;
+        unsigned char expected[4096], observed[4096];
+        flash_progress(stream, cmd.request_id, "verify", 0, total,
+                       false, last_percent, phase_started, 1, passes);
+        for (unsigned pass = 0; pass < passes; ++pass) {
+            for (std::size_t p = 0; p < source->size; ) {
+                check_flash_cancel(stream, cmd.request_id);
+                const std::size_t n = std::min(sizeof(expected), source->size - p);
+                source->get(p, expected, n);
+                std::memset(error, 0, sizeof(error));
+                if (core.flash->readback(static_cast<std::uint32_t>(p), observed,
+                                         n, error, sizeof(error)))
+                    throw std::runtime_error(flash_error(error, sizeof(error),
+                        "Flash readback failed"));
+                for (std::size_t j = 0; j < n; ++j) {
+                    if (expected[j] != observed[j])
+                        throw std::runtime_error("Flash verify mismatch on pass " +
+                            std::to_string(pass + 1) + "/" + std::to_string(passes) +
+                            " at byte offset " + std::to_string(p + j));
+                }
+                p += n;
+                const std::uint64_t done =
+                    static_cast<std::uint64_t>(pass) * source->size + p;
+                /* Emit a pass transition even if the percentage hasn't changed. */
+                if (p == n) last_percent = -1;
+                flash_progress(stream, cmd.request_id, "verify", done,
+                               total, false, last_percent, phase_started,
+                               pass + 1, passes);
+            }
+        }
+    }
+
+    stream.emit(prefix("result", cmd.request_id)
+        + ",\"ok\":true,\"system\":" +
+            retrode3::NdjsonProtocol::quote(cmd.core)
+        + ",\"command\":" + retrode3::NdjsonProtocol::quote(cmd.action)
+        + ",\"operations\":{\"erase\":" + (erase ? "true" : "false")
+        + ",\"write\":" + (write ? "true" : "false")
+        + ",\"verify\":" + (verify ? "true" : "false") + "}"
+        + ",\"sectors_erased\":" + std::to_string(sectors.size())
+        + ",\"bytes_programmed\":" + std::to_string(write ? source->size : 0u)
+        + ",\"bytes_compared\":" +
+            std::to_string(verify ? static_cast<std::uint64_t>(source->size) * passes : 0u)
+        + ",\"flash_verification\":{\"status\":\"" +
+            (verify ? "verified" : "not_checked") + "\","
+          "\"method\":\"" + (verify ? "byte_compare" : "none") + "\","
+          "\"verified\":" + (verify ? "true" : "false")
+        + ",\"passes_completed\":" + std::to_string(verify ? passes : 0u)
+        + ",\"passes_requested\":" + std::to_string(passes)
+        + ",\"bytes_compared\":" +
+            std::to_string(verify ? static_cast<std::uint64_t>(source->size) * passes : 0u)
+        + ",\"first_mismatch_offset\":null}}");
+}
+
 void interactive(std::string const &available, std::string const &enabled)
 {
     retrode3::NdjsonProtocol stream(true);
@@ -1475,7 +1823,12 @@ void interactive(std::string const &available, std::string const &enabled)
             }
             BusLock lock(enabled);
             OpenCore module(available + "/" + core_info.id + ".so");
-            if (module.api3 && (command.action == "probe" ||
+            if (command.action == "probe_flash" ||
+                command.action == "write_flash" ||
+                command.action == "verify_flash" ||
+                command.action == "flash_operation") {
+                flash_job(stream, command, module, core_info.slot);
+            } else if (module.api3 && (command.action == "probe" ||
                                 command.has_selection || !module.api2)) {
                 if (command.action == "probe")
                     emit_probe_v3(stream, command.request_id, core_info, module);
@@ -1513,8 +1866,11 @@ int main(int argc, char **argv)
 {
     std::string available = "/usr/lib/retrode3/cores-available";
     std::string enabled = "/etc/retrode3/cores-enabled";
-    std::string core_id, action, output, slot_id;
+    std::string core_id, action, output, slot_id, source;
     bool list = false, streamed = false, run_interactive = false;
+    bool flash_erase_arg = false, flash_write_arg = false;
+    unsigned verify_passes_arg = 0;
+    bool verify_passes_specified = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--list-cores" && !list) list = true;
@@ -1531,8 +1887,28 @@ int main(int argc, char **argv)
             action = argv[++i];
             if (action == "read-rom") action = "read_rom";
             if (action == "probe-slot") action = "probe_slot";
+            if (action == "probe-flash") action = "probe_flash";
+            if (action == "write-flash") action = "write_flash";
+            if (action == "verify-flash") action = "verify_flash";
+            if (action == "flash-operation") action = "flash_operation";
         } else if (arg == "--output" && i + 1 < argc && output.empty()) {
             output = argv[++i];
+        } else if (arg == "--source" && i + 1 < argc && source.empty()) {
+            source = argv[++i];
+        } else if (arg == "--erase" && !flash_erase_arg) {
+            flash_erase_arg = true;
+        } else if (arg == "--write" && !flash_write_arg) {
+            flash_write_arg = true;
+        } else if (arg == "--verify-passes" && i + 1 < argc && !verify_passes_specified) {
+            std::string value = argv[++i];
+            char *tail = NULL;
+            unsigned long count = std::strtoul(value.c_str(), &tail, 10);
+            if (!tail || *tail || value.empty() || count < 1 || count > 99) {
+                std::fprintf(stderr, "verify-passes must be 1..99\n");
+                return 2;
+            }
+            verify_passes_arg = static_cast<unsigned>(count);
+            verify_passes_specified = true;
         }
 #ifdef RETRODE3_TESTING
         else if (arg == "--available-dir" && i + 1 < argc)
@@ -1544,20 +1920,37 @@ int main(int argc, char **argv)
             std::fprintf(stderr,
                 "usage: retrode3-cli --list-cores | --protocol ndjson-v1 "
                 "--interactive | --protocol ndjson-v1 --core ID "
-                "--action probe|read-rom|probe-slot [--slot ID] [--output FILE]\n");
+                "--action probe|read-rom|probe-slot|probe-flash|write-flash|verify-flash|flash-operation "
+                "[--slot ID] [--output FILE] [--source FILE] "
+                "[--erase] [--write] [--verify-passes 1..99]\n");
             return 2;
         }
     }
     unsigned mode_count = (list ? 1u : 0u) + (run_interactive ? 1u : 0u)
                         + (!action.empty() ? 1u : 0u);
+    const bool flash_job_requested = (action == "probe_flash" ||
+                                      action == "write_flash" ||
+                                      action == "verify_flash" ||
+                                       action == "flash_operation");
     if (mode_count != 1 || ((run_interactive || !action.empty()) && !streamed) ||
-        ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() || !output.empty())) ||
+        ((list || run_interactive) && (!core_id.empty() || !slot_id.empty() ||
+                                      !output.empty() || !source.empty() ||
+                                       flash_erase_arg || flash_write_arg ||
+                                       verify_passes_specified)) ||
         (!action.empty() && ((action == "probe_slot" ?
                                 (!core_id.empty() || !is_slug(slot_id)) :
                                 (!is_slug(core_id) || !slot_id.empty())) ||
-                             (action != "probe" && action != "read_rom" && action != "probe_slot") ||
+                             (action != "probe" && action != "read_rom" &&
+                              action != "probe_slot" && !flash_job_requested) ||
                              (action == "read_rom" && output.empty()) ||
-                             ((action == "probe" || action == "probe_slot") && !output.empty())))) {
+                             (action != "read_rom" && !output.empty()) ||
+                             ((action == "write_flash" || action == "verify_flash") != !source.empty()) ||
+                             (action != "flash_operation" &&
+                              (flash_erase_arg || flash_write_arg || verify_passes_specified)) ||
+                             (action == "flash_operation" &&
+                              ((!flash_erase_arg && !flash_write_arg && !verify_passes_specified) ||
+                               ((flash_write_arg || verify_passes_specified) && source.empty()) ||
+                               (!source.empty() && source[0] != '/')))))) {
         std::fprintf(stderr, "invalid Retrode3 command mode/options\n");
         return 2;
     }
@@ -1577,7 +1970,21 @@ int main(int argc, char **argv)
                 Core const &c = find_usable(installed, core_id);
                 BusLock lock(enabled);
                 OpenCore module(available + "/" + c.id + ".so");
-                if (module.api3 && !module.api2) {
+                if (flash_job_requested) {
+                    retrode3::WebCommand command;
+                    command.action = action;
+                    command.core = c.id;
+                    command.request_id = "cli";
+                    command.source = source;
+                    if (action == "flash_operation") {
+                        command.flash_erase = flash_erase_arg;
+                        command.flash_write = flash_write_arg;
+                        command.flash_verify = verify_passes_specified;
+                        command.flash_verify_passes = verify_passes_arg;
+                        command.has_flash_flags = true;
+                    }
+                    flash_job(stream, command, module, c.slot);
+                } else if (module.api3 && !module.api2) {
                     if (action == "probe") {
                         emit_probe_v3(stream, "cli", c, module);
                     } else {
