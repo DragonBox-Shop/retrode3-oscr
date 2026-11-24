@@ -19,7 +19,9 @@ EXPECTED = {
     "usr/lib/retrode3/cores-available/md.so": 0o644,
     "usr/lib/retrode3/cores-available/md.core": 0o644,
     "usr/lib/retrode3/cores-available/nes.so": 0o644,
-    "usr/lib/retrode3/cores-available/nes.core": 0o644
+    "usr/lib/retrode3/cores-available/nes.core": 0o644,
+    "usr/lib/retrode3/cores-available/gba-md.so": 0o644,
+    "usr/lib/retrode3/cores-available/gba-md.core": 0o644
 }
 
 
@@ -42,7 +44,7 @@ class StageRuntimeContract(unittest.TestCase):
                              permission, relative)
 
     def test_core_metadata_matches_plugin_names(self):
-        for system in ("snes", "md", "nes"):
+        for system in ("snes", "md", "nes", "gba-md"):
             manifest = os.path.join(STAGE, "usr", "lib", "retrode3",
                                     "cores-available", system + ".core")
             with io.open(manifest, "r", encoding="utf-8") as handle:
@@ -52,7 +54,7 @@ class StageRuntimeContract(unittest.TestCase):
                         key, value = line.rstrip("\n").split("=", 1)
                         values[key] = value
             self.assertEqual(values.get("id"), system)
-            self.assertEqual(values.get("slot"), system)
+            self.assertEqual(values.get("slot"), "md" if system == "gba-md" else system)
             self.assertTrue(values.get("name"))
             self.assertTrue(values.get("version"))
 

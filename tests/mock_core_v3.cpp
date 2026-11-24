@@ -37,7 +37,10 @@ int cap_json(char *out, size_t n, char *err, size_t ec) {
         "\"type\":\"integer\",\"minimum\":1,\"maximum\":2},"
         "{\"id\":\"safe\",\"label\":\"Safe\",\"type\":\"boolean\"}],"
         "\"rules\":[{\"when\":{\"bank_count\":2},\"read_supported\":false}],"
-        "\"probe_voltage_mv\":3300,\"read_voltage_mv\":5000}",
+        "\"probe_voltage_mv\":3300,\"read_voltage_mv\":5000,\"probe_without_sense\":" +
+        std::string(std::getenv("RETRODE_TEST_V3_NO_SENSE") &&
+                    std::strcmp(std::getenv("RETRODE_TEST_V3_NO_SENSE"), RETRODE3_TEST_MOCK_ID) == 0 ?
+                    "true" : "false") + "}",
         out, n, err, ec);
 }
 int probe_json(char *out, size_t n, char *err, size_t ec) {

@@ -76,13 +76,21 @@ test-native-md: $(MD_CORE_ARCHIVE)
 build/migration/oscr_md_core.pic.o: build/migration/oscr_md_core.cpp include/retrode3/oscr_md_compat.h
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC $(NATIVE_INCLUDES) -c $< -o $@
 
+# MegaDrive Flash commands are a normal optional capability of md.so.
+# The same core handles ROM reads, Flash identification, programming and verify.
 .PHONY: native-md-module test-native-md-module stage-md-module
 native-md-module: build/migration/oscr_md_core.pic.o
 	$(CC) -std=gnu11 -O2 -fPIC -I. -c retrode3-lib.c -o build/migration/retrode3-lib.pic.o
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		src/retrode3/read_bus.cpp src/retrode3/oscr_md_stage1.cpp \
-		src/retrode3/oscr_md_adapter.cpp build/migration/retrode3-lib.pic.o \
+		src/retrode3/oscr_md_adapter.cpp src/retrode3/oscr_md_flash_lab.cpp \
+		build/migration/retrode3-lib.pic.o \
 		build/migration/oscr_md_core.pic.o -o build/migration/md.so
+
+# Historical experimental alias for build instructions; the output is
+# now the same customer-facing MegaDrive plugin, not a separate lab core.
+.PHONY: native-md-flash-lab
+native-md-flash-lab: native-md-module
 
 # Run real original-OSCR adapter against a mocked MD kernel and compare its
 # bytes to the prior hardware-proven standalone acceptance reader.
@@ -188,8 +196,9 @@ stage-nes-module: native-nes-module
 REGISTRY_CLI_SOURCES = src/retrode3/retrode3_cli.cpp src/retrode3/ndjson_protocol.cpp
 REGISTRY_CLI_HEADERS = include/retrode3/core_descriptor_v1.h \
 	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v2.h \
-	include/retrode3/core_operations_v3.h include/retrode3/json_v3.h \
-	include/retrode3/ndjson_protocol.h include/retrode3/hardware_scope_v1.h
+	include/retrode3/core_operations_v3.h include/retrode3/core_flash_v1.h \
+	include/retrode3/json_v3.h include/retrode3/ndjson_protocol.h \
+	include/retrode3/hardware_scope_v1.h
 
 build/migration/retrode3-cli: $(REGISTRY_CLI_SOURCES) $(REGISTRY_CLI_HEADERS)
 	mkdir -p build/migration
@@ -271,8 +280,8 @@ stage-snes-module: native-snes-module
 test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
-test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module
-stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module
+test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module test-shared-flash-host test-native-gba-md-module
+stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module stage-gba-md-module
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
 # No automatic install, root actions, activation, postinst or SD writes.
@@ -297,6 +306,14 @@ test-generic-selection-v3: native-core-registry
 	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
 		tests/mock_core_v3.cpp -o build/migration/mock-core-v3.so
 	python3 -m unittest discover -s tests -p 'test_generic_selection_v3.py' -v
+
+# Experimental Flash ABI: independent host-owned progress and verify checks.
+# The synthetic plugin has no GPIO or real kernel linkage.
+.PHONY: test-shared-flash-host
+test-shared-flash-host: build/migration/retrode3-cli-mock
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) \
+		tests/mock_flash_core_v1.cpp -o build/migration/mock-flash-core.so
+	python3 -m unittest discover -s tests -p 'test_shared_flash_host.py' -v
 
 # Two independent v3 adapters sharing one mock physical slot.
 .PHONY: test-slot-autoprobe
@@ -364,3 +381,42 @@ stage-sms-md-module: native-sms-md-module
 	mkdir -p build/migration/stage/usr/lib/retrode3/cores-available
 	install -m 644 build/migration/sms-md.so build/migration/stage/usr/lib/retrode3/cores-available/sms-md.so
 	install -m 644 packaging/cores/sms-md.core build/migration/stage/usr/lib/retrode3/cores-available/sms-md.core
+
+build/migration/oscr_gba_generated.h: tools/build-linux-gba-core.py third_party/oscr-firmware/src/cores/GameBoyAdvance.cpp
+	python3 tools/build-linux-gba-core.py --output $@
+
+build/migration/oscr_gba_catalog.h: tools/build-linux-gba-catalog.py third_party/oscr-gba-db.json
+	python3 tools/build-linux-gba-catalog.py
+
+# GBx-0011 GBA v3 core, read-only. Core enablement remains explicit.
+GBA_MD_SOURCES = src/retrode3/oscr_gba_md_adapter.cpp
+GBA_MD_HEADERS = include/retrode3/core_descriptor_v1.h \
+	include/retrode3/core_operations_v1.h include/retrode3/core_operations_v3.h \
+	include/retrode3/json_v3.h include/gbx/retrode2_readonly.h
+
+build/migration/gba-md.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS) build/migration/oscr_gba_generated.h build/migration/oscr_gba_catalog.h
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -fPIC -shared -Wl,-z,defs $(NATIVE_INCLUDES) -Ibuild/migration \
+		$(GBA_MD_SOURCES) -o $@
+
+build/migration/gba-md-test.so: $(GBA_MD_SOURCES) $(GBA_MD_HEADERS) build/migration/oscr_gba_generated.h build/migration/oscr_gba_catalog.h
+	mkdir -p build/migration
+	$(CXX) $(NATIVE_CXXFLAGS) -DRETRODE3_TESTING -fPIC -shared -Wl,-z,defs \
+		$(NATIVE_INCLUDES) -Ibuild/migration $(GBA_MD_SOURCES) -o $@
+
+.PHONY: native-gba-md-module test-native-gba-md-module stage-gba-md-module
+native-gba-md-module: build/migration/gba-md.so
+
+test-native-gba-md-module: build/migration/gba-md-test.so
+	RETRODE3_GBA_TEST_MODULE=$(CURDIR)/build/migration/gba-md-test.so \
+		python3 -m unittest discover -s tests -p 'test_gba_md_core.py' -v
+
+stage-gba-md-module: native-gba-md-module
+	install -d -m 755 build/migration/stage/usr/lib/retrode3/cores-available
+	install -m 644 build/migration/gba-md.so \
+		build/migration/stage/usr/lib/retrode3/cores-available/gba-md.so
+	install -m 644 packaging/cores/gba-md.core \
+		build/migration/stage/usr/lib/retrode3/cores-available/gba-md.core
+
+# Include GBA host mocks in the shared preflight gate.
+test-all-shared-cores: test-native-gba-md-module

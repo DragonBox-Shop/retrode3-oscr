@@ -37,10 +37,12 @@ class SlotProbeTests(unittest.TestCase):
             with open(os.path.join(self.md, name), "w") as f:
                 f.write(value + "\n")
 
-    def invoke(self, match="mock-z", commands=None):
+    def invoke(self, match="mock-z", commands=None, without_sense=None):
         env = dict(os.environ)
         env["RETRODE3_TEST_SLOT_ROOT"] = self.sysfs
         env["RETRODE_TEST_V3_SLOT_MATCH"] = match
+        if without_sense:
+            env["RETRODE_TEST_V3_NO_SENSE"] = without_sense
         if commands is None:
             commands = [{"command": "probe_slot", "slot": "md",
                          "request_id": "s"}]
@@ -81,6 +83,16 @@ class SlotProbeTests(unittest.TestCase):
         result = self.invoke()[-1]
         self.assertEqual(result["detection"], "empty")
         self.assertEqual(result["attempts"], [])
+
+    def test_opt_in_probe_without_sense(self):
+        self.set_hardware("empty", "3300mV")
+        result = self.invoke(without_sense="mock-z")[-1]
+        self.assertEqual(result["detection"], "detected")
+        self.assertEqual(result["core"], "mock-z")
+        self.assertEqual([a["outcome"] for a in result["attempts"]],
+                         ["failed", "matched"])
+        self.set_hardware("empty", "5000mV")
+        self.assertEqual(self.invoke(without_sense="mock-z")[-1]["detection"], "empty")
 
     def test_unsafe_probe_voltage_skips_every_adapter(self):
         self.set_hardware("active", "5000mV")
