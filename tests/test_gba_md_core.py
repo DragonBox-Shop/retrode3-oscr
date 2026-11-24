@@ -142,11 +142,19 @@ class CoreTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(data["schema_id"], "gba-md-size-v1")
         self.assertEqual(data["probe_voltage_mv"], 3300)
-        self.assertFalse(data["automatic_voltage_switch"])
-        self.assertNotIn("hardware_access", data)
+        self.assertTrue(data["automatic_voltage_switch"])
+        self.assertEqual(data["probe_priority"], 150)
+        self.assertFalse(data["requires_manual_empty_slot_arm"])
+        self.assertEqual(data["hardware_access"]["version"], 1)
+        for phase in ("probe", "read"):
+            profile = data["hardware_access"][phase]
+            self.assertEqual(profile["voltage_mv"], 3300)
+            self.assertTrue(profile["module_parameters"]["gbx_md_test"])
+            self.assertFalse(profile["module_parameters"]["legacy_bridge_hiz_test"])
+            self.assertFalse(profile["module_parameters"]["sms_mapper_write_test"])
         self.assertFalse(data["write_operations"])
 
-    def test_requires_manual_arm_and_3300_mv(self):
+    def test_requires_scoped_gbx_gate_and_3300_mv(self):
         code, message = self.json_call(self.probe)
         self.assertNotEqual(code, 0)
         self.assertIn("not enabled", message)
