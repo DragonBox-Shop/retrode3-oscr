@@ -119,6 +119,10 @@ jobs:
         run: make -f Makefile.migration test-release-stage
       - name: Exercise SMS-0007 experimental read-only v3 adapter
         run: make -f Makefile.migration test-sms-md-module
+      - name: Build and test native GBA GBx-0011 v3 core (no Python runtime)
+        run: make -f Makefile.migration test-native-gba-md-module
+      - name: Run complete preflight suite before develop integration
+        run: ./tools/preflight-ci.sh
       - name: Verify pinned upstream checkout untouched
         run: |
           git -C third_party/oscr-firmware diff --exit-code
