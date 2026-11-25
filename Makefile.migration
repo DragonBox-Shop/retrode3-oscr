@@ -281,7 +281,12 @@ test-three-core-host:
 	python3 -m unittest discover -s tests -p 'test_three_core_host.py' -v
 
 test-all-shared-cores: test-native-snes-module test-native-md-module test-native-nes-module test-three-core-host test-generic-selection-v3 test-slot-autoprobe test-sms-md-module test-shared-flash-host test-native-gba-md-module
-stage-all-shared-cores: stage-snes-module stage-md-module stage-nes-module stage-gba-md-module
+# Every reviewed packaging/cores/<id>.core is an installable package recipe.
+# A missing matching stage-<id>-module target MUST fail make, never silently
+# omit a new plugin from the Debian release. No fixed core-ID list here.
+RELEASE_CORE_IDS := $(basename $(notdir $(wildcard packaging/cores/*.core)))
+RELEASE_CORE_STAGES := $(addprefix stage-,$(addsuffix -module,$(RELEASE_CORE_IDS)))
+stage-all-shared-cores: $(RELEASE_CORE_STAGES)
 
 # Stable Debian staging paths shared with the retrode3 OS/package repository.
 # No automatic install, root actions, activation, postinst or SD writes.

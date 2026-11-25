@@ -11,18 +11,25 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STAGE = os.path.join(ROOT, "build", "migration", "stage")
 
-EXPECTED = {
-    "usr/bin/retrode3-cli": 0o755,
-    "usr/sbin/retrode3-corectl": 0o755,
-    "usr/lib/retrode3/cores-available/snes.so": 0o644,
-    "usr/lib/retrode3/cores-available/snes.core": 0o644,
-    "usr/lib/retrode3/cores-available/md.so": 0o644,
-    "usr/lib/retrode3/cores-available/md.core": 0o644,
-    "usr/lib/retrode3/cores-available/nes.so": 0o644,
-    "usr/lib/retrode3/cores-available/nes.core": 0o644,
-    "usr/lib/retrode3/cores-available/gba-md.so": 0o644,
-    "usr/lib/retrode3/cores-available/gba-md.core": 0o644
-}
+CORE_RECIPES = os.path.join(ROOT, "packaging", "cores")
+CORE_STAGING = "usr/lib/retrode3/cores-available"
+
+
+def release_cores():
+    # *.core recipes are the release allowlist; lab-only plugins belong elsewhere.
+    return sorted(item[:-5] for item in os.listdir(CORE_RECIPES)
+                  if item.endswith(".core"))
+
+
+def expected_files():
+    expected = {
+        "usr/bin/retrode3-cli": 0o755,
+        "usr/sbin/retrode3-corectl": 0o755,
+    }
+    for core in release_cores():
+        for ext in (".so", ".core"):
+            expected[CORE_STAGING + "/" + core + ext] = 0o644
+    return expected
 
 
 class StageRuntimeContract(unittest.TestCase):
@@ -32,10 +39,10 @@ class StageRuntimeContract(unittest.TestCase):
             for name in files:
                 rel = os.path.relpath(os.path.join(path, name), STAGE)
                 found.add(rel.replace(os.sep, "/"))
-        self.assertEqual(found, set(EXPECTED.keys()))
+        self.assertEqual(found, set(expected_files().keys()))
 
     def test_staged_files_have_secure_permissions_and_contents(self):
-        for relative, permission in EXPECTED.items():
+        for relative, permission in expected_files().items():
             path = os.path.join(STAGE, *relative.split("/"))
             self.assertTrue(os.path.isfile(path), relative)
             self.assertFalse(os.path.islink(path), relative)
@@ -44,17 +51,22 @@ class StageRuntimeContract(unittest.TestCase):
                              permission, relative)
 
     def test_core_metadata_matches_plugin_names(self):
-        for system in ("snes", "md", "nes", "gba-md"):
+        for system in release_cores():
             manifest = os.path.join(STAGE, "usr", "lib", "retrode3",
                                     "cores-available", system + ".core")
+            recipe = os.path.join(CORE_RECIPES, system + ".core")
             with io.open(manifest, "r", encoding="utf-8") as handle:
-                values = {}
-                for line in handle:
-                    if "=" in line:
-                        key, value = line.rstrip("\n").split("=", 1)
-                        values[key] = value
+                staged = handle.read()
+            with io.open(recipe, "r", encoding="utf-8") as handle:
+                tracked = handle.read()
+            self.assertEqual(staged, tracked, system)
+            values = {}
+            for line in tracked.splitlines():
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    values[key] = value
             self.assertEqual(values.get("id"), system)
-            self.assertEqual(values.get("slot"), "md" if system == "gba-md" else system)
+            self.assertTrue(values.get("slot"))
             self.assertTrue(values.get("name"))
             self.assertTrue(values.get("version"))
 
