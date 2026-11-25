@@ -2,54 +2,51 @@
 
 ## Branch-Modell
 
-| Branch | Zweck | Freigabe |
-| --- | --- | --- |
-| `master` | stabiler, auf Hardware verifizierter Hauptstand, Quelle für *freigegebene* Builds | nur überprüfter PR aus `develop` (bei der ersten Umstellung: Integrations-PR) |
-| `develop` | gemeinsamer Entwicklungszweig für **alle** Cores, Konverter und Release-Build-Vorbereitung | fortlaufende CI, Hardwareprüfungen vor `master` |
-| `feature/*`, `fix/*` | **nur bei Bedarf** isolierte riskante oder größere Änderungen, keine dauerhaften Core-Branches | PR gegen `develop`, ggf. echte Cartridge-Tests |
-| `upstream/*` | Vorschläge für neue gepinnte OSCR-Versionen | niemals automatisch in `master` übernehmen |
-| `release/*` | optionaler Kandidat für Debian-Pakete und SD-Images | nur mit vollständigem Release-Test |
+| Referenz | Bedeutung |
+| --- | --- |
+| `develop` | Gemeinsame laufende Entwicklung und Experimente; HEAD darf unfertig und defekt sein |
+| unveraenderlicher Git-Tag auf `develop` | Abgeschlossener, grundlegend gepruefter Gesamtstand; Grundlage fuer Debian-Paketkandidaten |
+| `master` | Ausschliesslich ausfuehrlich getesteter, freigegebener Tag-Stand; muss funktionieren |
+| `feature/*`, `fix/*`, `integration/*` | Ausnahmen fuer notwendige temporaere Isolation, nicht normale Entwicklungsstrategie |
+| `upstream/*` | Externe Upstream-Verfolgung; nie automatisch in Released-Code uebernehmen |
 
-**Keine direkt auf `master` geschobenen Entwicklungscommits.**
-`master` wird nicht automatisch mit `develop` synchronisiert.
-Ein PR gegen `master` bündelt mehrere bereits geprüfte Einzelarbeiten,
-standardmäßig als **Squash-Merge**. So wird aus einer langen Folge von
-Korrekturcommits ein verständlicher Integrationsschritt; die Branch-/PR-
-Historie enthält weiterhin die Einzelarbeit.
+Es gibt **keine dauerhaften branches pro Core oder Plugin**. Unfertige
+Entwicklungen gehen in `develop`, auch wenn CI noch rot ist. Solche
+Zwischenstaende sind keine Releases und koennen andere Funktionen
+voruebergehend beeintraechtigen. Fehlgeschlagene Pruefungen sichtbar
+lassen statt sie zu umgehen.
 
-Die Branch-Regeln sollten zusätzlich in GitHub Rulesets technisch
-durchgesetzt werden: PR-Pflicht, erforderliche Statuschecks,
-keine Force-Pushes, keine direkte Änderung an `master`,
-passende Reviewer/Administrationsausnahmen. Workflow-Dateien allein
-sind **keine Branch-Sperre**. Derzeit sind diese Regeln im Repo
-dokumentiert; die GitHub-Einstellungen müssen separat kontrolliert
-und aktiviert werden.
+## Tags, Pakete und Master-Freigabe
 
-## Tests und Freigabestufen
+1. Funktionen auf `develop` gemeinsam entwickeln. Vor einem
+   Checkpoint die betroffenen Tests inklusive `tools/preflight-ci.sh`,
+   Cross-Build und gegebenenfalls Hardware-Smoke-Tests ausfuehren.
+2. Einen vorzugsweise **annotierten, unveraenderlichen Tag** auf dem
+   bewusst abgeschlossenen Commit setzen. Ein Tag ist ein Snapshot
+   des gesamten Repositories, nicht bloss ein Feature-Marker.
+   Wesentliche zugesagte Funktionen sollen dort funktionieren;
+   noch unbekannte Bugs sind moeglich. Unfertige Hardware-Risiken
+   muessen standardmaessig deaktiviert bzw. sicher abgeschirmt sein.
+3. **Debian-Paketkandidaten ausschliesslich aus exakt diesem Tag/Commit**
+   bauen. Alle verknuepften Quell- und Sanni-Revisionen und Checksummen
+   ins Manifest aufnehmen. Nicht den aktuellsten `develop`-HEAD
+   waehrend eines Builds nachziehen. Der derzeitige OS-Buildserver
+   verfolgt teils noch Branch-HEADs und muss fuer diese Policy erst
+   umgestellt werden.
+4. Paketinstallation, Upgrade, Rollback, USB/Web/Cartridge-Verhalten,
+   sowie die betroffenen Hardwarepfade ausfuehrlich pruefen.
+5. **Genau den getaggten Commit** nach `master` uebernehmen.
+   `develop` darf sich unterdessen weiterbewegen. Den Tag nicht
+   nachtraeglich verschieben; kein blindes Squash-Merge mit anderem
+   Tree, keine unkontrollierten Force-Pushes. Wenn die Historie
+   divergiert, zuerst einen sicheren, nachvollziehbaren Weg planen.
+6. Ein Paket-Build, eine APT-Veroeffentlichung, ein Hardwaretest und
+   ein Kundenimage sind verschiedene Freigabestufen. Neue Images
+   benoetigen zusaetzlich einen erfolgreichen separaten SD-Kaltstart.
 
-1. **Gemeinsames `develop` (oder optionaler Entwickler-PR):** Quellgeneratoren und gepinnte
-   Upstream-Revision prüfen, ABI und Build, Tests mit Mock-Kernel,
-   Registry/Host, Abbruch, Dateisicherheit und alle betroffenen Cores.
-2. **Hardware-Freigabe:** Wenn neue Bus-Kommandos, Mapper, Chips,
-   Spannungsumschaltung, Cartridge-Schreibzugriffe oder Timing betroffen
-   sind, verpflichtende reale Kartuschentests und dokumentierte
-   Referenz-CRC32 bzw. Save-Backup-Vergleiche. Nicht anhand bloßer
-   GitHub-CI-Erfolge automatisch freigeben.
-3. **Release-Kandidat:** Pakete auf der Zielarchitektur bauen,
-   Install/Upgrade/Rollback testen und danach das komplette
-   flashbare SD-Karten-Image erzeugen. Eine echte Boot-/USB-/Web-/
-   Cartridge-Prüfung ist Pflicht, bevor ein Image für Nutzer freigegeben
-   wird. *Diese Paket- und Image-Automation existiert noch nicht als
-   vollständige CI-Kette; sie ist eine eigene nächste Aufgabe.*
-4. **Promotion `develop` → `master`:** Nur nach erfolgreichen
-   für den Scope relevanten Tests und abgenommenen Freigabekriterien.
-   Ein Source-Merge allein installiert keine Software auf dem Gerät.
-5. **Release-Tag:** Nach freigegebenem Build und dokumentiertem
-   Rollback, Artifacts mit Version/Commit/Prüfsummen und verwendeten
-   Sanni-Revisionen veröffentlichen.
-
-Ein grüner Commit auf `master` ist **kein** Beleg, dass daraus bereits
-ein freigegebenes Debian-Paket oder Bootimage gebaut wurde.
+`master` wird niemals automatisch mit `develop` synchronisiert.
+GitHub Rulesets sollten direkte Master-Pushes und Force-Pushes
+technisch verhindern; Dokumentation allein ist keine Branch-Sperre.
 
 ## Zuständigkeiten zwischen den Repositories
 
