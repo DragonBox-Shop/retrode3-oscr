@@ -61,6 +61,32 @@ Hardwareunterlagen nach `retrode3-hardware`.
   Datenbankeintraege Sicherheitsfreigaben oder Cartridge-Writes erhalten.
   Unbekannte/ambige Layouts benoetigen explizite Auswahl.
 
+## Neue Plugin-Cores: Debian-Paket ist Pflicht
+
+- **Jeder neue Core fuer ein Release braucht `packaging/cores/<id>.core`
+  im OSCR-Git**, mit `id`, `name`, `version`, `slot`. Das `id` muss
+  dem Dateinamen entsprechen (Kleinbuchstaben, Ziffern, Bindestriche).
+  Beispiel: `packaging/cores/gba-md.core`.
+- In `Makefile.migration` den **`stage-<id>-module`-Target** anlegen.
+  Er muss unter `build/migration/stage/usr/lib/retrode3/cores-available/`
+  sowohl `<id>.so` (echtes MIPS32EL-Modul, kein Mock) als auch die
+  zum Git-Rezept bytegleiche `<id>.core` bereitstellen.
+- **Kein neues Plugin in festen Paketlisten nachtragen.**
+  `stage-all-shared-cores` und der Paket-Builder sollen die
+  `packaging/cores/*.core`-Rezepte dynamisch entdecken und aus jedem
+  validierten Paar `retrode3-core-<id>.deb` erzeugen. Fehlendes Target
+  oder fehlende/ungueltige Dateien muessen den Build abbrechen.
+- Das dynamische Meta-Paket `retrode3-cores` soll die neuen Plugin-
+  Pakete automatisch als Abhaengigkeiten aufnehmen, damit bestehende
+  Geraete sie via APT-Upgrade erhalten. Die Umstellung ist noch in
+  separaten Entwicklungs-PRs; vor dem Release auf Fertigstellung testen.
+- Core-/ABI-, Staging- und Hardwaretests nicht vergessen. Pakete
+  **duerfen Cores nie automatisch aktivieren**; `cores-enabled` bleibt
+  eine explizite Entscheidung. Unfertige Experimente ohne Freigabe
+  bekommen keine Datei in `packaging/cores/`.
+- Erst getestete, getaggte OSCR-Commits als Debian-Pakete bauen.
+  Der Buildserver pullt/fetcht nur und pusht keine Git-Aenderungen.
+
 ## Verbindliche Runtime-Pfade
 
 - CLI: `/usr/bin/retrode3-cli`
