@@ -1,0 +1,42 @@
+name: Create agreed APT RC1 tag (one shot)
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/workflows/create-apt-2026-11-25-rc1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  tag-rc1:
+    if: github.repository == 'DragonBox-Shop/retrode3-oscr'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create annotated tag at approved immutable source commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: 4f61f86b1c21dc5a9c6a386e51648f4abb44866c
+          TAG_NAME: apt-2026.11.25-rc1
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          head="$(gh api "repos/$repo/git/ref/heads/develop" --jq '.object.sha')"
+          status="$(gh api "repos/$repo/compare/$APPROVED_SHA...$head" --jq '.status')"
+          case "$status" in
+            ahead|identical) ;;
+            *) echo "Approved source is not an ancestor of develop: $status" >&2; exit 1 ;;
+          esac
+          if gh api "repos/$repo/git/ref/tags/$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag already exists; refusing to rewrite it" >&2
+            exit 1
+          fi
+          tag_object="$(gh api -X POST "repos/$repo/git/tags" \
+            -f tag="$TAG_NAME" \
+            -f message="Retrode3 APT RC1: completed OSCR development checkpoint (not master-approved)" \
+            -f object="$APPROVED_SHA" -f type=commit --jq '.sha')"
+          gh api -X POST "repos/$repo/git/refs" \
+            -f ref="refs/tags/$TAG_NAME" -f sha="$tag_object" >/dev/null
+          observed="$(gh api "repos/$repo/git/ref/tags/$TAG_NAME" --jq '.object.sha')"
+          test "$observed" = "$tag_object"
+          echo "Created annotated $TAG_NAME pointing to $APPROVED_SHA"
