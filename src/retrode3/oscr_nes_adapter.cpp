@@ -433,6 +433,7 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
                        request->chr_kib, request->battery != 0) :
                    retrode3::nesmapper::runtime_mapper_enabled(request->mapper))) ||
                 request->mirroring > 2 || request->battery > 1 ||
+                 (request->mapper != 0 && request->battery) ||
                 request->candidate_id[0] || request->layout_id[0])
                 return fail(error, cap, "unsupported or incomplete manual NES layout");
             // Battery-backed MMC1 is deliberately withheld until the
@@ -482,7 +483,9 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
         // recognized battery-backed MMC1 board. Its $E000 register
         // strobes may corrupt PRG-RAM even during an otherwise ROM-only
         // read. This check performs no additional cartridge bus writes.
-        if (mapper == 1) {
+        if (mapper != 0 && request->battery)
+            return fail(error, cap, "battery-backed NES bank switching not approved");
+        if (mapper != 0) {
             for (unsigned i = 0; i < probe->candidate_count; ++i) {
                 const retrode3_candidate_v2 &c = probe->candidates[i];
                 if (c.mapper != 1) continue;
@@ -642,13 +645,13 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
 {"id":"mapper","label":"Mapper","type":"enum","required":true,
  "values":[{"value":0,"label":"NROM","read_supported":true},
            {"value":1,"label":"MMC1","read_supported":true},
-           {"value":2,"label":"UxROM","read_supported":false},
-           {"value":3,"label":"CNROM","read_supported":false},
-           {"value":4,"label":"MMC3","read_supported":false},
-           {"value":7,"label":"AxROM","read_supported":false}]},
+           {"value":2,"label":"UxROM","read_supported":true},
+           {"value":3,"label":"CNROM","read_supported":true},
+           {"value":4,"label":"MMC3","read_supported":true},
+           {"value":7,"label":"AxROM","read_supported":true}]},
 {"id":"submapper","label":"Submapper","type":"integer","minimum":0,"maximum":15,"required":true,"default":0},
 {"id":"prg_kib","label":"PRG ROM (KiB)","type":"integer","minimum":16,"maximum":512,"required":true},
-{"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128]},
+{"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128,256]},
 {"id":"mirroring","label":"Mirroring","type":"enum","required":true,
  "values":["horizontal","vertical","four_screen"]},
 {"id":"battery","label":"Battery","type":"boolean","required":true,"default":false}],
@@ -657,10 +660,14 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
 {"when":{"mapper":1,"submapper":0},"allow":{"prg_kib":[32,64,128,256,512],"chr_kib":[0,8,16,32,64,128]},"read_supported":true},
 {"when":{"mapper":1,"submapper":5},"allow":{"prg_kib":[32],"chr_kib":[8,16,32,64,128]},"read_supported":true},
 {"when":{"mapper":1,"battery":true},"read_supported":false,"reason":"SRAM-safe MMC1 pulses not approved"},
-{"when":{"mapper":2},"read_supported":false},
-{"when":{"mapper":3},"read_supported":false},
-{"when":{"mapper":4},"read_supported":false},
-{"when":{"mapper":7},"read_supported":false}]
+{"when":{"mapper":2},"allow":{"submapper":[0],"prg_kib":[64,128,256],"chr_kib":[0]},"read_supported":true},
+{"when":{"mapper":3},"allow":{"submapper":[0],"prg_kib":[16,32],"chr_kib":[8,16,32]},"read_supported":true},
+{"when":{"mapper":4},"allow":{"submapper":[0],"prg_kib":[32,64,128,256,512],"chr_kib":[0,8,16,32,64,128,256]},"read_supported":true},
+{"when":{"mapper":7},"allow":{"submapper":[0],"prg_kib":[64,128,256],"chr_kib":[0]},"read_supported":true},
+{"when":{"mapper":2,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
+{"when":{"mapper":3,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
+{"when":{"mapper":4,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
+{"when":{"mapper":7,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"}]
 })V3";
     if (std::strlen(schema) + 1 > len)
         return fail(err, cap, "NES v3 capability buffer too small");
@@ -801,7 +808,7 @@ void selection_to_nes_v3(const retrode3_selection_v3 *choice,
              retrode3::nesmapper::mmc1_layout_enabled(request.submapper,
                 request.prg_kib, request.chr_kib, request.battery != 0) :
              retrode3::nesmapper::runtime_mapper_enabled(request.mapper));
-        if (!geometry || (request.mapper == 1 && request.battery))
+        if (!geometry || (request.mapper != 0 && request.battery))
             throw std::runtime_error("NES override geometry or mapper not approved");
         prg = request.prg_kib; chr = request.chr_kib;
         return;

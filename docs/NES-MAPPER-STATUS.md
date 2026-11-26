@@ -1,6 +1,24 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
-> **Stand: 2026-11-20 | Entwicklungsbranch: `develop`**
+> **Stand: 2026-11-26 | Entwicklungsbranch: `develop`**
+>
+> **Aktueller Entwicklungsstand (ersetzt widersprechende historische Angaben unten):**
+> Mapper 2 (UxROM), 3 (CNROM), 4 (MMC3) und 7 (AxROM) sind jetzt
+> im regulaeren Entwicklungs-Core fuer explizite, batterielose manuelle
+> Layouts aktiviert. Die v3-Capabilities und die v2/v3-Validierung
+> stimmen ueberein. Keine neuen Datenbank-Auto-Freigaben: Fingerprints
+> und Payload-CRC-Katalog fuer diese Mapper folgen separat.
+> AxROM sucht vor JEDEM Bankwechsel eine konfliktfreie Adresse im
+> aktuellen Bankfenster; UxROM/CNROM behalten ihre Vorabpruefung.
+> MMC3 aktiviert kein PRG-RAM; alle neuen Mapper bleiben auf Submapper 0
+> und die vorhandenen konservativen Groessen begrenzt. Bekannte MMC1-
+> Batterie-Fingerprints koennen nicht per anderem banked Mapper umgangen werden.
+> Keine Aenderung am gepinnten Sanni-Submodul, Kernel, CLI, Web oder Paket.
+> Mock-Tests fuer regulaeren Build, v3, Konflikte und Batterie-Sperren
+> erweitert; frischer CI-Lauf und physische Abnahme stehen aus.
+> Vor Tag/Release: reale batterielose Boards mit passenden Geometrien
+> pruefen, CRC32 vergleichen, keine Batterie-/Flash-Cartridges testen.
+> Weitere Mapper erst nach individuellem Review der Originalsequenzen.
 >
 > Kompakter Einstieg fuer neue Chats und Entwickler. Zuerst
 > [`AGENTS.md`](../AGENTS.md) und **diese Datei** lesen, danach bei

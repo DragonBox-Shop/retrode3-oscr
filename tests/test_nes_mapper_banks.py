@@ -238,13 +238,18 @@ class TestNesMapperBanks(unittest.TestCase):
         with io.open(job["output"], "rb") as handle:
             self.assertEqual(handle.read(), fixture_rom(1, 128, 32))
 
-        # The same non-experimental binary still rejects mapper 2.
-        old = self.cmd(2, 64, 0, "normal-core-uxrom")
-        events = self.run_cli(2, [old])
-        self.assertEqual(events[-1]["event"], "error", events)
-        self.assertFalse(os.path.exists(old["output"]))
+        # The regular development binary also supports all four new
+        # mappers through v3; the same bank/CRC tests use it below.
+        cap = self.run_cli(2, [{"command": "get_capabilities", "core": "nes",
+                               "request_id": "cap"}])[-1]
+        self.assertEqual(cap["event"], "capabilities")
+        schema = cap["selection_schema"]
+        field = next(f for f in schema["fields"] if f["id"] == "mapper")
+        self.assertEqual(set(v["value"] for v in field["values"]
+                             if v["read_supported"]), {0, 1, 2, 3, 4, 7})
 
     def test_bank_order_and_crc_for_mappers_2_3_4_7(self):
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
         for mapper, p, c in ((2, 64, 0), (3, 32, 32),
                              (4, 128, 64), (7, 128, 0)):
             job = self.cmd(mapper, p, c, "mapper-%s" % mapper)
@@ -280,6 +285,21 @@ class TestNesMapperBanks(unittest.TestCase):
                 self.assertEqual(len(writes), 2 * (p // 8 + c))
             if mapper == 7:
                 self.assertEqual(len(writes), p // 32)
+
+    def test_v3_new_mapper_overrides(self):
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
+        for mapper, p, c in ((2, 64, 0), (3, 32, 32),
+                             (4, 128, 64), (7, 128, 0)):
+            selection = self.v3_override(p, c)
+            selection["parameters"]["mapper"] = mapper
+            output = os.path.join(self.temp.name, "v3-m%s.nes" % mapper)
+            events = self.run_cli(mapper, [{"command": "read_rom", "core": "nes",
+                 "request_id": "v3-m%s" % mapper, "output": output,
+                 "selection": selection}])
+            self.assertEqual(events[-1]["event"], "result", events)
+            self.assertFalse(events[-1]["verified"])
+            with io.open(output, "rb") as handle:
+                self.assertEqual(handle.read(), fixture_rom(mapper, p, c))
 
     def test_probe_does_not_write_any_registers(self):
         for mapper in (2, 3, 4, 7):
@@ -498,7 +518,7 @@ class TestNesMapperBanks(unittest.TestCase):
         self.assertFalse(os.path.exists(log))
 
     def test_bus_conflicts_without_safe_address_fail_before_writes(self):
-        for mapper, p, c in ((2, 64, 0), (3, 32, 32)):
+        for mapper, p, c in ((2, 64, 0), (3, 32, 32), (7, 128, 0)):
             job = self.cmd(mapper, p, c, "no-safe-%s" % mapper)
             log = os.path.join(self.temp.name, "no-safe-writes-%s" % mapper)
             events = self.run_cli(mapper, [job],
@@ -508,6 +528,26 @@ class TestNesMapperBanks(unittest.TestCase):
             self.assertIn("bus-conflict-safe", events[-1]["message"])
             self.assertFalse(os.path.exists(job["output"]))
             self.assertFalse(os.path.exists(log))
+
+    def test_new_mapper_battery_layouts_rejected_before_write(self):
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
+        for mapper, p, c in ((2, 64, 0), (3, 32, 32),
+                             (4, 128, 64), (7, 128, 0)):
+            for v3 in (False, True):
+                name = "battery-%s-%s" % (mapper, v3)
+                log = os.path.join(self.temp.name, name + ".log")
+                job = self.cmd(mapper, p, c, name)
+                job["battery"] = 1
+                if v3:
+                    for key in ("mapper", "submapper", "prg_kib", "chr_kib",
+                                "mirroring", "battery"):
+                        del job[key]
+                    job["selection"] = self.v3_override(p, c)
+                    job["selection"]["parameters"].update(mapper=mapper, battery=True)
+                events = self.run_cli(mapper, [job], {"RETRODE_MOCK_NES_WRITELOG": log})
+                self.assertEqual(events[-1]["event"], "error", events)
+                self.assertFalse(os.path.exists(job["output"]))
+                self.assertFalse(os.path.exists(log))
 
     def test_failed_bank_write_does_not_publish_partial(self):
         job = self.cmd(4, 128, 64, "write-fail")

@@ -28,13 +28,8 @@ void prg_register(uint16_t address, uint8_t data)
     // mapper-register address space. Caller already validated the mapper.
     if (address < 0x8000u)
         throw std::runtime_error("NES mapper register address rejected");
-#if defined(RETRODE3_TESTING) || defined(RETRODE3_NES_MAPPER_WRITE_EXPERIMENTAL) || defined(RETRODE3_NES_MMC1_LAB)
     if (nes_write(address, &data, 1, NES_MODE_PRG) != 1)
         throw std::runtime_error("NES mapper register write failed");
-#else
-    (void)data;
-    throw std::runtime_error("NES bank switching not hardware-approved");
-#endif
 }
 void mmc1_register(uint16_t address, uint8_t data)
 {
@@ -73,6 +68,22 @@ void safe_conflict_addresses(uint16_t begin, unsigned count,
     }
     if (remaining)
         throw std::runtime_error("bus-conflict-safe address not found; no NES writes");
+}
+uint16_t safe_axrom_address(uint8_t value, const retrode3_host_io_v1 *io)
+{
+    // AxROM has no fixed bank. On bus-conflict variants, the address
+    // must match the value in the CURRENT bank, not the target bank.
+    ReadBus bus;
+    uint8_t block[512];
+    for (unsigned addr = 0x8000u; addr < 65536u; addr += sizeof(block)) {
+        check_cancel(io);
+        bus.nes_block(static_cast<uint16_t>(addr), block, sizeof(block),
+                      NesSpace::Prg);
+        for (unsigned j = 0; j < sizeof(block); ++j)
+            if (block[j] == value)
+                return static_cast<uint16_t>(addr + j);
+    }
+    throw std::runtime_error("AxROM bus-conflict-safe address not found");
 }
 void dump_prg(unsigned len, uint16_t base)
 {
@@ -144,16 +155,14 @@ bool mmc1_layout_enabled(unsigned submapper, unsigned prg,
 }
 bool runtime_writes_enabled()
 {
-#if defined(RETRODE3_TESTING) || defined(RETRODE3_NES_MAPPER_WRITE_EXPERIMENTAL)
     return true;
-#else
-    return false;
-#endif
 }
 
 bool runtime_mapper_enabled(unsigned mapper)
 {
-    return mapper == 1 ? true : runtime_writes_enabled();
+    // Explicit list: newly ported geometry alone must not enable writes.
+    return mapper == 1 || mapper == 2 || mapper == 3 ||
+           mapper == 4 || mapper == 7;
 }
 
 void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
@@ -209,7 +218,8 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
     } else if (mapper == 7) { // Sanni AxROM: entire switchable 32K window
         for (unsigned bank = 0; bank < prg_kib / 32; ++bank) {
             check_cancel(io);
-            prg_register(0x8000, static_cast<uint8_t>(bank));
+            const uint8_t value = static_cast<uint8_t>(bank);
+            prg_register(safe_axrom_address(value, io), value);
             dump_prg(0x8000, 0x8000);
         }
     }

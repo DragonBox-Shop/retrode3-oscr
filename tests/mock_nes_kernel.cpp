@@ -125,7 +125,7 @@ void init()
         if (no_safe && mapper == 2)
             for (unsigned i = prg_size - 16384u; i < prg_size; ++i)
                 rom_prg[i] = 0xff;
-        if (no_safe && mapper == 3) {
+        if (no_safe && (mapper == 3 || mapper == 7)) {
             for (unsigned i = 0; i < prg_size; ++i) rom_prg[i] = 0xff;
             // Avoid "empty slot" fast-probe while offering no safe 0..3 value.
             rom_prg[0] = 0xfe;
@@ -243,7 +243,7 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     const unsigned value = *static_cast<unsigned char *>(buf);
     // Fail on any bus-conflicting write. Sanni's unsupported fallback
     // deliberately has no equivalent in the production mapper adapter.
-    if ((mapper == 2 || mapper == 3) && mapped_prg(address) != value)
+    if ((mapper == 2 || mapper == 3 || mapper == 7) && mapped_prg(address) != value)
         return -1;
     record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
     if (mapper == 1) {
