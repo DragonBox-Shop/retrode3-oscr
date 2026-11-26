@@ -19,10 +19,10 @@ Hardwareunterlagen nach `retrode3-hardware`.
   nicht vollstaendig hardwaregetestete Funktionen duerfen Fehler haben,
   duerfen aber keine unkontrollierten Cartridge-/RAM-/Flash-Writes erlauben.
   Tags unveraenderlich halten; bevorzugt annotierte Tags.
-- **Debian-Paketkandidaten erst von getaggten, unveraenderlichen
-  Commits bauen.** Das OS-Repository fixiert den verwendeten OSCR-Tag
-  und Commit inklusive Sanni-Submodul-SHA im Build-Manifest. Keine
-  automatischen Releases vom beweglichen `develop`-HEAD.
+- **Debian-Pakete aus exakt fixierten Branch-Commits bauen.** Der
+  explizite Paketlauf verwendet `develop` fuer testing und `master` fuer
+  stable; Tags sind nur fuer Images erforderlich. Das OS-Repository fixiert
+  den OSCR-Commit und Sanni-Submodul-SHA, bei Images auch den Tag.
 - Nach Paket-/Hardware-/Rollbacktests den **exakt getaggten Commit**
   nach `master` uebernehmen, nicht den inzwischen weiterentwickelten
   `develop`-HEAD. `master` ist stets funktionsfaehig und freigegeben.
@@ -84,7 +84,7 @@ Hardwareunterlagen nach `retrode3-hardware`.
   **duerfen Cores nie automatisch aktivieren**; `cores-enabled` bleibt
   eine explizite Entscheidung. Unfertige Experimente ohne Freigabe
   bekommen keine Datei in `packaging/cores/`.
-- Erst getestete, getaggte OSCR-Commits als Debian-Pakete bauen.
+- Paketkandidaten aus fixierten OSCR-Commits bauen; Image-Tags bleiben Pflicht.
   Der Buildserver pullt/fetcht nur und pusht keine Git-Aenderungen.
 
 ## Verbindliche Runtime-Pfade
