@@ -561,7 +561,7 @@ class TestNesMapperBanks(unittest.TestCase):
     def test_unsafe_mapper_sizes_and_submappers_rejected(self):
         for m, p, c, sub in ((2, 32, 0, 0), (3, 128, 32, 0),
                              (4, 64, 300, 0), (7, 128, 8, 0),
-                             (2, 64, 0, 1)):
+                             (2, 64, 0, 3)):
             job = self.cmd(m, p, c, "invalid-%s-%s" % (m, sub))
             job["submapper"] = sub
             events = self.run_cli(m, [job])

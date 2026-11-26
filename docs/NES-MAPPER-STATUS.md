@@ -7,7 +7,14 @@
 > im regulaeren Entwicklungs-Core fuer explizite, batterielose manuelle
 > Layouts aktiviert. Die v3-Capabilities und die v2/v3-Validierung
 > stimmen ueberein. Keine neuen Datenbank-Auto-Freigaben: Fingerprints
-> und Payload-CRC-Katalog fuer diese Mapper folgen separat.
+> und Payload-CRC-Katalog fuer diese Mapper sind jetzt ebenfalls
+> integriert (1696 gepinnte Sanni-DB-Eintraege, inklusive nicht
+> freigegebener Layouts). Submapper 0/1/2 fuer 2/3/7 sind explizit
+> geprueft und verwenden weiterhin konfliktfreie Adressen.
+> DuckTales PAL: 2/2, 128/0, CRC D029F841;
+> WWF WrestleMania PAL: 7/1, 128/0, CRC 6C4A9735.
+> Erkennung beruht weiterhin auf zwei schreibfreien Fingerprints;
+> erst der Payload-CRC bestaetigt den Titel. Hardwaretest ausstehend.
 > AxROM sucht vor JEDEM Bankwechsel eine konfliktfreie Adresse im
 > aktuellen Bankfenster; UxROM/CNROM behalten ihre Vorabpruefung.
 > MMC3 aktiviert kein PRG-RAM; alle neuen Mapper bleiben auf Submapper 0

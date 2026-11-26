@@ -130,7 +130,12 @@ bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
     if (mapper == 1)
         return (submapper == 0 || (submapper == 5 && prg == 32u)) &&
                nesmmc1::geometry(prg, chr);
-    if (submapper != 0) return false;
+    // NES 2.0: 0 unspecified, 1 no bus conflicts, 2 AND conflicts
+    // for discrete UxROM/CNROM/AxROM. Keep conflict-safe selection for
+    // all three because a probe fingerprint alone is not board proof.
+    if (mapper == 2 || mapper == 3 || mapper == 7) {
+        if (submapper > 2) return false;
+    } else if (submapper != 0) return false;
     switch (mapper) {
     case 2: return power_two(prg) && prg >= 64 && prg <= 256 && chr == 0;
     case 3: return (prg == 16 || prg == 32) &&

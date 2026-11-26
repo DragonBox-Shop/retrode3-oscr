@@ -204,20 +204,56 @@ const retrode3::nesstage1::Mmc1Record &mmc1_record(std::size_t index)
         throw std::runtime_error("invalid MMC1 reference index");
     return regional_mmc1_records[index];
 }
+struct BankedRecord {
+    unsigned mapper;
+    retrode3::nesstage1::Mmc1Record metadata;
+};
+const BankedRecord banked_records[] = {
+#include "oscr_nes_banked_catalog.inc"
+};
+const std::size_t banked_record_count =
+    sizeof(banked_records) / sizeof(banked_records[0]);
+std::size_t banked_all_count()
+{
+    return mmc1_all_record_count() + banked_record_count;
+}
+unsigned banked_mapper(std::size_t index)
+{
+    return index < mmc1_all_record_count() ? 1u :
+           banked_records[index - mmc1_all_record_count()].mapper;
+}
+const retrode3::nesstage1::Mmc1Record &banked_record(std::size_t index)
+{
+    return index < mmc1_all_record_count() ? mmc1_record(index) :
+           banked_records[index - mmc1_all_record_count()].metadata;
+}
+void banked_candidate_id(std::size_t index, char *out, std::size_t cap)
+{
+    if (index < mmc1_all_record_count()) mmc1_candidate_id(index, out, cap);
+    else std::snprintf(out, cap, "banked-%04u",
+                       static_cast<unsigned>(index - mmc1_all_record_count()));
+}
+void banked_layout_id(unsigned mapper, unsigned sub, unsigned prg, unsigned chr,
+                      char *out, std::size_t cap)
+{
+    if (mapper == 1) mmc1_layout_id(sub, prg, chr, out, cap);
+    else if (sub) std::snprintf(out, cap, "m%us%u-%u-%u", mapper, sub, prg, chr);
+    else std::snprintf(out, cap, "m%u-%u-%u", mapper, prg, chr);
+}
 // The two read-only 512-byte fingerprints are diagnostic signals,
 // not proof of ROM identity. Passing output arguments does not add I/O.
-const retrode3::nesstage1::Mmc1Record *find_mmc1_record(char const *id)
+const retrode3::nesstage1::Mmc1Record *find_banked_record(char const *id)
 {
     char name[32];
-    for (std::size_t i = 0; i < mmc1_all_record_count(); ++i) {
-        mmc1_candidate_id(i, name, sizeof(name));
+    for (std::size_t i = 0; i < banked_all_count(); ++i) {
+        banked_candidate_id(i, name, sizeof(name));
         if (std::strcmp(name, id) == 0)
-            return &mmc1_record(i);
+            return &banked_record(i);
     }
     return NULL;
 }
-void hex_mmc1_header(char const *hex, unsigned prg, unsigned chr,
-                     unsigned sub, unsigned char *header)
+void hex_banked_header(char const *hex, unsigned mapper, unsigned prg, unsigned chr,
+                       unsigned sub, unsigned char *header)
 {
     if (!hex || std::strlen(hex) != 32u)
         throw std::runtime_error("invalid pinned MMC1 header length");
@@ -235,7 +271,7 @@ void hex_mmc1_header(char const *hex, unsigned prg, unsigned chr,
         header[i] = b;
     }
     if ((std::memcmp(header, "NES", 3) != 0 || header[3] != 0x1au) ||
-        (header[6] >> 4) != 1u || (header[7] & 0xf0u) != 0 ||
+        (header[6] >> 4) != mapper || (header[7] & 0xf0u) != 0 ||
         header[4] * 16u != prg || header[5] * 8u != chr ||
         (((header[7] & 0x0cu) == 0x08u) ?
             (header[8] >> 4) : 0u) != sub)
@@ -294,11 +330,10 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
                 layout.read_supported = 1;
             }
         }
-        // Pinned Sanni Mapper-1 fingerprints: two constant-size, READ-ONLY
-        // CPU bus samples. No mapper writes or whole-ROM scans during probe.
-        for (std::size_t i = 0;
-             i < mmc1_all_record_count(); ++i) {
-            const retrode3::nesstage1::Mmc1Record &rec = mmc1_record(i);
+        // Pinned Sanni banked mapper fingerprints: read-only samples.
+        for (std::size_t i = 0; i < banked_all_count(); ++i) {
+            const retrode3::nesstage1::Mmc1Record &rec = banked_record(i);
+            const unsigned mapper = banked_mapper(i);
             if (!((rec.id32a && rec.id32a == a) ||
                   (rec.id32b && rec.id32b == b))) continue;
             if (out->candidate_count == RETRODE3_MAX_CANDIDATES_V2)
@@ -306,14 +341,16 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
             const bool battery = mmc1_battery(rec);
             // Unsupported submapper/geometry and battery-backed layouts
             // are still visible, but never auto-read in this lab.
-            const bool supported = retrode3::nesmapper::mmc1_layout_enabled(
-                rec.submapper, rec.prg_bytes_kib, rec.chr_bytes_kib, battery);
+            const bool supported = !battery &&
+                retrode3::nesmapper::runtime_mapper_enabled(mapper) &&
+                retrode3::nesmapper::geometry(mapper, rec.submapper,
+                    rec.prg_bytes_kib, rec.chr_bytes_kib);
             retrode3_candidate_v2 &c = out->candidates[out->candidate_count++];
-            mmc1_candidate_id(i, c.id, sizeof(c.id));
-            mmc1_layout_id(rec.submapper, rec.prg_bytes_kib, rec.chr_bytes_kib,
+            banked_candidate_id(i, c.id, sizeof(c.id));
+            banked_layout_id(mapper, rec.submapper, rec.prg_bytes_kib, rec.chr_bytes_kib,
                            c.layout_id, sizeof(c.layout_id));
             std::snprintf(c.title, sizeof(c.title), "%s", rec.title);
-            c.mapper = 1;
+            c.mapper = mapper;
             c.submapper = rec.submapper;
             c.prg_kib = rec.prg_bytes_kib;
             c.chr_kib = rec.chr_bytes_kib;
@@ -334,7 +371,7 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
                     return fail(error, cap, "too many NES read layouts");
                 retrode3_layout_v2 &l = out->layouts[out->layout_count++];
                 std::memcpy(l.id, c.layout_id, sizeof(l.id));
-                l.mapper = 1;
+                l.mapper = mapper;
                 l.submapper = rec.submapper;
                 l.prg_kib = c.prg_kib;
                 l.chr_kib = c.chr_kib;
@@ -488,11 +525,11 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
         if (mapper != 0) {
             for (unsigned i = 0; i < probe->candidate_count; ++i) {
                 const retrode3_candidate_v2 &c = probe->candidates[i];
-                if (c.mapper != 1) continue;
+                if (c.mapper == 0) continue;
                 const retrode3::nesstage1::Mmc1Record *known =
-                    find_mmc1_record(c.id);
+                    find_banked_record(c.id);
                 if (!known)
-                    return fail(error, cap, "invalid MMC1 fingerprint candidate");
+                    return fail(error, cap, "invalid NES banked fingerprint candidate");
                 if (mmc1_battery(*known))
                     return fail(error, cap,
                         "MMC1 battery-backed fingerprint: SRAM-safe kernel write required");
@@ -512,67 +549,68 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
         }
         result->payload_crc32 = ~sink.crc;
 
-        if (mapper == 1) {
+        if (mapper != 0) {
             // Full payload CRC can identify even Sanni catalogue entries
             // that have no 512-byte probe fingerprint. No extra bus reads.
             const retrode3::nesstage1::Mmc1Record *exact = NULL;
             unsigned exact_count = 0;
             std::size_t exact_index = 0;
             for (std::size_t i = 0;
-                 i < mmc1_all_record_count(); ++i) {
-                const retrode3::nesstage1::Mmc1Record &r = mmc1_record(i);
-                if (r.prg_bytes_kib != prg || r.chr_bytes_kib != chr ||
+                 i < banked_all_count(); ++i) {
+                const retrode3::nesstage1::Mmc1Record &r = banked_record(i);
+                if (banked_mapper(i) != mapper ||
+                    r.prg_bytes_kib != prg || r.chr_bytes_kib != chr ||
                     r.submapper != submapper ||
                     r.payload_crc32 != result->payload_crc32) continue;
                 if (exact && std::strcmp(exact->header_hex, r.header_hex))
                     return fail(error, cap,
-                                "multiple MMC1 CRC matches with different headers");
+                                "multiple NES CRC matches with different headers");
                 if (!exact) { exact = &r; exact_index = i; }
                 ++exact_count;
             }
             if (exact) {
-                hex_mmc1_header(exact->header_hex, prg, chr, submapper,
+                hex_banked_header(exact->header_hex, mapper, prg, chr, submapper,
                                 result->header);
                 result->verified = exact_count == 1u ? 1u : 0u;
                 if (exact_count == 1u) {
-                    mmc1_candidate_id(exact_index, result->matched_candidate_id,
+                    banked_candidate_id(exact_index, result->matched_candidate_id,
                                       sizeof(result->matched_candidate_id));
                     std::snprintf(result->title, sizeof(result->title),
                                   "%s", exact->title);
                 } else {
                     std::snprintf(result->title, sizeof(result->title), "%s",
-                                  "Ambiguous MMC1 ROM (matching payload)");
+                                  "Ambiguous NES ROM (matching payload)");
                 }
             } else if (request->manual) {
                 synthetic_header(mapper, submapper, prg, chr, request->mirroring,
                                  request->battery, result->header);
                 std::snprintf(result->title, sizeof(result->title), "%s",
-                              "Unverified MMC1 ROM (manual layout)");
+                              "Unverified NES ROM (manual layout)");
             } else {
                 const retrode3::nesstage1::Mmc1Record *fallback = NULL;
-                if (selected) fallback = find_mmc1_record(selected->id);
+                if (selected) fallback = find_banked_record(selected->id);
                 for (unsigned i = 0; i < probe->candidate_count; ++i) {
                     const retrode3_candidate_v2 &c = probe->candidates[i];
                     if (c.mapper != mapper || c.submapper != submapper ||
                         c.prg_kib != prg || c.chr_kib != chr) continue;
                     const retrode3::nesstage1::Mmc1Record *r =
-                        find_mmc1_record(c.id);
+                        find_banked_record(c.id);
                     if (!r) return fail(error, cap,
-                                        "invalid MMC1 catalogue candidate ID");
+                                        "invalid NES catalogue candidate ID");
                     if (fallback &&
                         std::strcmp(fallback->header_hex, r->header_hex))
                         return fail(error, cap,
-                            "unverified MMC1 layout has conflicting headers; use manual");
+                            "unverified NES layout has conflicting headers; use manual");
                     if (!fallback) fallback = r;
                 }
                 if (!fallback)
-                    return fail(error, cap, "MMC1 layout without matching record");
-                hex_mmc1_header(fallback->header_hex, prg, chr, submapper,
+                    return fail(error, cap, "NES layout without matching record");
+                hex_banked_header(fallback->header_hex, mapper, prg, chr, submapper,
                                 result->header);
                 std::snprintf(result->title, sizeof(result->title), "%s",
-                              "Unverified MMC1 ROM");
+                              "Unverified NES ROM");
             }
-            mmc1_layout_id(submapper, prg, chr, result->layout_id,
+            banked_layout_id(mapper, submapper, prg, chr, result->layout_id,
                            sizeof(result->layout_id));
             return 0;
         }
@@ -660,10 +698,10 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
 {"when":{"mapper":1,"submapper":0},"allow":{"prg_kib":[32,64,128,256,512],"chr_kib":[0,8,16,32,64,128]},"read_supported":true},
 {"when":{"mapper":1,"submapper":5},"allow":{"prg_kib":[32],"chr_kib":[8,16,32,64,128]},"read_supported":true},
 {"when":{"mapper":1,"battery":true},"read_supported":false,"reason":"SRAM-safe MMC1 pulses not approved"},
-{"when":{"mapper":2},"allow":{"submapper":[0],"prg_kib":[64,128,256],"chr_kib":[0]},"read_supported":true},
-{"when":{"mapper":3},"allow":{"submapper":[0],"prg_kib":[16,32],"chr_kib":[8,16,32]},"read_supported":true},
+{"when":{"mapper":2},"allow":{"submapper":[0,1,2],"prg_kib":[64,128,256],"chr_kib":[0]},"read_supported":true},
+{"when":{"mapper":3},"allow":{"submapper":[0,1,2],"prg_kib":[16,32],"chr_kib":[8,16,32]},"read_supported":true},
 {"when":{"mapper":4},"allow":{"submapper":[0],"prg_kib":[32,64,128,256,512],"chr_kib":[0,8,16,32,64,128,256]},"read_supported":true},
-{"when":{"mapper":7},"allow":{"submapper":[0],"prg_kib":[64,128,256],"chr_kib":[0]},"read_supported":true},
+{"when":{"mapper":7},"allow":{"submapper":[0,1,2],"prg_kib":[64,128,256],"chr_kib":[0]},"read_supported":true},
 {"when":{"mapper":2,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
 {"when":{"mapper":3,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
 {"when":{"mapper":4,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
@@ -701,7 +739,11 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
                 [&]() { char h[9]; std::snprintf(h,sizeof(h),"%08X",last_crc); return std::string(h); }()) + "}" +
         ",\"mapping\":" + retrode3::json_quote_v3(unique_layout ?
             (result.layouts[0].mapper == 0 ? "nrom" :
-             result.layouts[0].mapper == 1 ? "mmc1" : "unknown") : "unknown") +
+             result.layouts[0].mapper == 1 ? "mmc1" :
+             result.layouts[0].mapper == 2 ? "uxrom" :
+             result.layouts[0].mapper == 3 ? "cnrom" :
+             result.layouts[0].mapper == 4 ? "mmc3" :
+             result.layouts[0].mapper == 7 ? "axrom" : "unknown") : "unknown") +
         ",\"size_bytes\":" + std::to_string(unique_layout ?
             16u + (result.layouts[0].prg_kib + result.layouts[0].chr_kib) * 1024u : 0u) +
         ",\"title\":" +
