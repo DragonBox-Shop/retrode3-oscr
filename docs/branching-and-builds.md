@@ -5,8 +5,8 @@
 | Referenz | Bedeutung |
 | --- | --- |
 | `develop` | Gemeinsame laufende Entwicklung und Experimente; HEAD darf unfertig und defekt sein |
-| unveraenderlicher Git-Tag auf `develop` | Abgeschlossener, grundlegend gepruefter Gesamtstand; Grundlage fuer Debian-Paketkandidaten |
-| `master` | Ausschliesslich ausfuehrlich getesteter, freigegebener Tag-Stand; muss funktionieren |
+| unveraenderlicher Git-Tag auf `develop` | Abgeschlossener, grundlegend gepruefter Gesamtstand; Grundlage fuer SD-Image-Releases |
+| `master` | Ausschliesslich ausfuehrlich getesteter, freigegebener Commit; muss funktionieren |
 | `feature/*`, `fix/*`, `integration/*` | Ausnahmen fuer notwendige temporaere Isolation, nicht normale Entwicklungsstrategie |
 | `upstream/*` | Externe Upstream-Verfolgung; nie automatisch in Released-Code uebernehmen |
 
@@ -19,27 +19,21 @@ lassen statt sie zu umgehen.
 ## Tags, Pakete und Master-Freigabe
 
 1. Funktionen auf `develop` gemeinsam entwickeln. Vor einem
-   Checkpoint die betroffenen Tests inklusive `tools/preflight-ci.sh`,
+   Build-Kandidaten die betroffenen Tests inklusive `tools/preflight-ci.sh`,
    Cross-Build und gegebenenfalls Hardware-Smoke-Tests ausfuehren.
-2. Einen vorzugsweise **annotierten, unveraenderlichen Tag** auf dem
-   bewusst abgeschlossenen Commit setzen. Ein Tag ist ein Snapshot
-   des gesamten Repositories, nicht bloss ein Feature-Marker.
-   Wesentliche zugesagte Funktionen sollen dort funktionieren;
-   noch unbekannte Bugs sind moeglich. Unfertige Hardware-Risiken
-   muessen standardmaessig deaktiviert bzw. sicher abgeschirmt sein.
-3. **Debian-Paketkandidaten ausschliesslich aus exakt diesem Tag/Commit**
-   bauen. Alle verknuepften Quell- und Sanni-Revisionen und Checksummen
-   ins Manifest aufnehmen. Nicht den aktuellsten `develop`-HEAD
-   waehrend eines Builds nachziehen. Der derzeitige OS-Buildserver
-   verfolgt teils noch Branch-HEADs und muss fuer diese Policy erst
-   umgestellt werden.
-4. Paketinstallation, Upgrade, Rollback, USB/Web/Cartridge-Verhalten,
-   sowie die betroffenen Hardwarepfade ausfuehrlich pruefen.
-5. **Genau den getaggten Commit** nach `master` uebernehmen.
-   `develop` darf sich unterdessen weiterbewegen. Den Tag nicht
-   nachtraeglich verschieben; kein blindes Squash-Merge mit anderem
-   Tree, keine unkontrollierten Force-Pushes. Wenn die Historie
-   divergiert, zuerst einen sicheren, nachvollziehbaren Weg planen.
+2. Debian-Pakete durch einen expliziten Paketlauf bauen. Der Buildserver
+   pinnt den aktuellen Commit von OS und OSCR, inklusive Sanni-Gitlink
+   und Checksummen. Keine Tags erforderlich; keine beweglichen Quellen
+   waehrend eines Builds. `develop` geht nach testing, `master` nach stable.
+3. Paketinstallation, Upgrade, Rollback, USB/Web/Cartridge-Verhalten
+   und die betroffenen Hardwarepfade ausfuehrlich pruefen.
+4. Fuer ein vollstaendiges SD-Image beide bewusst abgeschlossenen
+   Commits mit unveraenderlichen, vorzugsweise annotierten Tags markieren.
+   Tags niemals verschieben. Ein Image-Tag ist kein einzelner Feature-Marker.
+5. **Genau den getesteten Commit** nach `master` uebernehmen.
+   `develop` darf sich unterdessen weiterbewegen. Kein blindes Squash-Merge
+   mit anderem Tree, keine unkontrollierten Force-Pushes. Bei divergierender
+   Historie zuerst einen sicheren, nachvollziehbaren Weg planen.
 6. Ein Paket-Build, eine APT-Veroeffentlichung, ein Hardwaretest und
    ein Kundenimage sind verschiedene Freigabestufen. Neue Images
    benoetigen zusaetzlich einen erfolgreichen separaten SD-Kaltstart.

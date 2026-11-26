@@ -23,10 +23,10 @@ Hardwareunterlagen nach `retrode3-hardware`.
   explizite Paketlauf verwendet `develop` fuer testing und `master` fuer
   stable; Tags sind nur fuer Images erforderlich. Das OS-Repository fixiert
   den OSCR-Commit und Sanni-Submodul-SHA, bei Images auch den Tag.
-- Nach Paket-/Hardware-/Rollbacktests den **exakt getaggten Commit**
+- Nach Paket-/Hardware-/Rollbacktests den **exakt getesteten Commit**
   nach `master` uebernehmen, nicht den inzwischen weiterentwickelten
   `develop`-HEAD. `master` ist stets funktionsfaehig und freigegeben.
-  Moeglichst Fast-Forward auf denselben Tag-Commit; keine ungeprueften
+  Moeglichst Fast-Forward auf denselben getesteten Commit; keine ungeprueften
   Squash-/Merge-Effekte oder Force-Pushes auf `master`.
 - **Keine dauerhaften Feature- oder Plugin-Branches.** Kurzlebige
   Spezialbranches nur wenn technische Isolation wirklich noetig ist,
