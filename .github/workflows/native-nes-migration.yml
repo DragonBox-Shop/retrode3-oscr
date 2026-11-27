@@ -20,6 +20,8 @@ on:
       - 'tools/verify-nes-mapper-sequences.py'
       - 'patches/nes-generated.json'
       - 'tools/gen-nes-banked-catalog.py'
+      - 'tools/gen-nes-full-catalog.py'
+      - 'src/retrode3/oscr_nes_extra_*_catalog.inc'
       - 'src/retrode3/oscr_nes_banked_catalog.inc'
       - 'third_party/oscr-firmware'
       - 'Makefile.migration'
@@ -44,6 +46,8 @@ on:
       - 'tools/verify-nes-mapper-sequences.py'
       - 'patches/nes-generated.json'
       - 'tools/gen-nes-banked-catalog.py'
+      - 'tools/gen-nes-full-catalog.py'
+      - 'src/retrode3/oscr_nes_extra_*_catalog.inc'
       - 'src/retrode3/oscr_nes_banked_catalog.inc'
       - 'packaging/cores/nes.core'
       - '.github/workflows/native-nes-migration.yml'
@@ -65,7 +69,11 @@ jobs:
       - name: Validate isolated MMC1 lab script and pinned DB generator syntax
         run: |
           sh -n tools/nes-mmc1-lab.sh
-          python3 -m py_compile tools/gen-nes-mmc1-catalog.py
+          python3 -m py_compile tools/gen-nes-mmc1-catalog.py tools/gen-nes-banked-catalog.py tools/gen-nes-full-catalog.py
+      - name: Verify complete pinned NES database generation
+        run: |
+          curl --fail --silent --show-error --location https://raw.githubusercontent.com/oscartreader/oscr-databases/87a48948c6a04260205f148d313614cc44e05cd5/data/nes.json -o /tmp/nes-upstream.json
+          python3 tools/gen-nes-full-catalog.py --input /tmp/nes-upstream.json --check
       - name: Validate genuine NES bank-reader extraction and shared CLI integration
         run: make -f Makefile.migration test-native-nes-module
       - name: Compile the production read-only NES dynamic core

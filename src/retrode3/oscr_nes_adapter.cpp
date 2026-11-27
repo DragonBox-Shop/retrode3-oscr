@@ -210,6 +210,7 @@ struct BankedRecord {
 };
 const BankedRecord banked_records[] = {
 #include "oscr_nes_banked_catalog.inc"
+#include "oscr_nes_extra_banked_catalog.inc"
 };
 const std::size_t banked_record_count =
     sizeof(banked_records) / sizeof(banked_records[0]);
@@ -301,6 +302,7 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
         if (first_crc) *first_crc = a;
         if (last_crc) *last_crc = b;
         out->candidate_count = out->layout_count = 0;
+        bool layout_overflow = false;
         for (std::size_t i = 0; i < retrode3::nesstage1::record_count; ++i) {
             retrode3::nesstage1::NromRecord const &record =
                 retrode3::nesstage1::records[i];
@@ -325,8 +327,10 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
                 if (std::strcmp(out->layouts[n].id, c.layout_id) == 0)
                     found = true;
             if (!found) {
-                if (out->layout_count == RETRODE3_MAX_LAYOUTS_V2)
-                    return fail(error, cap, "too many NES read layouts");
+                if (out->layout_count == RETRODE3_MAX_LAYOUTS_V2) {
+                    layout_overflow = true;
+                    continue;
+                }
                 retrode3_layout_v2 &layout = out->layouts[out->layout_count++];
                 std::memcpy(layout.id, c.layout_id, sizeof(layout.id));
                 layout.mapper = layout.submapper = 0;
@@ -346,7 +350,9 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
             const bool battery = mmc1_battery(rec);
             // Unsupported submapper/geometry and battery-backed layouts
             // are still visible, but never auto-read in this lab.
-            const bool supported = !battery &&
+            const bool trainer = (rec.header_hex[13] >= '0' && rec.header_hex[13] <= '9' ?
+                rec.header_hex[13] - '0' : (rec.header_hex[13] & 15) + 9) & 4;
+            const bool supported = !battery && !trainer &&
                 retrode3::nesmapper::runtime_mapper_enabled(mapper) &&
                 retrode3::nesmapper::geometry(mapper, rec.submapper,
                     rec.prg_bytes_kib, rec.chr_bytes_kib);
@@ -372,8 +378,10 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
                 break;
             }
             if (!found) {
-                if (out->layout_count == RETRODE3_MAX_LAYOUTS_V2)
-                    return fail(error, cap, "too many NES read layouts");
+                if (out->layout_count == RETRODE3_MAX_LAYOUTS_V2) {
+                    layout_overflow = true;
+                    continue;
+                }
                 retrode3_layout_v2 &l = out->layouts[out->layout_count++];
                 std::memcpy(l.id, c.layout_id, sizeof(l.id));
                 l.mapper = mapper;
@@ -382,6 +390,13 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
                 l.chr_kib = c.chr_kib;
                 l.read_supported = c.read_supported;
             }
+        }
+        // Preserve diagnostic candidates even if the fixed v2 layout array
+        // cannot hold all possibilities. Never turn truncation into auto-read.
+        if (layout_overflow) {
+            out->layout_count = 0;
+            for (unsigned i = 0; i < out->candidate_count; ++i)
+                out->candidates[i].read_supported = 0;
         }
         std::snprintf(out->identification_status,
                       sizeof(out->identification_status), "%s",
@@ -530,7 +545,7 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
         if (mapper != 0) {
             for (unsigned i = 0; i < probe->candidate_count; ++i) {
                 const retrode3_candidate_v2 &c = probe->candidates[i];
-                if (c.mapper == 0) continue;
+                if (std::strncmp(c.id, "nrom-", 5) == 0) continue;
                 const retrode3::nesstage1::Mmc1Record *known =
                     find_banked_record(c.id);
                 if (!known)
@@ -623,15 +638,14 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
 
         const retrode3::nesstage1::NromRecord *match = NULL;
         char match_id[32] = {};
-        for (unsigned i = 0; mapper == 0 && i < probe->candidate_count; ++i) {
-            const retrode3_candidate_v2 &candidate = probe->candidates[i];
-            if (candidate.prg_kib != prg || candidate.chr_kib != chr ||
-                candidate.payload_crc32 != result->payload_crc32) continue;
+        for (std::size_t i = 0; i < retrode3::nesstage1::record_count; ++i) {
+            const retrode3::nesstage1::NromRecord &record = retrode3::nesstage1::records[i];
+            if (record.prg_bytes_kib != prg || record.chr_bytes_kib != chr ||
+                record.payload_crc32 != result->payload_crc32) continue;
             if (match)
                 return fail(error, cap, "ambiguous exact NES payload CRC");
-            match = find_record(candidate.id);
-            if (!match) return fail(error, cap, "invalid NES catalogue candidate ID");
-            std::snprintf(match_id, sizeof(match_id), "%s", candidate.id);
+            match = &record;
+            candidate_id(i, match_id, sizeof(match_id));
         }
         result->verified = match ? 1 : 0;
         if (match) {
@@ -651,7 +665,8 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             // multiple distinct source headers require a manual override.
             for (unsigned i = 0; i < probe->candidate_count; ++i) {
                 const retrode3_candidate_v2 &c = probe->candidates[i];
-                if (c.prg_kib != prg || c.chr_kib != chr) continue;
+                if (std::strncmp(c.id, "nrom-", 5) != 0 ||
+                    c.prg_kib != prg || c.chr_kib != chr) continue;
                 const retrode3::nesstage1::NromRecord *r = find_record(c.id);
                 if (!r) return fail(error, cap, "invalid NES catalogue ID");
                 if (fallback && std::strcmp(fallback->header_hex, r->header_hex))

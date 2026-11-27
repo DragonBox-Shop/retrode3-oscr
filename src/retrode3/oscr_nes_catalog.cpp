@@ -243,6 +243,7 @@ NromRecord const records[] = {
     {0x5a505c94u,0xdc6971c2u,0x9a4d4ba5u,32,0,
      "4E45531A020001080000000000000001","MOCK NES NROM 32-0"},
 #endif
+#include "oscr_nes_extra_nrom_catalog.inc"
 };
 std::size_t const record_count = sizeof(records) / sizeof(records[0]);
 } }

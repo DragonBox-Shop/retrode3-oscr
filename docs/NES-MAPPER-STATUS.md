@@ -1,5 +1,25 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## Vollstaendiger gepinnter NES-Katalog (2026-11-27)
+
+- 5562 Originaldatensaetze fuer 269 Mapper aus DB-Blob
+  b07cfd2943b986f8ffc85e61722dbb2e440cec37, inkl. Eintraegen ohne
+  Fingerprints und NES-2.0-Sondergroessen. 226 bisherige
+  NROM-IDs, 695 MMC1- und 1696 banked-IDs bleiben erhalten;
+  521 normale NROM- und 2424 weitere Datensaetze ergaenzt.
+- `tools/gen-nes-full-catalog.py` reproduziert die vier generierten
+  Katalogteile offline aus dem gepinnten JSON. PRG/CHR-Groessen kommen
+  aus den originalen Headern, nicht aus gerundeten OSCR-Bankfeldern.
+  NROM-CRC-Abgleich umfasst jetzt auch Datensaetze ohne Probe-Fingerprint.
+- Die v2-ABI bleibt unveraendert. Mehr als acht unterschiedliche
+  Fingerprint-Layouts liefern Kandidaten, aber keine automatische
+  Layoutfreigabe. Hardwarefreigaben bleiben getrennt: kein zusaetzlicher
+  Mapper-Schreibzugriff, kein SRAM-/Flash-Support. Mapper 268 ist im
+  Katalog und im generierten Upstream-Switch enthalten, aber dessen
+  Outer-Register und Sondervarianten sind noch nicht HAL-freigegeben.
+- Noch kein Build-/Hardwaretest dieses Stands. CI prueft die generierten
+  Dateien gegen den Originalblob; reale Regressionstests folgen.
+
 ## Metal Storm Retro-Bit (2026-11-27)
 
 Echthardware-Probe: $8000 0E94BBA9, $E000 B2AA7578.
