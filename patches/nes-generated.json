@@ -8,5 +8,10 @@
     "reason": "MMC1 reset does not clear CHR 4 KiB mode; explicitly select tested 8 KiB CHR mode.",
     "before": "        write_prg_byte(0x8000, 0x80);          // Clear Register\n        write_mmc1_byte(0xA000, i);",
     "after": "        write_prg_byte(0x8000, 0x80);          // Clear Register\n        write_mmc1_byte(0x8000, 0x0C);\n        write_mmc1_byte(0xA000, i);"
+  },
+  {
+    "reason": "Linux integer promotion of uint16_t banks differs from AVR; avoid signed comparison and guard short geometries.",
+    "before": "for (size_t i = 0; i < banks - 4; i++)",
+    "after": "for (size_t i = 0; banks >= 4u && i < static_cast<size_t>(banks - 4u); i++)"
   }
 ]

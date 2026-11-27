@@ -7,8 +7,9 @@ the existing CLI/adapter owns them. Original dumpBankPRG/CHR loops remain
 unchanged; the lower-level buffer reads use the existing typed block HAL.
 
 The build applies patches/nes-generated.json in order with unique exact
-anchors. The two MMC1 patches preserve the already tested 512 KiB bank
-sequence and explicit CHR mode. The former local MMC1 plan is retained only
+anchors. Two MMC1 patches preserve the already tested 512 KiB bank
+sequence and explicit CHR mode. One Linux integer-promotion patch
+avoids a signed comparison in an upstream PRG case (no warning bypass). The former local MMC1 plan is retained only
 as a historical regression test oracle; it is not linked into nes.so.
 MMC3 A001 SRAM enable is suppressed in the HAL for approved ROM-only
 layouts. UxROM/CNROM preflight fixed-bank conflict values; AxROM resolves
