@@ -63,13 +63,14 @@ void safe_conflict_addresses(uint16_t begin, unsigned count,
     if (remaining)
         throw std::runtime_error("bus-conflict-safe address not found; no NES writes");
 }
-uint16_t safe_axrom_address(uint8_t value, const retrode3_host_io_v1 *io)
+uint16_t safe_register_address(uint16_t begin, uint8_t value, const retrode3_host_io_v1 *io)
 {
-    // AxROM has no fixed bank. On bus-conflict variants, the address
-    // must match the value in the CURRENT bank, not the target bank.
+    // Reusable conflict-safe register primitive for boards with ROM on
+    // the write bus. Search only the board's decoded register window,
+    // using the CURRENT bank, never the bank about to be selected.
     ReadBus bus;
     uint8_t block[512];
-    for (unsigned addr = 0x8000u; addr < 65536u; addr += sizeof(block)) {
+    for (unsigned addr = begin; addr < 65536u; addr += sizeof(block)) {
         check_cancel(io);
         bus.nes_block(static_cast<uint16_t>(addr), block, sizeof(block),
                       NesSpace::Prg);
@@ -77,7 +78,7 @@ uint16_t safe_axrom_address(uint8_t value, const retrode3_host_io_v1 *io)
             if (block[j] == value)
                 return static_cast<uint16_t>(addr + j);
     }
-    throw std::runtime_error("AxROM bus-conflict-safe address not found");
+    throw std::runtime_error("NES bus-conflict-safe register address not found");
 }
 
 // The active context is scoped to one CLI operation (the CLI owns the bus lock).
@@ -132,6 +133,14 @@ bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
     case 4: return power_two(prg) && prg >= 32 && prg <= 512 &&
                    (chr == 0 || (power_two(chr) && chr >= 8 && chr <= 256));
     case 7: return power_two(prg) && prg >= 64 && prg <= 256 && chr == 0;
+    case 11: return power_two(prg) && prg >= 32 && prg <= 128 &&
+                    (chr == 0 || (power_two(chr) && chr >= 8 && chr <= 128));
+    case 13: return prg == 32 && chr == 0; // CPROM: ROM read only, no CHR-RAM writes.
+    case 66: return power_two(prg) && prg >= 32 && prg <= 128 &&
+                    power_two(chr) && chr >= 8 && chr <= 32;
+    case 71: return power_two(prg) && prg >= 64 && prg <= 256 && chr == 0;
+    case 206: return power_two(prg) && prg >= 32 && prg <= 128 &&
+                     power_two(chr) && chr >= 16 && chr <= 64;
     default: return false;
     }
 }
@@ -156,7 +165,8 @@ bool runtime_mapper_enabled(unsigned mapper)
 {
     // Explicit list: newly ported geometry alone must not enable writes.
     return mapper == 1 || mapper == 2 || mapper == 3 ||
-           mapper == 4 || mapper == 7;
+           mapper == 4 || mapper == 7 || mapper == 11 || mapper == 13 ||
+           mapper == 66 || mapper == 71 || mapper == 206;
 }
 
 void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
@@ -192,13 +202,22 @@ void generated_write(unsigned address, unsigned data, bool serial)
                                            0x80u : data & 1u));
     } else {
         if (serial || data > 255u) unsupported();
-        if (c.mapper == 4) {
-            // ROM-only MMC3 never enables writable SRAM.
+        if (c.mapper == 4 || c.mapper == 206) {
+            // MMC3/DxROM register family: never enable writable SRAM.
             if (address == 0xa001u && data == 0x80u) return;
             if (address != 0x8000u && address != 0x8001u) unsupported();
         } else if (c.mapper == 7) {
             if (address != 0x8000u) unsupported();
-            address = safe_axrom_address(static_cast<uint8_t>(data), c.io);
+            address = safe_register_address(0x8000u, static_cast<uint8_t>(data), c.io);
+        } else if (c.mapper == 11 || c.mapper == 66 || c.mapper == 71) {
+            // Discrete latch boards: the generated upstream code owns all
+            // bank values. Restrict its register decode and make each write
+            // electrically conflict-safe, even after a PRG bank switch.
+            if (c.mapper == 11 && (address < 0xffb0u || address > 0xffbfu || (data & ~0xf3u))) unsupported();
+            if (c.mapper == 66 && (address < 0x8000u || (data & ~0x33u))) unsupported();
+            if (c.mapper == 71 && (address != 0xc000u || data > 15u)) unsupported();
+            address = safe_register_address(c.mapper == 71 ? 0xc000u : 0x8000u,
+                                            static_cast<uint8_t>(data), c.io);
         } else if (c.mapper == 2 || c.mapper == 3) {
             if (address < (c.mapper == 2 ? 0xc000u : 0x8000u) ||
                 ReadBus().nes_byte(static_cast<uint16_t>(address), NesSpace::Prg) != data)
@@ -212,7 +231,7 @@ void generated_write(unsigned address, unsigned data, bool serial)
 uint8_t generated_read(unsigned address)
 {
     GeneratedContext &c = context();
-    if ((c.mapper != 2 && c.mapper != 3) || address > 0xffffu ||
+    if ((c.mapper != 2 && c.mapper != 3 && c.mapper != 66) || address > 0xffffu ||
         address < (c.mapper == 2 ? 0xc000u : 0x8000u)) unsupported();
     unsigned base = address & ~511u;
     if (!c.cache_valid || c.cache_base != base) {

@@ -37,7 +37,11 @@ void init()
                    mapper == 3 ? 32768u : 131072u;
         chr_size = mapper == 3 ? 32768u :
                    mapper == 4 ? 65536u : 0u;
-        if (mapper == 1) {
+        if (mapper == 11 || mapper == 66) { prg_size = 131072u; chr_size = 32768u; }
+        if (mapper == 13) { prg_size = 32768u; chr_size = 0u; }
+        if (mapper == 71) { prg_size = 131072u; chr_size = 0u; }
+        if (mapper == 206) { prg_size = 131072u; chr_size = 65536u; }
+        if (mapper == 1 || mapper == 11 || mapper == 13 || mapper == 66 || mapper == 71 || mapper == 206) {
             const char *p = std::getenv("RETRODE_MOCK_NES_PRG_KIB");
             const char *c = std::getenv("RETRODE_MOCK_NES_CHR_KIB");
             if (p) prg_size = static_cast<unsigned>(std::atoi(p)) * 1024u;
@@ -174,19 +178,19 @@ unsigned char mapped_prg(unsigned address)
         }
         return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
     }
-    if (mapper == 2) {
+    if (mapper == 2 || mapper == 71) {
         unsigned bank = address < 0xc000u ? ux_bank : prg_size / 16384u - 1u;
         return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
     }
-    if (mapper == 3) return rom_prg[offset % prg_size];
-    if (mapper == 4) {
+    if (mapper == 3 || mapper == 13 || (mapper == 206 && prg_size == 32768u)) return rom_prg[offset % prg_size];
+    if (mapper == 4 || mapper == 206) {
         if (address < 0xa000u)
             return rom_prg[(mmc_prg_bank * 8192u + (address & 0x1fffu)) % prg_size];
         if (address >= 0xe000u)
             return rom_prg[prg_size - 8192u + (address & 0x1fffu)];
         return rom_prg[offset % prg_size];
     }
-    if (mapper == 7)
+    if (mapper == 7 || mapper == 11 || mapper == 66)
         return rom_prg[(ax_bank * 32768u + offset) % prg_size];
     return prg[offset % prg_size];
 }
@@ -194,11 +198,11 @@ unsigned char mapped_chr(unsigned address)
 {
     if (mapper == 1)
         return rom_chr[((mmc1_chr & 0x1eu) * 4096u + address) % chr_size];
-    if (mapper == 3)
+    if (mapper == 3 || mapper == 11 || mapper == 66)
         return rom_chr[(cn_bank * 8192u + address) % chr_size];
-    if (mapper == 4 && address >= 0x1000u && address < 0x1400u)
+    if ((mapper == 4 || mapper == 206) && address >= 0x1000u && address < 0x1400u)
         return rom_chr[(mmc_chr_bank * 1024u + address - 0x1000u) % chr_size];
-    if (mapper == 4) return rom_chr[address % chr_size];
+    if (mapper == 4 || mapper == 206) return rom_chr[address % chr_size];
     return chr[address];
 }
 void record_log(const char *variable, unsigned addr, unsigned size, int mode)
@@ -247,7 +251,7 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     const unsigned value = *static_cast<unsigned char *>(buf);
     // Fail on any bus-conflicting write. Sanni's unsupported fallback
     // deliberately has no equivalent in the production mapper adapter.
-    if ((mapper == 2 || mapper == 3 || mapper == 7) && mapped_prg(address) != value)
+    if ((mapper == 2 || mapper == 3 || mapper == 7 || mapper == 11 || mapper == 66 || mapper == 71) && mapped_prg(address) != value)
         return -1;
     record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
     if (mapper == 1) {
@@ -266,15 +270,17 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
             }
         }
     }
-    else if (mapper == 2) ux_bank = value;
+    else if (mapper == 2 || mapper == 71) ux_bank = value;
     else if (mapper == 3) cn_bank = value;
-    else if (mapper == 4) {
+    else if (mapper == 4 || mapper == 206) {
         if (address == 0x8000u) mmc_mode = value & 7u;
         else if (address == 0x8001u) {
             if (mmc_mode == 6) mmc_prg_bank = value;
             if (mmc_mode == 2) mmc_chr_bank = value;
         } else return -1;
     } else if (mapper == 7) ax_bank = value & 7u;
+    else if (mapper == 11) { ax_bank = value & 3u; cn_bank = value >> 4; }
+    else if (mapper == 66) { ax_bank = (value >> 4) & 3u; cn_bank = value & 3u; }
     else return -1;
     return 1;
 }

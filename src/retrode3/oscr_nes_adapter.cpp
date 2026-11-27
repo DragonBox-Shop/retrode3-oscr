@@ -253,6 +253,16 @@ const retrode3::nesstage1::Mmc1Record *find_banked_record(char const *id)
     }
     return NULL;
 }
+unsigned header_rom_kib(unsigned low, unsigned high, unsigned unit)
+{
+    if (high != 15u) return (low + (high << 8)) * unit;
+    const unsigned exponent = low >> 2;
+    if (exponent < 10u || exponent > 39u)
+        throw std::runtime_error("unsupported NES 2.0 exponent size");
+    const std::uint64_t size = (std::uint64_t(1) << (exponent - 10u)) * ((low & 3u) * 2u + 1u);
+    if (size > 0xffffffffu) throw std::runtime_error("NES ROM size overflow");
+    return static_cast<unsigned>(size);
+}
 void hex_banked_header(char const *hex, unsigned mapper, unsigned prg, unsigned chr,
                        unsigned sub, unsigned char *header)
 {
@@ -271,12 +281,16 @@ void hex_banked_header(char const *hex, unsigned mapper, unsigned prg, unsigned 
         }
         header[i] = b;
     }
+    const bool nes2 = (header[7] & 0x0cu) == 0x08u;
+    const unsigned actual_mapper = (header[6] >> 4) | (header[7] & 0xf0u) |
+        (nes2 ? (header[8] & 15u) << 8 : 0u);
+    const unsigned high = nes2 ? header[9] : 0u;
     if ((std::memcmp(header, "NES", 3) != 0 || header[3] != 0x1au) ||
-        (header[6] >> 4) != mapper || (header[7] & 0xf0u) != 0 ||
-        header[4] * 16u != prg || header[5] * 8u != chr ||
-        (((header[7] & 0x0cu) == 0x08u) ?
-            (header[8] >> 4) : 0u) != sub)
-        throw std::runtime_error("pinned MMC1 header/layout mismatch");
+        (header[6] & 4u) || actual_mapper != mapper ||
+        header_rom_kib(header[4], high & 15u, 16u) != prg ||
+        header_rom_kib(header[5], high >> 4, 8u) != chr ||
+        (nes2 ? header[8] >> 4 : 0u) != sub)
+        throw std::runtime_error("pinned NES header/layout mismatch");
 }
 int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
                                  char *error, size_t cap,
@@ -706,7 +720,12 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
            {"value":2,"label":"UxROM","read_supported":true},
            {"value":3,"label":"CNROM","read_supported":true},
            {"value":4,"label":"MMC3","read_supported":true},
-           {"value":7,"label":"AxROM","read_supported":true}]},
+           {"value":7,"label":"AxROM","read_supported":true},
+           {"value":11,"label":"Color Dreams","read_supported":true},
+           {"value":13,"label":"CPROM","read_supported":true},
+           {"value":66,"label":"GxROM","read_supported":true},
+           {"value":71,"label":"Camerica","read_supported":true},
+           {"value":206,"label":"DxROM","read_supported":true}]},
 {"id":"submapper","label":"Submapper","type":"integer","minimum":0,"maximum":15,"required":true,"default":0},
 {"id":"prg_kib","label":"PRG ROM (KiB)","type":"integer","minimum":16,"maximum":512,"required":true},
 {"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128,256]},
@@ -725,7 +744,17 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
 {"when":{"mapper":2,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
 {"when":{"mapper":3,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
 {"when":{"mapper":4,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
-{"when":{"mapper":7,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"}]
+{"when":{"mapper":7,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
+{"when":{"mapper":11},"allow":{"submapper":[0],"prg_kib":[32,64,128],"chr_kib":[0,8,16,32,64,128]},"read_supported":true},
+{"when":{"mapper":13},"allow":{"submapper":[0],"prg_kib":[32],"chr_kib":[0]},"read_supported":true},
+{"when":{"mapper":66},"allow":{"submapper":[0],"prg_kib":[32,64,128],"chr_kib":[8,16,32]},"read_supported":true},
+{"when":{"mapper":71},"allow":{"submapper":[0],"prg_kib":[64,128,256],"chr_kib":[0]},"read_supported":true},
+{"when":{"mapper":206},"allow":{"submapper":[0],"prg_kib":[32,64,128],"chr_kib":[16,32,64]},"read_supported":true},
+{"when":{"mapper":11,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
+{"when":{"mapper":13,"battery":true},"read_supported":false,"reason":"Battery-backed layout not approved"},
+{"when":{"mapper":66,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
+{"when":{"mapper":71,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
+{"when":{"mapper":206,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"}]
 })V3";
     if (std::strlen(schema) + 1 > len)
         return fail(err, cap, "NES v3 capability buffer too small");
@@ -763,7 +792,12 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
              result.layouts[0].mapper == 2 ? "uxrom" :
              result.layouts[0].mapper == 3 ? "cnrom" :
              result.layouts[0].mapper == 4 ? "mmc3" :
-             result.layouts[0].mapper == 7 ? "axrom" : "unknown") : "unknown") +
+             result.layouts[0].mapper == 7 ? "axrom" :
+             result.layouts[0].mapper == 11 ? "color_dreams" :
+             result.layouts[0].mapper == 13 ? "cprom" :
+             result.layouts[0].mapper == 66 ? "gxrom" :
+             result.layouts[0].mapper == 71 ? "camerica" :
+             result.layouts[0].mapper == 206 ? "dxrom" : "unknown") : "unknown") +
         ",\"size_bytes\":" + std::to_string(unique_layout ?
             16u + (result.layouts[0].prg_kib + result.layouts[0].chr_kib) * 1024u : 0u) +
         ",\"title\":" +

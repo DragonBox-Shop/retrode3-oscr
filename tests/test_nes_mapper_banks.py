@@ -100,8 +100,11 @@ class TestNesMapperBanks(unittest.TestCase):
         self.assertEqual(len(jp), 1)
         self.assertEqual(len(eu), 1)
         self.assertEqual(jp[0]["layout_id"], eu[0]["layout_id"])
-        self.assertEqual(info["ambiguity"], "titles_only")
-        self.assertFalse(info["selection_required"])
+        # Complete database reveals pirate boards sharing the same PRG
+        # fingerprint. Do not silently auto-select MMC1 over other mappers.
+        self.assertEqual(info["ambiguity"], "layouts")
+        self.assertTrue(info["selection_required"])
+        self.assertTrue({312, 418}.issubset({c["mapper"] for c in candidates}))
         self.assertTrue(all(c["read_supported"] for c in (jp[0], eu[0])))
         self.assertEqual(info["title"], "NES cartridge")
 
@@ -109,7 +112,12 @@ class TestNesMapperBanks(unittest.TestCase):
                "request_id": "rad-pal", "output":
                os.path.join(self.temp.name, "rad-racer-eu.nes"),
                "selection": {"version": 1, "schema_id": "nes-layout-v1",
-                             "mode": "auto"}}
+                             "mode": "layout", "layout_id": eu[0]["layout_id"]}}
+        auto = dict(job, output=os.path.join(self.temp.name, "rad-ambiguous.nes"),
+                    selection={"version": 1, "schema_id": "nes-layout-v1", "mode": "auto"})
+        events = self.run_cli(1, [auto], dict(env, RETRODE_MOCK_NES_WRITELOG=log))
+        self.assertEqual(events[-1]["event"], "error", events)
+        self.assertFalse(os.path.exists(log))
         events = self.run_cli(1, [job], env)
         result = events[-1]
         self.assertEqual(result["event"], "result", events)
@@ -246,7 +254,7 @@ class TestNesMapperBanks(unittest.TestCase):
         schema = cap["selection_schema"]
         field = next(f for f in schema["fields"] if f["id"] == "mapper")
         self.assertEqual(set(v["value"] for v in field["values"]
-                             if v["read_supported"]), {0, 1, 2, 3, 4, 7})
+                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 11, 13, 66, 71, 206})
 
     def test_bank_order_and_crc_for_mappers_2_3_4_7(self):
         shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
@@ -300,6 +308,39 @@ class TestNesMapperBanks(unittest.TestCase):
             self.assertFalse(events[-1]["verified"])
             with io.open(output, "rb") as handle:
                 self.assertEqual(handle.read(), fixture_rom(mapper, p, c))
+
+    def test_generated_latch_and_dxrom_families(self):
+        # The production build runs ORIGINAL generated bank loops.
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
+        for mapper, p, c, expected_writes in (
+                (11, 128, 32, 8), (13, 32, 0, 0),
+                (66, 128, 32, 8), (71, 128, 0, 8),
+                (206, 128, 64, 160), (206, 32, 32, 64)):
+            name = "generated-%d-%d" % (mapper, p)
+            selection = self.v3_override(p, c)
+            selection["parameters"]["mapper"] = mapper
+            output = os.path.join(self.temp.name, name + ".nes")
+            log = os.path.join(self.temp.name, name + ".writes")
+            env = {"RETRODE_MOCK_NES_PRG_KIB": str(p),
+                   "RETRODE_MOCK_NES_CHR_KIB": str(c),
+                   "RETRODE_MOCK_NES_WRITELOG": log}
+            events = self.run_cli(mapper, [{"command": "probe", "core": "nes",
+                                           "request_id": name + "-probe"}], env)
+            self.assertEqual(events[-1]["event"], "probe_result", events)
+            self.assertFalse(os.path.exists(log))
+            events = self.run_cli(mapper, [{"command": "read_rom", "core": "nes",
+                "request_id": name, "output": output, "selection": selection}], env)
+            self.assertEqual(events[-1]["event"], "result", (mapper, events))
+            with io.open(output, "rb") as handle:
+                self.assertEqual(handle.read(), fixture_rom(mapper, p, c))
+            if expected_writes:
+                with io.open(log, "r", encoding="utf-8") as handle:
+                    writes = [tuple(int(v) for v in line.split()) for line in handle]
+                self.assertEqual(len(writes), expected_writes, (mapper, writes))
+                self.assertTrue(all(addr >= 0x8000 and addr != 0xa001 and mode == 10
+                                    for addr, value, mode in writes))
+            else:
+                self.assertFalse(os.path.exists(log))
 
     def test_constant_last_window_is_not_a_fingerprint_match(self):
         log = os.path.join(self.temp.name, "constant-window-writes")

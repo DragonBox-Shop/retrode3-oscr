@@ -1,5 +1,25 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## Weitere generierte Mapper-Familien (2026-11-27)
+
+- Entwicklerversion: 11 (Color Dreams), 13 (CPROM), 66 (GxROM),
+  71 (Camerica) und 206 (DxROM), jeweils nur Submapper 0 und die
+  konservativen ROM-Geometrien in `nesmapper::geometry`.
+- Keine neuen ROM-Bankalgorithmen: alle Sequenzen stammen aus dem
+  automatisch generierten Sanni-Switch. Die HAL verwendet die bestehende
+  konfliktfreie PRG-Registeroperation fuer diskrete Latches und die
+  MMC3-Registeroperation fuer DxROM. CPROM liest ausschliesslich PRG.
+  Keine Freigabe von RAM-/Flash-Writes oder Adressen unter $8000.
+- Headerpruefung unterstuetzt nun auch Mapper >15 und NES-2.0-Groessen.
+  Durch den vollen Katalog ist Rad Racer / Highway Star jetzt bewusst
+  layout-mehrdeutig (Mapper 312/418 haben gleiche Fingerprints).
+  Explizite Wahl des MMC1-Layouts bleibt moeglich; kein Auto-Write.
+- Neue Mock-Regressionsfaelle in test_nes_mapper_banks.py, echte
+  Hardwarepruefung und CI-Ausfuehrung noch offen. Master unberuehrt.
+- Mapper 268 (SMD133) erfordert weiterhin sichere separate
+  Outer-Registeroperationen unterhalb $8000, Submapper-Pruefung und
+  eine passende RAM-/Flash-Schutzstrategie. Kein pauschales Freischalten.
+
 ## Vollstaendiger gepinnter NES-Katalog (2026-11-27)
 
 - 5562 Originaldatensaetze fuer 269 Mapper aus DB-Blob
