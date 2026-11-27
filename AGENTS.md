@@ -61,6 +61,48 @@ Hardwareunterlagen nach `retrode3-hardware`.
   Datenbankeintraege Sicherheitsfreigaben oder Cartridge-Writes erhalten.
   Unbekannte/ambige Layouts benoetigen explizite Auswahl.
 
+## Verbindliche Upstream-/HAL-Architektur fuer alle OSCR-Cores
+
+- Sannis gepinnter Originalquellcode bleibt unveraendert und ist die
+  einzige fachliche Quelle fuer systemspezifische Lese-, Mapper-,
+  Bankwechsel-, Save- und Flash-Algorithmen. Keine parallelen,
+  manuell nachimplementierten OSCR-Algorithmen in Retrode3-Cores.
+- Jeder Core wird reproduzierbar aus dem gepinnten Originalquellcode
+  generiert bzw. gegen diesen gebaut. Extraktion, Quelltransformation,
+  Kompatibilitaetsschichten und Build-Schritte automatisieren und im
+  Repository versionieren. Generierte Quellen nie von Hand bearbeiten.
+  Neue Upstream-Mapper und Algorithmen sollen ohne erneute manuelle
+  Portierung uebernommen werden koennen.
+- Plattformunterschiede zentral in der typisierten Linux-HAL bzw.
+  Kompatibilitaetsschicht abbilden: Bus-/Registerzugriffe, Timing,
+  Spannung, AVR-Abstraktion, Block-I/O, Storage und Fortschritt.
+  Retrode3-Adapter verantworten Core-ABI, Erkennung, Auswahl,
+  Metadaten, Sicherheitsfreigaben und Integration; sie ersetzen
+  keine Upstream-Lesealgorithmen. Datenbankimporte ebenfalls aus
+  gepinnten Originaldaten automatisieren; lokale Ergaenzungen separat
+  versionieren und nach Moeglichkeit upstream anbieten.
+- **Ausnahme nur bei technischer Notwendigkeit:** Wenn HAL oder
+  automatisierte allgemeine Transformation nicht ausreichen, ist ein
+  minimaler, separat versionierter Quellpatch zulaessig. Begruendung,
+  betroffene Upstream-Revision, Umfang und Regressionstest dokumentieren.
+  Der Build muss erst die Originalquelle automatisch transformieren
+  und danach die Patches in deterministischer Reihenfolge auf die
+  generierte Arbeitskopie anwenden. Niemals das Original-Submodul
+  patchen oder den generierten Code manuell pflegen. Patches bei
+  Upstream-Updates pruefen und entfernen, sobald sie entbehrlich sind.
+- Bei geaenderten Quellankern, unerwarteten Transformationen oder nicht
+  exakt anwendbaren Patches muss der Build mit klarer Diagnose abbrechen.
+  Keine stillen Fallbacks auf alte generierte Dateien oder ungepruefte
+  Ersatzalgorithmen. Generator und Patch-Anwendung in CI pruefen.
+- Automatische Uebernahme ist keine automatische Hardwarefreigabe:
+  Upstream-Faehigkeiten, Retrode3-Sicherheitsfreigabe und Hardware-
+  Teststatus getrennt verwalten. Ungepruefte Register-/RAM-/Flash-
+  Zugriffe bleiben gesperrt. Bestehende Sicherheitsregeln gelten weiter.
+- Bestehende manuelle Doppelimplementierungen schrittweise durch
+  automatisch erzeugte Originalroutinen ersetzen; erst nach passenden
+  Regressionstests und Hardwarevergleich entfernen. Gilt fuer
+  saemtliche bestehenden und zukuenftigen OSCR-Cores, nicht nur NES.
+
 ## Neue Plugin-Cores: Debian-Paket ist Pflicht
 
 - **Jeder neue Core fuer ein Release braucht `packaging/cores/<id>.core`
