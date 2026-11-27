@@ -1,8 +1,8 @@
 name: Retrode3 migration (read-only)
 on:
   push:
-    branches:
-      - master
+    branches: [master]
+    tags: ['apt-*']
     paths:
       - 'tools/retrode3-readtest.py'
       - 'tests/test_*readtest.py'
@@ -10,15 +10,14 @@ on:
       - 'Makefile.migration'
       - '.github/workflows/retrode3-migration.yml'
   pull_request:
-    branches:
-      - master
-      - develop
+    branches: [master]
     paths:
       - 'tools/retrode3-readtest.py'
       - 'tests/test_*readtest.py'
       - 'src/retrode3/read_bus.cpp'
       - 'Makefile.migration'
       - '.github/workflows/retrode3-migration.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

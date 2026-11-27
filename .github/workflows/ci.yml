@@ -9,9 +9,11 @@ on:
       - 'Cart_Reader/**'
       - '.github/workflows/ci.yml'
   pull_request:
+    branches: [master]
     paths:
       - 'Cart_Reader/**'
       - '.github/workflows/ci.yml'
+  workflow_dispatch:
 
 
 concurrency:
