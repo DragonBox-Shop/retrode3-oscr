@@ -211,6 +211,12 @@ struct BankedRecord {
 const BankedRecord banked_records[] = {
 #include "oscr_nes_banked_catalog.inc"
 #include "oscr_nes_extra_banked_catalog.inc"
+    // Physical Retrode3 probe 2026-11-27; reference CRC and board metadata
+    // from NewRisingSun NES 2.0 XML DB, Modern/Gravity Trooper Metal Storm
+    // (Collector's Edition). The constant last window is corroboration
+    // only, never a standalone fingerprint.
+    {268u, {0x0E94BBA9u, 0xB2AA7578u, 0x1BE6552Cu, 512u, 0u, 0u, 0u,
+        "4E45531A2000C0080100000C00000001", "Metal Storm (World) (Retro-Bit)"}},
 };
 const std::size_t banked_record_count =
     sizeof(banked_records) / sizeof(banked_records[0]);
@@ -357,8 +363,13 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
         for (std::size_t i = 0; i < banked_all_count(); ++i) {
             const retrode3::nesstage1::Mmc1Record &rec = banked_record(i);
             const unsigned mapper = banked_mapper(i);
-            if (!((first_informative && rec.id32a && rec.id32a == a) ||
-                  (last_informative && rec.id32b && rec.id32b == b))) continue;
+            const bool metal_storm = mapper == 268u &&
+                rec.payload_crc32 == 0x1BE6552Cu;
+            if (metal_storm) {
+                if (!(first_informative && a == rec.id32a &&
+                      uniform(last, 0) && b == rec.id32b)) continue;
+            } else if (!((first_informative && rec.id32a && rec.id32a == a) ||
+                         (last_informative && rec.id32b && rec.id32b == b))) continue;
             if (out->candidate_count == RETRODE3_MAX_CANDIDATES_V2)
                 return fail(error, cap, "too many NES fingerprint candidates");
             const bool battery = mmc1_battery(rec);
@@ -366,10 +377,10 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
             // are still visible, but never auto-read in this lab.
             const bool trainer = (rec.header_hex[13] >= '0' && rec.header_hex[13] <= '9' ?
                 rec.header_hex[13] - '0' : (rec.header_hex[13] & 15) + 9) & 4;
-            // SMD133 requires explicit board/submapper confirmation; a
-            // PRG fingerprint cannot establish which low register window
-            // is wired or whether a flash/WRAM variant is present.
-            const bool supported = mapper != 268u && !battery && !trainer &&
+            // Metal Storm's measured probe pair is linked to an
+            // independently documented submapper 0 reference. Other
+            // SMD133 variants still require board-specific qualification.
+            const bool supported = (mapper != 268u || metal_storm) && !battery && !trainer &&
                 retrode3::nesmapper::runtime_mapper_enabled(mapper) &&
                 retrode3::nesmapper::geometry(mapper, rec.submapper,
                     rec.prg_bytes_kib, rec.chr_bytes_kib);
@@ -560,8 +571,6 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
         // recognized battery-backed MMC1 board. Its $E000 register
         // strobes may corrupt PRG-RAM even during an otherwise ROM-only
         // read. This check performs no additional cartridge bus writes.
-        if (mapper == 268u && !request->manual)
-            return fail(error, cap, "SMD133 requires explicit manual board/submapper selection");
         if (mapper != 0 && request->battery)
             return fail(error, cap, "battery-backed NES bank switching not approved");
         if (mapper != 0) {
@@ -734,7 +743,7 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
            {"value":66,"label":"GxROM","read_supported":true},
            {"value":71,"label":"Camerica","read_supported":true},
            {"value":206,"label":"DxROM","read_supported":true},
-           {"value":268,"label":"SMD133 (Coolboy/Mindkids, manual only)","read_supported":true}]},
+           {"value":268,"label":"SMD133 (Coolboy/Mindkids)","read_supported":true}]},
 {"id":"submapper","label":"Submapper","type":"integer","minimum":0,"maximum":15,"required":true,"default":0},
 {"id":"prg_kib","label":"PRG ROM (KiB)","type":"integer","minimum":16,"maximum":512,"required":true},
 {"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128,256]},
@@ -1012,7 +1021,10 @@ int read_rom_v3(const retrode3_selection_v3 *choice,
         const std::string matched(old.matched_candidate_id);
         const std::string selected(choice->candidate_id);
         const bool mismatch = !selected.empty() && matched != selected;
-        const std::string status = mismatch ? "mismatch" :
+        const bool known_auto_smd = !request.manual && probe_info.candidate_count == 1u &&
+            probe_info.candidates[0].mapper == 268u && probe_info.candidates[0].read_supported;
+        const std::string status = (mismatch || (known_auto_smd &&
+            old.payload_crc32 != probe_info.candidates[0].payload_crc32)) ? "mismatch" :
             old.verified ? "verified" :
             matched.empty() ? "not_found" : "ambiguous";
         unsigned actual_mapper = request.mapper;
@@ -1029,6 +1041,12 @@ int read_rom_v3(const retrode3_selection_v3 *choice,
         char crc[9];
         std::snprintf(crc, sizeof(crc), "%08X", old.payload_crc32);
         std::string expected = "null";
+        if (selected.empty() && actual_mapper == 268u && !request.manual &&
+            probe_info.candidate_count == 1u) {
+            char hex[9];
+            std::snprintf(hex, sizeof(hex), "%08X", probe_info.candidates[0].payload_crc32);
+            expected = retrode3::json_quote_v3(hex);
+        }
         if (!selected.empty()) {
             for (unsigned i = 0; i < probe_info.candidate_count; ++i) {
                 const retrode3_candidate_v2 &c = probe_info.candidates[i];

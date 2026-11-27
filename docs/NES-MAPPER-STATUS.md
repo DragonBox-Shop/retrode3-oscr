@@ -1,5 +1,23 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## Metal Storm: regulaerer Auto-Probe/Read (2026-11-27)
+
+- Supplement zum gepinnten Sanni-Katalog: Metal Storm (World) (Retro-Bit),
+  512 KiB PRG, 0 CHR-ROM, 256 KiB CHR-RAM, Mapper 268 Submapper 0,
+  horizontales Mirroring, keine Batterie, Payload-CRC32 1BE6552C.
+  Referenz: NewRisingSun NES 2.0 XML DB, Modern/Gravity Trooper
+  Metal Storm (Collector's Edition), Spiegel:
+  https://github.com/Eggmansworld/Eggmans_NRSVault_Mini/blob/main/files/nes20db.xml
+  SHA1 618854CA960CD8A3B35ED4D2B482C528F26423D9; kein Overdump.
+- Gemessenes Probe-Paar 0E94BBA9/B2AA7578. Letzterer Wert ist nur
+  zusaetzliche Bestaetigung (512 Nullbytes); niemals allein matchen.
+  Normale Web-/CLI-Autoauswahl, Original-Sanni-Switch und CRC-Pruefung.
+  Falscher CRC wird als mismatch ausgegeben; keine Verifikation vor Dump.
+  Andere SMD133-Boards behalten ihre bestehenden Freigaberegeln.
+- Mock mit synthetischen CRC-Patches (keine Original-ROM-Daten) prueft
+  Auto-Probe, Auto-Dump, NES2-Header und CRC-Mismatch. Hardware/CI offen.
+  Vorherige Angaben zu manueller Auswahl sind fuer diesen Titel ueberholt.
+
 ## CPU-Register-HAL / SMD133 (2026-11-27)
 
 - `nesmapper` trennt PRG-Register, CPU-Expansion ($4020-$5FFF)

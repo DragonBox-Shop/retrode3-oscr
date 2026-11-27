@@ -133,6 +133,24 @@ void init()
             rom_prg[prg_size - 2] = 0xd2;
             rom_prg[prg_size - 1] = 0x99;
         }
+        if (mapper == 268 && std::getenv("RETRODE_MOCK_NES_METAL_STORM")) {
+            // Synthetic 512 KiB PRG only. Four-byte CRC patches reproduce
+            // measured probe and independent reference CRC, not game data.
+            std::memset(&rom_prg[0], 0, 512);
+            rom_prg[508] = 0x47;
+            rom_prg[509] = 0x81;
+            rom_prg[510] = 0x49;
+            rom_prg[511] = 0xca;
+            std::memset(&rom_prg[prg_size - 8192u], 0, 512);
+            if (!std::getenv("RETRODE_MOCK_NES_METAL_STORM_BAD_CRC")) {
+                rom_prg[prg_size - 4u] = 0x2f;
+                rom_prg[prg_size - 3u] = 0xef;
+                rom_prg[prg_size - 2u] = 0xc9;
+                rom_prg[prg_size - 1u] = 0x9b;
+            }
+            if (std::getenv("RETRODE_MOCK_NES_METAL_STORM_BAD_PROBE"))
+                rom_prg[prg_size - 8192u] = 1u;
+        }
         // Emulate Metal Storm's uninformative $E000 probe window.
         // The rest is synthetic, not a copy of a commercial ROM.
         if (mapper == 4 && std::getenv("RETRODE_MOCK_NES_CONSTANT_LAST"))

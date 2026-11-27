@@ -38,6 +38,13 @@ Hardwareunterlagen nach `retrode3-hardware`.
 
 ## Tests, Sicherheit, Source-Verantwortung
 
+- Entwicklungsfunktionen moeglichst direkt ueber den normalen
+  Benutzerablauf (Paket-Update, Web-Probe, Read) zum Hardwaretest
+  bereitstellen. Keine manuellen Testschalter oder separaten Laborpfade
+  als Standard, wenn der regulaere Ablauf sicher implementierbar ist.
+  Unbekannte Hardwarevarianten und unsichere Schreibzugriffe weiterhin
+  blockieren; Hardwareabnahme bleibt Voraussetzung fuer master.
+
 - Vor einem Tag/Release im vollstaendigen lokalen Checkout
   `./tools/preflight-ci.sh` sowie die jeweils betroffenen Mock-/Core-
   und Staging-Tests ausfuehren. Zwischencommits auf `develop` duerfen

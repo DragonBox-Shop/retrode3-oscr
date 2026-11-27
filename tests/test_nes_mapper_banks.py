@@ -388,6 +388,48 @@ class TestNesMapperBanks(unittest.TestCase):
                                  (0x8000, 6, 10), (0x8001, bank, 10)])
             self.assertEqual(writes, expected)
 
+    def test_metal_storm_detects_and_dumps_with_auto_selection(self):
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
+        log = os.path.join(self.temp.name, "metal-storm.writes")
+        env = {"RETRODE_MOCK_NES_METAL_STORM": "1",
+               "RETRODE_MOCK_NES_WRITELOG": log}
+        probe = {"command": "probe", "core": "nes", "request_id": "metal-probe"}
+        info = self.run_cli(268, [probe], env)[-1]
+        self.assertEqual(info["event"], "probe_result", info)
+        self.assertEqual(info["title"], "Metal Storm (World) (Retro-Bit)")
+        self.assertEqual(info["mapping"], "smd133")
+        self.assertEqual(info["probe_fingerprints"], {
+            "cpu_8000_crc32": "0E94BBA9", "cpu_e000_crc32": "B2AA7578"})
+        self.assertFalse(info["selection_required"])
+        self.assertEqual(info["size_bytes"], 524304)
+        self.assertTrue(info["candidates"][0]["read_supported"])
+        self.assertEqual(info["candidates"][0]["payload_crc32_expected"], "1BE6552C")
+        self.assertFalse(os.path.exists(log))
+        bad = self.run_cli(268, [probe], dict(env, RETRODE_MOCK_NES_METAL_STORM_BAD_PROBE="1"))[-1]
+        self.assertNotEqual(bad["title"], info["title"])
+        self.assertFalse(os.path.exists(log))
+        job = {"command": "read_rom", "core": "nes", "request_id": "metal-auto",
+               "output": os.path.join(self.temp.name, "metal.nes"),
+               "selection": {"version": 1, "schema_id": "nes-layout-v1", "mode": "auto"}}
+        result = self.run_cli(268, [job], env)[-1]
+        self.assertEqual(result["event"], "result", result)
+        self.assertTrue(result["verified"], result)
+        self.assertEqual(result["identity"]["title"], info["title"])
+        self.assertEqual(result["verification"]["expected"], "1BE6552C")
+        self.assertEqual(result["verification"]["actual"], "1BE6552C")
+        with io.open(job["output"], "rb") as handle:
+            data = handle.read()
+        self.assertEqual(len(data), 524304)
+        self.assertEqual(data[:16], bytes(bytearray(
+            [0x4e, 0x45, 0x53, 0x1a, 32, 0, 0xc0, 0x08,
+             1, 0, 0, 12, 0, 0, 0, 1])))
+        self.assertEqual(zlib.crc32(data[16:]) & 0xffffffff, 0x1BE6552C)
+        job["output"] = os.path.join(self.temp.name, "metal-bad.nes")
+        bad = self.run_cli(268, [job], dict(env, RETRODE_MOCK_NES_METAL_STORM_BAD_CRC="1"))[-1]
+        self.assertEqual(bad["event"], "result", bad)
+        self.assertFalse(bad["verified"])
+        self.assertEqual(bad["verification"]["status"], "mismatch")
+
     def test_smd133_invalid_profile_rejected_before_writes(self):
         for i, patch in enumerate(({"submapper": 2}, {"prg_kib": 256},
                                    {"chr_kib": 8}, {"battery": True})):
