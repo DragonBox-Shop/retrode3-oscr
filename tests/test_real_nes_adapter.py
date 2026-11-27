@@ -302,8 +302,17 @@ class TestRealNesAdapter(unittest.TestCase):
         self.assertIn("address += 512", source)
         self.assertIn("OSCR::RetroDe3::readPRGBlock(", source)
         self.assertIn("OSCR::RetroDe3::readCHRBlock(", source)
-        for forbidden in ("write_prg_byte(", "nes_write(", "NES_MAPPER", "writeRAM("):
+        # Low-level block iterators must remain strictly read-only.
+        # The complete upstream mapper switches now contain register calls,
+        # but must not bypass the separately guarded HAL.
+        blocks = source.split("  void write_mmc1_byte(", 1)[0]
+        for forbidden in ("write_prg_byte(", "write_reg_byte(", "NES_MAPPER"):
+            self.assertNotIn(forbidden, blocks)
+        for forbidden in ("nes_write(", "nes_read(", "writeRAM(", "retrode3-lib.h"):
             self.assertNotIn(forbidden, source)
+        self.assertIn("void generatedReadPRG(", source)
+        self.assertIn("void generatedReadCHR(", source)
+        self.assertIn("case 268:", source)
 
     def test_strict_upstream_guard_rejects_modified_bank_iterator(self):
         original = os.path.join(ROOT, "third_party/oscr-firmware/src/cores/NES.cpp")
