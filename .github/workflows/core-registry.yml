@@ -2,9 +2,8 @@ name: Native Retrode3 core registry
 
 on:
   push:
-    branches:
-      - master
-      - develop
+    branches: [master]
+    tags: ['apt-*']
     paths:
       - 'Makefile.migration'
       - 'include/retrode3/**'
@@ -21,9 +20,7 @@ on:
       - 'tools/preflight-ci.sh'
       - '.github/workflows/core-registry.yml'
   pull_request:
-    branches:
-      - master
-      - develop
+    branches: [master]
     paths:
       - 'tools/build-linux-sms-core.py'
       - 'tools/build-linux-gba-core.py'
