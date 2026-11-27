@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Verify complete upstream mapper extraction and strict patch application."""
 import importlib.machinery
-import importlib.util
 import io
-import os
 import re
 import sys
 
