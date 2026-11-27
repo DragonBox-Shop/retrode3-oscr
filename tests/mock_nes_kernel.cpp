@@ -121,6 +121,10 @@ void init()
             rom_prg[prg_size - 2] = 0xd2;
             rom_prg[prg_size - 1] = 0x99;
         }
+        // Emulate Metal Storm's uninformative $E000 probe window.
+        // The rest is synthetic, not a copy of a commercial ROM.
+        if (mapper == 4 && std::getenv("RETRODE_MOCK_NES_CONSTANT_LAST"))
+            std::memset(&rom_prg[prg_size - 8192u], 0, 512);
         const char *no_safe = std::getenv("RETRODE_MOCK_NES_NO_CONFLICT_SAFE");
         if (no_safe && mapper == 2)
             for (unsigned i = prg_size - 16384u; i < prg_size; ++i)

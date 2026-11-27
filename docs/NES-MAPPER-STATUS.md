@@ -1,5 +1,23 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## Metal Storm Retro-Bit (2026-11-27)
+
+Echthardware-Probe: $8000 0E94BBA9, $E000 B2AA7578.
+Letzterer ist die CRC32 von 512 Nullbytes und hat vier falsche
+Kandidaten geliefert. Konstante 512-Byte-Fenster werden nun in v2/v3
+nicht mehr zum Katalogabgleich verwendet; Diagnose-CRC bleibt sichtbar.
+Mock-Regression hinzugefuegt, CI/Hardware-Nachtest offen.
+
+Der Nutzer hat die Retro-Bit-Neuauflage bestaetigt. Der alte 384-KiB
+MMC3-Dump (Payload 3BFF454A) ist kein gueltiger Referenzdump.
+Mapper 268 (SMD133), 512 KiB PRG, 0 CHR-ROM, 256 KiB CHR-RAM
+und NES 2.0 Header sind erforderlich. Sannis gepinnter Code hat eine
+268-Sequenz mit Outer-Registern unter $8000; vor Portierung konkrete
+Submapper-/Registerdekodierung und RAM-/Flash-Schutz pruefen.
+Kein Mapper-268-Schreibzugriff aktiviert; keine neue Titel-CRC erfunden.
+Quellen: https://github.com/sanni/cartreader/discussions/290
+und https://www.nesdev.org/wiki/COOLBOY .
+
 > **Stand: 2026-11-26 | Entwicklungsbranch: `develop`**
 >
 > **Aktueller Entwicklungsstand (ersetzt widersprechende historische Angaben unten):**

@@ -301,6 +301,22 @@ class TestNesMapperBanks(unittest.TestCase):
             with io.open(output, "rb") as handle:
                 self.assertEqual(handle.read(), fixture_rom(mapper, p, c))
 
+    def test_constant_last_window_is_not_a_fingerprint_match(self):
+        log = os.path.join(self.temp.name, "constant-window-writes")
+        events = self.run_cli(4, [{"command": "probe", "core": "nes",
+                                   "request_id": "constant-window"}],
+                              {"RETRODE_MOCK_NES_CONSTANT_LAST": "1",
+                               "RETRODE_MOCK_NES_WRITELOG": log})
+        probe = events[-1]
+        self.assertEqual(probe["event"], "probe_result", events)
+        self.assertEqual(probe["probe_fingerprints"]["cpu_e000_crc32"],
+                         "B2AA7578")
+        false_titles = {"Break Time - The National Pool Tour (USA)",
+                        "Goal! (USA)", "3-D WorldRunner (USA)", "Tetris 2 (USA)"}
+        self.assertFalse(false_titles.intersection(
+            c["title"] for c in probe["candidates"]))
+        self.assertFalse(os.path.exists(log))
+
     def test_probe_does_not_write_any_registers(self):
         for mapper in (2, 3, 4, 7):
             log = os.path.join(self.temp.name, "probe-%s.log" % mapper)

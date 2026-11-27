@@ -289,6 +289,11 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
         unsigned char first[512], last[512];
         bus.nes_block(0x8000, first, sizeof(first), retrode3::NesSpace::Prg);
         bus.nes_block(0xe000, last, sizeof(last), retrode3::NesSpace::Prg);
+        // Erased/open-bus/constant windows carry no identifying
+        // information. Keep their raw CRC for diagnostics, but never
+        // let a constant window select an unrelated cartridge layout.
+        const bool first_informative = !uniform(first, first[0]);
+        const bool last_informative = !uniform(last, last[0]);
         if ((uniform(first, 0) && uniform(last, 0)) ||
             (uniform(first, 255) && uniform(last, 255)))
             return fail(error, cap, "NES slot empty/unreadable");
@@ -299,8 +304,8 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
         for (std::size_t i = 0; i < retrode3::nesstage1::record_count; ++i) {
             retrode3::nesstage1::NromRecord const &record =
                 retrode3::nesstage1::records[i];
-            if (!((record.id32a && record.id32a == a) ||
-                  (record.id32b && record.id32b == b))) continue;
+            if (!((first_informative && record.id32a && record.id32a == a) ||
+                  (last_informative && record.id32b && record.id32b == b))) continue;
             if (!valid_geometry(record.prg_bytes_kib, record.chr_bytes_kib))
                 return fail(error, cap, "invalid pinned NROM catalogue geometry");
             if (out->candidate_count == RETRODE3_MAX_CANDIDATES_V2)
@@ -334,8 +339,8 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
         for (std::size_t i = 0; i < banked_all_count(); ++i) {
             const retrode3::nesstage1::Mmc1Record &rec = banked_record(i);
             const unsigned mapper = banked_mapper(i);
-            if (!((rec.id32a && rec.id32a == a) ||
-                  (rec.id32b && rec.id32b == b))) continue;
+            if (!((first_informative && rec.id32a && rec.id32a == a) ||
+                  (last_informative && rec.id32b && rec.id32b == b))) continue;
             if (out->candidate_count == RETRODE3_MAX_CANDIDATES_V2)
                 return fail(error, cap, "too many NES fingerprint candidates");
             const bool battery = mmc1_battery(rec);
