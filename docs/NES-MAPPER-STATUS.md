@@ -1,5 +1,36 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## CPU-Register-HAL / SMD133 (2026-11-27)
+
+- `nesmapper` trennt PRG-Register, CPU-Expansion ($4020-$5FFF)
+  und Register-Overlay im WRAM-Fenster ($6000-$7FFF). Alle verwenden
+  den vorhandenen NES_MODE_PRG (10) CPU-Schreibzyklus, der im Kernel
+  ROMSEL anhand A15 setzt; keine neue Kernel-ABI und keine generische
+  Freigabe fuer niedrige Adressen, SRAM oder Flash.
+- Mapper 268 verwendet den generierten Sanni-Switch, fuer den
+  manuellen 512 KiB PRG / 0 KiB CHR-ROM / 256 KiB CHR-RAM-Profiltyp.
+  Submapper 0: nur $6000-$6003, Submapper 1: nur $5000-$5003.
+  Die HAL unterdrueckt die vom Upstream parallel angesprochene
+  unpassende Adressgruppe. A001=80 wird auf A001=00 abgebildet,
+  um WRAM deaktiviert zu halten; Outer-Register nur mit genau
+  zugelassenen Werten, MMC3 nur 8000=06 und 8001=0..63.
+  Kein Auto-Read fuer 268, keine Batterie, kein CHR-ROM, keine
+  anderen Submapper/Groessen, keine Flash-Kommandos.
+- NES 2.0 Header kodiert jetzt auch Mapper >255 bei Submapper 0;
+  beim manuellen SMD133-Profil Byte 11 = 0C (256 KiB CHR-RAM).
+  Erwartete Dateilaenge 524304 Bytes. Keine CRC oder Identitaet
+  fuer Metal Storm erfunden. Der konkrete Submapper der echten
+  Cartridge muss ueber PCB/5-6K-Bruecke oder Referenzheader
+  feststehen. Stromlos neu einlegen vor jedem physischen Versuch.
+- Mock testet beide Adressfenster, vollstaendiges PRG-Payload,
+  NES2-Header, WRAM-disable vor Outer-Writes, keine Probe-Writes
+  und Ablehnung nicht freigegebener Layouts. Noch nicht ausgefuehrt.
+  Kernel/Hardware-Timing und CI bleiben ungetestet.
+- Quellen: https://www.nesdev.org/wiki/COOLBOY (Registerdekodierung
+  und WRAM-Unabhaengigkeit), https://github.com/sanni/cartreader/discussions/290
+  (512 KiB Metal Storm). Historische Aussagen zur fehlenden HAL
+  weiter unten beziehen sich auf den vorherigen Stand.
+
 ## Weitere generierte Mapper-Familien (2026-11-27)
 
 - Entwicklerversion: 11 (Color Dreams), 13 (CPROM), 66 (GxROM),

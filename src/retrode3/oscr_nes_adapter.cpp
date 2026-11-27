@@ -366,7 +366,10 @@ int fast_probe_with_fingerprints(retrode3_probe_v2 *out,
             // are still visible, but never auto-read in this lab.
             const bool trainer = (rec.header_hex[13] >= '0' && rec.header_hex[13] <= '9' ?
                 rec.header_hex[13] - '0' : (rec.header_hex[13] & 15) + 9) & 4;
-            const bool supported = !battery && !trainer &&
+            // SMD133 requires explicit board/submapper confirmation; a
+            // PRG fingerprint cannot establish which low register window
+            // is wired or whether a flash/WRAM variant is present.
+            const bool supported = mapper != 268u && !battery && !trainer &&
                 retrode3::nesmapper::runtime_mapper_enabled(mapper) &&
                 retrode3::nesmapper::geometry(mapper, rec.submapper,
                     rec.prg_bytes_kib, rec.chr_bytes_kib);
@@ -466,14 +469,17 @@ void synthetic_header(unsigned mapper, unsigned submapper,
         (mirroring == 1 ? 1u : 0u) | (battery ? 2u : 0u) |
         (mirroring == 2 ? 8u : 0u));
     header[7] = static_cast<unsigned char>(mapper & 0xf0u);
-    if (submapper) {
-        // iNES 1.0 cannot store an NES 2.0 submapper. Preserve it
-        // even for an unverified manually configured homebrew ROM.
-        if (submapper > 15u)
-            throw std::runtime_error("invalid NES submapper");
-        header[7] |= 0x08u; // NES 2.0 marker
-        header[8] = static_cast<unsigned char>(submapper << 4);
+    if (submapper || mapper > 255u) {
+        // NES 2.0 is mandatory for mapper numbers above 255 even
+        // when submapper is zero. Preserve all twelve mapper bits.
+        if (submapper > 15u || mapper > 4095u)
+            throw std::runtime_error("invalid NES mapper/submapper");
+        header[7] |= 0x08u;
+        header[8] = static_cast<unsigned char>((submapper << 4) | (mapper >> 8));
     }
+    // The currently approved manual SMD133 profile is specifically
+    // 512 KiB PRG and 256 KiB volatile CHR RAM (64 << 12 bytes).
+    if (mapper == 268u) header[11] = 0x0cu;
 }
 int read_rom_v2(retrode3_probe_v2 const *probe,
                 retrode3_read_request_v2 const *request,
@@ -554,6 +560,8 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
         // recognized battery-backed MMC1 board. Its $E000 register
         // strobes may corrupt PRG-RAM even during an otherwise ROM-only
         // read. This check performs no additional cartridge bus writes.
+        if (mapper == 268u && !request->manual)
+            return fail(error, cap, "SMD133 requires explicit manual board/submapper selection");
         if (mapper != 0 && request->battery)
             return fail(error, cap, "battery-backed NES bank switching not approved");
         if (mapper != 0) {
@@ -725,7 +733,8 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
            {"value":13,"label":"CPROM","read_supported":true},
            {"value":66,"label":"GxROM","read_supported":true},
            {"value":71,"label":"Camerica","read_supported":true},
-           {"value":206,"label":"DxROM","read_supported":true}]},
+           {"value":206,"label":"DxROM","read_supported":true},
+           {"value":268,"label":"SMD133 (Coolboy/Mindkids, manual only)","read_supported":true}]},
 {"id":"submapper","label":"Submapper","type":"integer","minimum":0,"maximum":15,"required":true,"default":0},
 {"id":"prg_kib","label":"PRG ROM (KiB)","type":"integer","minimum":16,"maximum":512,"required":true},
 {"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128,256]},
@@ -750,6 +759,8 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
 {"when":{"mapper":66},"allow":{"submapper":[0],"prg_kib":[32,64,128],"chr_kib":[8,16,32]},"read_supported":true},
 {"when":{"mapper":71},"allow":{"submapper":[0],"prg_kib":[64,128,256],"chr_kib":[0]},"read_supported":true},
 {"when":{"mapper":206},"allow":{"submapper":[0],"prg_kib":[32,64,128],"chr_kib":[16,32,64]},"read_supported":true},
+{"when":{"mapper":268},"allow":{"submapper":[0,1],"prg_kib":[512],"chr_kib":[0]},"read_supported":true},
+{"when":{"mapper":268,"battery":true},"read_supported":false,"reason":"SMD133 battery-backed layout not approved"},
 {"when":{"mapper":11,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
 {"when":{"mapper":13,"battery":true},"read_supported":false,"reason":"Battery-backed layout not approved"},
 {"when":{"mapper":66,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
@@ -797,7 +808,8 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
              result.layouts[0].mapper == 13 ? "cprom" :
              result.layouts[0].mapper == 66 ? "gxrom" :
              result.layouts[0].mapper == 71 ? "camerica" :
-             result.layouts[0].mapper == 206 ? "dxrom" : "unknown") : "unknown") +
+             result.layouts[0].mapper == 206 ? "dxrom" :
+             result.layouts[0].mapper == 268 ? "smd133" : "unknown") : "unknown") +
         ",\"size_bytes\":" + std::to_string(unique_layout ?
             16u + (result.layouts[0].prg_kib + result.layouts[0].chr_kib) * 1024u : 0u) +
         ",\"title\":" +

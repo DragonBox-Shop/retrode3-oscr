@@ -16,14 +16,24 @@ void check_cancel(const retrode3_host_io_v1 *io)
     if (!io || !io->cancelled || io->cancelled(io->context))
         throw std::runtime_error("cancelled");
 }
-void prg_register(uint16_t address, uint8_t data)
+// The kernel's NES_MODE_PRG implements a normal CPU write cycle and
+// derives ROMSEL from A15. Below $8000 this is NOT a PRG-ROM access.
+// Keep the address spaces distinct; only reviewed mapper policies below
+// may authorize a low CPU address. Never fall back to NES_MODE_RAM/WRAM.
+enum class CpuRegisterSpace { Prg, Expansion, WramOverlay };
+void cpu_mapper_register(CpuRegisterSpace space, uint16_t address, uint8_t data)
 {
-    // Never expose an arbitrary cart-write method; restrict to CPU PRG
-    // mapper-register address space. Caller already validated the mapper.
-    if (address < 0x8000u)
+    const bool valid = space == CpuRegisterSpace::Prg ? address >= 0x8000u :
+        space == CpuRegisterSpace::Expansion ? address >= 0x4020u && address < 0x6000u :
+        address >= 0x6000u && address < 0x8000u;
+    if (!valid)
         throw std::runtime_error("NES mapper register address rejected");
     if (nes_write(address, &data, 1, NES_MODE_PRG) != 1)
         throw std::runtime_error("NES mapper register write failed");
+}
+void prg_register(uint16_t address, uint8_t data)
+{
+    cpu_mapper_register(CpuRegisterSpace::Prg, address, data);
 }
 void mmc1_register(uint16_t address, uint8_t data)
 {
@@ -84,6 +94,8 @@ uint16_t safe_register_address(uint16_t begin, uint8_t value, const retrode3_hos
 // The active context is scoped to one CLI operation (the CLI owns the bus lock).
 struct GeneratedContext {
     unsigned mapper;
+    unsigned submapper;
+    bool wram_disabled;
     const retrode3_host_io_v1 *io;
     unsigned cache_base;
     uint8_t cache[512];
@@ -116,6 +128,11 @@ void unsupported()
 }
 bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
 {
+    // SMD133: deliberately start with the 512 KiB PRG / 256 KiB
+    // CHR-RAM profile used by the Retro-Bit rerelease. No CHR-ROM reads,
+    // no later ASIC variants or arbitrary multicart geometries.
+    if (mapper == 268)
+        return submapper <= 1u && prg == 512u && chr == 0u;
     if (mapper == 1)
         return (submapper == 0 || (submapper == 5 && prg == 32u)) &&
                power_two(prg) && prg >= 32 && prg <= 512 &&
@@ -166,7 +183,7 @@ bool runtime_mapper_enabled(unsigned mapper)
     // Explicit list: newly ported geometry alone must not enable writes.
     return mapper == 1 || mapper == 2 || mapper == 3 ||
            mapper == 4 || mapper == 7 || mapper == 11 || mapper == 13 ||
-           mapper == 66 || mapper == 71 || mapper == 206;
+           mapper == 66 || mapper == 71 || mapper == 206 || mapper == 268;
 }
 
 void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
@@ -181,7 +198,7 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
     uint16_t addresses[32] = {};
     if (mapper == 2) safe_conflict_addresses(0xc000, prg_kib / 16, addresses, io);
     if (mapper == 3) safe_conflict_addresses(0x8000, chr_kib / 8, addresses, io);
-    GeneratedContext state = {mapper, io, 0, {}, false};
+    GeneratedContext state = {mapper, submapper, false, io, 0, {}, false};
     ContextScope scope(state);
     OSCR::Cores::NES::generatedReadPRG(mapper, exponent(prg_kib, 16));
     if (chr_kib)
@@ -202,6 +219,38 @@ void generated_write(unsigned address, unsigned data, bool serial)
                                            0x80u : data & 1u));
     } else {
         if (serial || data > 255u) unsupported();
+        if (c.mapper == 268) {
+            // Upstream emits both address windows for Coolboy/Mindkids.
+            // Only the explicitly selected submapper's window is driven.
+            // For this 512 KiB ROM-only profile the outer values are
+            // tightly bounded; no SRAM enable, lockout, or flash commands.
+            if (address == 0xa001u && data == 0x80u) {
+                // Upstream enables MMC3 WRAM before selecting the outer
+                // registers. They overlay but are independent of WRAM.
+                // Keep it disabled so $6000 writes cannot alter save RAM.
+                prg_register(0xa001u, 0u);
+                c.wram_disabled = true;
+            } else if ((address >= 0x5000u && address <= 0x5003u) ||
+                       (address >= 0x6000u && address <= 0x6003u)) {
+                if (!c.wram_disabled) unsupported();
+                const unsigned reg = address & 3u;
+                if ((reg == 0u && data > 3u) ||
+                    (reg == 1u && data != 0x60u) ||
+                    (reg >= 2u && data != 0u)) unsupported();
+                const unsigned window = c.submapper == 0u ? 0x6000u : 0x5000u;
+                if ((address & 0xf000u) == window)
+                    cpu_mapper_register(c.submapper == 0u ? CpuRegisterSpace::WramOverlay :
+                        CpuRegisterSpace::Expansion, static_cast<uint16_t>(address),
+                        static_cast<uint8_t>(data));
+            } else {
+                if (!c.wram_disabled ||
+                    !((address == 0x8000u && data == 6u) ||
+                      (address == 0x8001u && data < 64u))) unsupported();
+                prg_register(static_cast<uint16_t>(address), static_cast<uint8_t>(data));
+            }
+            c.cache_valid = false;
+            return;
+        }
         if (c.mapper == 4 || c.mapper == 206) {
             // MMC3/DxROM register family: never enable writable SRAM.
             if (address == 0xa001u && data == 0x80u) return;

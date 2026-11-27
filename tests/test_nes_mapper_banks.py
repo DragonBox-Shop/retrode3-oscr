@@ -254,7 +254,7 @@ class TestNesMapperBanks(unittest.TestCase):
         schema = cap["selection_schema"]
         field = next(f for f in schema["fields"] if f["id"] == "mapper")
         self.assertEqual(set(v["value"] for v in field["values"]
-                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 11, 13, 66, 71, 206})
+                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 11, 13, 66, 71, 206, 268})
 
     def test_bank_order_and_crc_for_mappers_2_3_4_7(self):
         shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
@@ -341,6 +341,67 @@ class TestNesMapperBanks(unittest.TestCase):
                                     for addr, value, mode in writes))
             else:
                 self.assertFalse(os.path.exists(log))
+
+    def test_smd133_outer_register_windows_and_nes2_header(self):
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
+        for sub, window in ((0, 0x6000), (1, 0x5000)):
+            selection = self.v3_override(512, 0)
+            selection["parameters"].update(mapper=268, submapper=sub)
+            name = "smd133-%d" % sub
+            output = os.path.join(self.temp.name, name + ".nes")
+            log = os.path.join(self.temp.name, name + ".writes")
+            env = {"RETRODE_MOCK_NES_SUBMAPPER": str(sub),
+                   "RETRODE_MOCK_NES_WRITELOG": log}
+            probe = self.run_cli(268, [{"command": "probe", "core": "nes",
+                                        "request_id": name + "-probe"}], env)[-1]
+            self.assertEqual(probe["event"], "probe_result", probe)
+            self.assertFalse(os.path.exists(log))
+            auto = {"version": 1, "schema_id": "nes-layout-v1", "mode": "auto"}
+            job = {"command": "read_rom", "core": "nes", "request_id": name,
+                   "output": output, "selection": auto}
+            events = self.run_cli(268, [job], env)
+            self.assertEqual(events[-1]["event"], "error", events)
+            self.assertFalse(os.path.exists(log))
+            job["selection"] = selection
+            events = self.run_cli(268, [job], env)
+            result = events[-1]
+            self.assertEqual(result["event"], "result", events)
+            self.assertFalse(result["verified"])
+            self.assertEqual(result["bytes_written"], 524304)
+            self.assertEqual(result["read_configuration"]["mapper"], 268)
+            self.assertEqual(result["read_configuration"]["submapper"], sub)
+            with io.open(output, "rb") as handle:
+                actual = handle.read()
+            self.assertEqual(actual[:16], bytes(bytearray(
+                [0x4e, 0x45, 0x53, 0x1a, 32, 0, 0xc0, 0x08,
+                 (sub << 4) | 1, 0, 0, 12, 0, 0, 0, 0])))
+            # Same synthetic PRG payload as the other mapper fixtures.
+            self.assertEqual(actual[16:], fixture_rom(268, 512, 0)[16:])
+            self.assertEqual(result["verification"]["actual"],
+                             "%08X" % (zlib.crc32(actual[16:]) & 0xffffffff))
+            with io.open(log, encoding="utf-8") as handle:
+                writes = [tuple(int(v) for v in line.split()) for line in handle]
+            expected = [(0xa001, 0, 10)]
+            for bank in range(64):
+                expected.extend([(window, bank >> 4, 10), (window + 1, 0x60, 10),
+                                 (window + 2, 0, 10), (window + 3, 0, 10),
+                                 (0x8000, 6, 10), (0x8001, bank, 10)])
+            self.assertEqual(writes, expected)
+
+    def test_smd133_invalid_profile_rejected_before_writes(self):
+        for i, patch in enumerate(({"submapper": 2}, {"prg_kib": 256},
+                                   {"chr_kib": 8}, {"battery": True})):
+            selection = self.v3_override(512, 0)
+            selection["parameters"].update(mapper=268)
+            selection["parameters"].update(patch)
+            output = os.path.join(self.temp.name, "bad-smd-%d.nes" % i)
+            log = os.path.join(self.temp.name, "bad-smd-%d.log" % i)
+            events = self.run_cli(268, [{"command": "read_rom", "core": "nes",
+                "request_id": "bad-smd", "output": output, "selection": selection}],
+                {"RETRODE_MOCK_NES_WRITELOG": log})
+            self.assertEqual(events[-1]["event"], "error", events)
+            self.assertFalse(os.path.exists(output))
+            self.assertFalse(os.path.exists(log))
 
     def test_constant_last_window_is_not_a_fingerprint_match(self):
         log = os.path.join(self.temp.name, "constant-window-writes")

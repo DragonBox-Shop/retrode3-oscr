@@ -11,6 +11,9 @@ unsigned char prg[32768], chr[8192];
 unsigned prg_size = 16384, chr_size = 8192;
 unsigned mapper = 0, ux_bank = 0, cn_bank = 0, ax_bank = 0;
 unsigned mmc_mode = 0, mmc_prg_bank = 0, mmc_chr_bank = 0;
+unsigned smd_window = 0x6000u, smd_outer[4] = {};
+bool smd_wram_enabled = true; // require explicit disabling before outer writes
+unsigned smd_seen = 0;
 // MMC1 serial registers and 8-KiB CHR banks, mock-only.
 unsigned mmc1_shift = 0, mmc1_bits = 0, mmc1_bank = 0;
 unsigned mmc1_chr = 0, mmc1_ctrl = 0x0cu;
@@ -41,6 +44,11 @@ void init()
         if (mapper == 13) { prg_size = 32768u; chr_size = 0u; }
         if (mapper == 71) { prg_size = 131072u; chr_size = 0u; }
         if (mapper == 206) { prg_size = 131072u; chr_size = 65536u; }
+        if (mapper == 268) {
+            prg_size = 512u * 1024u; chr_size = 0u;
+            const char *sub = std::getenv("RETRODE_MOCK_NES_SUBMAPPER");
+            if (sub && std::atoi(sub) == 1) smd_window = 0x5000u;
+        }
         if (mapper == 1 || mapper == 11 || mapper == 13 || mapper == 66 || mapper == 71 || mapper == 206) {
             const char *p = std::getenv("RETRODE_MOCK_NES_PRG_KIB");
             const char *c = std::getenv("RETRODE_MOCK_NES_CHR_KIB");
@@ -183,6 +191,17 @@ unsigned char mapped_prg(unsigned address)
         return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
     }
     if (mapper == 3 || mapper == 13 || (mapper == 206 && prg_size == 32768u)) return rom_prg[offset % prg_size];
+    if (mapper == 268) {
+        // Test the generated outer-bank sequence independently of inner
+        // banks; this simplified 512 KiB fixture is not a full ASIC model.
+        if (address < 0xa000u) {
+            const unsigned bank = (smd_outer[0] & 3u) * 16u + (mmc_prg_bank & 15u);
+            return rom_prg[bank * 8192u + (address & 0x1fffu)];
+        }
+        if (address >= 0xe000u)
+            return rom_prg[prg_size - 8192u + (address & 0x1fffu)];
+        return rom_prg[offset % prg_size];
+    }
     if (mapper == 4 || mapper == 206) {
         if (address < 0xa000u)
             return rom_prg[(mmc_prg_bank * 8192u + (address & 0x1fffu)) % prg_size];
@@ -244,11 +263,35 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
                          std::uint16_t size, int mode)
 {
     init();
-    if (!buf || mode != NES_MODE_PRG || size != 1 || address < 0x8000u)
+    if (!buf || mode != NES_MODE_PRG || size != 1 ||
+        (address < 0x8000u && mapper != 268))
         return -1;
     const char *fault = std::getenv("RETRODE_MOCK_NES_WRITE_FAIL");
     if (fault) return -1;
     const unsigned value = *static_cast<unsigned char *>(buf);
+    if (mapper == 268) {
+        if (address == 0xa001u && value == 0u) {
+            smd_wram_enabled = false;
+        } else if (address >= smd_window && address < smd_window + 4u) {
+            if (smd_wram_enabled) return -1;
+            const unsigned reg = address - smd_window;
+            if ((reg == 0u && value > 3u) ||
+                (reg == 1u && value != 0x60u) ||
+                (reg >= 2u && value != 0u)) return -1;
+            smd_outer[reg] = value;
+            smd_seen |= 1u << reg;
+        } else if (address == 0x8000u && value == 6u) {
+            if (smd_wram_enabled || smd_seen != 15u) return -1;
+            mmc_mode = 6u;
+        } else if (address == 0x8001u && value < 64u) {
+            if (smd_wram_enabled || mmc_mode != 6u || smd_seen != 15u ||
+                smd_outer[0] != (value >> 4)) return -1;
+            mmc_prg_bank = value;
+            smd_seen = 0;
+        } else return -1; // wrong window, WRAM enable, or other write
+        record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
+        return 1;
+    }
     // Fail on any bus-conflicting write. Sanni's unsupported fallback
     // deliberately has no equivalent in the production mapper adapter.
     if ((mapper == 2 || mapper == 3 || mapper == 7 || mapper == 11 || mapper == 66 || mapper == 71) && mapped_prg(address) != value)
