@@ -596,7 +596,17 @@ int read_rom_v2(retrode3_probe_v2 const *probe,
             OSCR::Cores::NES::dumpBankPRG(0, prg * 1024u, 0x8000);
             if (chr) OSCR::Cores::NES::dumpBankCHR(0, chr * 1024u);
         } else {
-            retrode3::nesmapper::dump(mapper, submapper, prg, chr, io);
+            // The documented Retro-Bit Metal Storm PCB has CHR-RAM,
+            // but no CPU PRG-RAM. Only a fresh, unique, approved catalog
+            // identification authorizes the unmodified Sanni SMD sequence.
+            // A manual mapper/layout override never grants this exception.
+            const bool smd_no_prg_ram = !request->manual && mapper == 268u &&
+                submapper == 0u && prg == 512u && chr == 0u &&
+                probe->candidate_count == 1u &&
+                probe->candidates[0].read_supported &&
+                probe->candidates[0].mapper == 268u &&
+                probe->candidates[0].payload_crc32 == 0x1BE6552Cu;
+            retrode3::nesmapper::dump(mapper, submapper, prg, chr, io, smd_no_prg_ram);
         }
         result->payload_crc32 = ~sink.crc;
 

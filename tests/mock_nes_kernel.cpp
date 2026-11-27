@@ -288,21 +288,25 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     if (fault) return -1;
     const unsigned value = *static_cast<unsigned char *>(buf);
     if (mapper == 268) {
-        if (address == 0xa001u && value == 0u) {
-            smd_wram_enabled = false;
+        const bool no_prg_ram = std::getenv("RETRODE_MOCK_NES_METAL_STORM") != NULL;
+        if (address == 0xa001u && (value == 0u || (no_prg_ram && value == 0x80u))) {
+            smd_wram_enabled = value == 0x80u;
         } else if (address >= smd_window && address < smd_window + 4u) {
-            if (smd_wram_enabled) return -1;
+            if (smd_wram_enabled && !no_prg_ram) return -1;
             const unsigned reg = address - smd_window;
             if ((reg == 0u && value > 3u) ||
                 (reg == 1u && value != 0x60u) ||
                 (reg >= 2u && value != 0u)) return -1;
             smd_outer[reg] = value;
             smd_seen |= 1u << reg;
+        } else if (no_prg_ram && address >= 0x5000u && address < 0x5004u) {
+            // The other decode window is unconnected on the submapper-0
+            // no-PRG-RAM fixture. Record it, but do not change its banks.
         } else if (address == 0x8000u && value == 6u) {
-            if (smd_wram_enabled || smd_seen != 15u) return -1;
+            if ((smd_wram_enabled && !no_prg_ram) || smd_seen != 15u) return -1;
             mmc_mode = 6u;
         } else if (address == 0x8001u && value < 64u) {
-            if (smd_wram_enabled || mmc_mode != 6u || smd_seen != 15u ||
+            if ((smd_wram_enabled && !no_prg_ram) || mmc_mode != 6u || smd_seen != 15u ||
                 smd_outer[0] != (value >> 4)) return -1;
             mmc_prg_bank = value;
             smd_seen = 0;

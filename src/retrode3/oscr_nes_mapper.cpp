@@ -95,7 +95,8 @@ uint16_t safe_register_address(uint16_t begin, uint8_t value, const retrode3_hos
 struct GeneratedContext {
     unsigned mapper;
     unsigned submapper;
-    bool wram_disabled;
+    bool smd_initialized;
+    bool smd_no_prg_ram;
     const retrode3_host_io_v1 *io;
     unsigned cache_base;
     uint8_t cache[512];
@@ -187,7 +188,7 @@ bool runtime_mapper_enabled(unsigned mapper)
 }
 
 void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
-          unsigned chr_kib, const retrode3_host_io_v1 *io)
+          unsigned chr_kib, const retrode3_host_io_v1 *io, bool smd_no_prg_ram)
 {
     if (!geometry(mapper, submapper, prg_kib, chr_kib) ||
         !(mapper == 1 ? mmc1_layout_enabled(submapper, prg_kib, chr_kib, false)
@@ -198,7 +199,10 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
     uint16_t addresses[32] = {};
     if (mapper == 2) safe_conflict_addresses(0xc000, prg_kib / 16, addresses, io);
     if (mapper == 3) safe_conflict_addresses(0x8000, chr_kib / 8, addresses, io);
-    GeneratedContext state = {mapper, submapper, false, io, 0, {}, false};
+    if (smd_no_prg_ram && (mapper != 268u || submapper != 0u ||
+                           prg_kib != 512u || chr_kib != 0u))
+        throw std::runtime_error("invalid NES no-PRG-RAM board profile");
+    GeneratedContext state = {mapper, submapper, false, smd_no_prg_ram, io, 0, {}, false};
     ContextScope scope(state);
     OSCR::Cores::NES::generatedReadPRG(mapper, exponent(prg_kib, 16));
     if (chr_kib)
@@ -220,30 +224,27 @@ void generated_write(unsigned address, unsigned data, bool serial)
     } else {
         if (serial || data > 255u) unsupported();
         if (c.mapper == 268) {
-            // Upstream emits both address windows for Coolboy/Mindkids.
-            // Only the explicitly selected submapper's window is driven.
-            // For this 512 KiB ROM-only profile the outer values are
-            // tightly bounded; no SRAM enable, lockout, or flash commands.
+            // On the specifically identified board without PRG-RAM,
+            // preserve the upstream A001 and both outer register windows.
+            // Other profiles keep WRAM disabled and only use their
+            // selected window. All bank values remain tightly bounded.
             if (address == 0xa001u && data == 0x80u) {
-                // Upstream enables MMC3 WRAM before selecting the outer
-                // registers. They overlay but are independent of WRAM.
-                // Keep it disabled so $6000 writes cannot alter save RAM.
-                prg_register(0xa001u, 0u);
-                c.wram_disabled = true;
+                prg_register(0xa001u, c.smd_no_prg_ram ? 0x80u : 0u);
+                c.smd_initialized = true;
             } else if ((address >= 0x5000u && address <= 0x5003u) ||
                        (address >= 0x6000u && address <= 0x6003u)) {
-                if (!c.wram_disabled) unsupported();
+                if (!c.smd_initialized) unsupported();
                 const unsigned reg = address & 3u;
                 if ((reg == 0u && data > 3u) ||
                     (reg == 1u && data != 0x60u) ||
                     (reg >= 2u && data != 0u)) unsupported();
                 const unsigned window = c.submapper == 0u ? 0x6000u : 0x5000u;
-                if ((address & 0xf000u) == window)
-                    cpu_mapper_register(c.submapper == 0u ? CpuRegisterSpace::WramOverlay :
+                if (c.smd_no_prg_ram || (address & 0xf000u) == window)
+                    cpu_mapper_register(address >= 0x6000u ? CpuRegisterSpace::WramOverlay :
                         CpuRegisterSpace::Expansion, static_cast<uint16_t>(address),
                         static_cast<uint8_t>(data));
             } else {
-                if (!c.wram_disabled ||
+                if (!c.smd_initialized ||
                     !((address == 0x8000u && data == 6u) ||
                       (address == 0x8001u && data < 64u))) unsupported();
                 prg_register(static_cast<uint16_t>(address), static_cast<uint8_t>(data));

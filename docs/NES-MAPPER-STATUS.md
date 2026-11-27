@@ -1,5 +1,23 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## Metal Storm: Original-Registersequenz (2026-11-27)
+
+- Hardware: 64 identische 8-KiB-Baenke, Payload-CRC 4CC537AA;
+  Kernel-M2-Lese- und Schreib-Timing-Experimente aendern CRC nicht,
+  die Turbo-Leseroutine beschleunigt den Dump.
+- Dokumentiertes Retro-Bit-PCB: 2 MiB Flash mit wiederholtem 512-KiB
+  Payload, zwei 128-KiB CHR-RAMs, kein separates PRG-RAM:
+  https://nerdlypleasures.blogspot.com/2020/01/product-review-retro-bits-metal-storm.html
+- Nur bei eindeutiger frischer Auto-/Katalogerkennung dieses Titels
+  (CRC-Referenz 1BE6552C, Mapper 268.0, 512/0) reicht die HAL
+  Sannis A001=80 und beide Outer-Fenster 5000-5003/6000-6003 unveraendert
+  durch. Keine neuen Bankalgorithmen oder Werte, keine Flash-Kommandos.
+  Manuelle und andere SMD133-Profile behalten A001=00 und ihr Fenster.
+  NESdev dokumentiert WRAM-unabhaengige Outer-Register; die Aenderung
+  ist ein gezielter Vergleich mit Upstream, keine gesicherte Fehlerursache.
+- Mock erwartet fuer den bekannten Titel die Originalsequenz;
+  andere Profile bleiben unveraendert. CI und Hardwaretest offen.
+
 ## Metal Storm: regulaerer Auto-Probe/Read (2026-11-27)
 
 - Supplement zum gepinnten Sanni-Katalog: Metal Storm (World) (Retro-Bit),

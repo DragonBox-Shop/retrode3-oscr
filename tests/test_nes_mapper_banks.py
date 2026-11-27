@@ -424,6 +424,16 @@ class TestNesMapperBanks(unittest.TestCase):
             [0x4e, 0x45, 0x53, 0x1a, 32, 0, 0xc0, 0x08,
              1, 0, 0, 12, 0, 0, 0, 1])))
         self.assertEqual(zlib.crc32(data[16:]) & 0xffffffff, 0x1BE6552C)
+        with io.open(log, encoding="utf-8") as handle:
+            writes = [tuple(int(v) for v in line.split()) for line in handle]
+        expected = [(0xa001, 0x80, 10)]
+        for bank in range(64):
+            expected.extend([(0x5000, bank >> 4, 10), (0x5001, 0x60, 10),
+                             (0x6000, bank >> 4, 10), (0x6001, 0x60, 10),
+                             (0x5002, 0, 10), (0x5003, 0, 10),
+                             (0x6002, 0, 10), (0x6003, 0, 10),
+                             (0x8000, 6, 10), (0x8001, bank, 10)])
+        self.assertEqual(writes, expected)
         job["output"] = os.path.join(self.temp.name, "metal-bad.nes")
         bad = self.run_cli(268, [job], dict(env, RETRODE_MOCK_NES_METAL_STORM_BAD_CRC="1"))[-1]
         self.assertEqual(bad["event"], "result", bad)

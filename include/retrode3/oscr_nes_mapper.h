@@ -15,5 +15,6 @@ bool mmc1_layout_enabled(unsigned submapper, unsigned prg_kib,
                          unsigned chr_kib, bool battery);
 bool runtime_mapper_enabled(unsigned mapper);
 void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
-          unsigned chr_kib, const retrode3_host_io_v1 *io);
+          unsigned chr_kib, const retrode3_host_io_v1 *io,
+          bool smd_no_prg_ram = false);
 } }
