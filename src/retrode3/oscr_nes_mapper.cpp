@@ -1,13 +1,7 @@
-// NES mapper bank sequencing derived from pinned original Sanni NES.cpp,
-// e5a08326dfc8fff67193f7fc5a7bc36b5282b28c, readPRG/readCHR cases
-// 2 (UxROM), 3 (CNROM), 4 (MMC3), 7 (AxROM). Never edit upstream sources.
-// Mapper-1 MMC1 PRG/CHR ROM dumping is part of the regular NES core.
-// Never write cartridge save/flash/CHR-RAM data; bank registers use CPU PRG.
-// MMC1 register pulses at E000/F000 are not yet SRAM-safe on this kernel:
-// battery-backed MMC1 layouts must not be read until kernel timing is fixed.
+// Runtime approval and HAL for automatically generated Sanni NES switches.
+// No local ROM banking loops. Unsupported hardware primitives fail closed.
 #include "retrode3/oscr_nes_mapper.h"
 #include "retrode3/oscr_nes_compat.h"
-#include "retrode3/nes_mmc1_plan.h"
 #include "retrode3/read_bus.h"
 #include "retrode3-lib.h"
 #include <cstring>
@@ -85,51 +79,46 @@ uint16_t safe_axrom_address(uint8_t value, const retrode3_host_io_v1 *io)
     }
     throw std::runtime_error("AxROM bus-conflict-safe address not found");
 }
-void dump_prg(unsigned len, uint16_t base)
-{
-    OSCR::Cores::NES::dumpBankPRG(0, len, base);
-}
-void dump_chr(unsigned from, unsigned len)
-{
-    OSCR::Cores::NES::dumpBankCHR(from, from + len);
-}
 
-struct Mmc1Context { const retrode3_host_io_v1 *io; };
-void execute_mmc1_step(void *opaque, nesmmc1::Step const &step)
+// The active context is scoped to one CLI operation (the CLI owns the bus lock).
+struct GeneratedContext {
+    unsigned mapper;
+    const retrode3_host_io_v1 *io;
+    unsigned cache_base;
+    uint8_t cache[512];
+    bool cache_valid;
+};
+GeneratedContext *active = NULL;
+struct ContextScope {
+    explicit ContextScope(GeneratedContext &c) {
+        if (active) throw std::runtime_error("nested NES generated read");
+        active = &c;
+    }
+    ~ContextScope() { active = NULL; }
+};
+GeneratedContext &context()
 {
-    Mmc1Context &context = *static_cast<Mmc1Context *>(opaque);
-    check_cancel(context.io);
-    if (step.kind == nesmmc1::ResetSerial) {
-        if (step.address != 0x8000u || step.value != 0x80u)
-            throw std::runtime_error("unexpected MMC1 reset step");
-        mmc1_register(0x8000u, 0x80u);
-    } else if (step.kind == nesmmc1::SerialValue) {
-        if (step.length != 5u || step.value > 31u ||
-            (step.address != 0x8000u && step.address != 0xa000u &&
-             step.address != 0xe000u))
-            throw std::runtime_error("invalid MMC1 serial step");
-        for (unsigned i = 0; i < 5; ++i) {
-            check_cancel(context.io);
-            mmc1_register(step.address, static_cast<uint8_t>((step.value >> i) & 1u));
-        }
-    } else if (step.kind == nesmmc1::ReadPrg) {
-        if (step.address != 0x8000u ||
-            (step.length != 0x4000u && step.length != 0x8000u))
-            throw std::runtime_error("invalid MMC1 PRG step");
-        dump_prg(step.length, step.address);
-    } else if (step.kind == nesmmc1::ReadChr) {
-        if (step.address != 0u || step.length != 0x2000u)
-            throw std::runtime_error("invalid MMC1 CHR step");
-        dump_chr(0u, step.length);
-    } else throw std::runtime_error("unexpected MMC1 plan step");
+    if (!active) throw std::runtime_error("no NES generated read context");
+    check_cancel(active->io);
+    return *active;
+}
+unsigned exponent(unsigned kib, unsigned unit)
+{
+    unsigned n = 0;
+    for (unsigned v = kib / unit; v > 1; v >>= 1) ++n;
+    return n;
+}
+void unsupported()
+{
+    throw std::runtime_error("NES upstream hardware primitive not approved");
 }
 }
-
 bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
 {
     if (mapper == 1)
         return (submapper == 0 || (submapper == 5 && prg == 32u)) &&
-               nesmmc1::geometry(prg, chr);
+               power_two(prg) && prg >= 32 && prg <= 512 &&
+               (chr == 0 || (power_two(chr) && chr >= 8 && chr <= 128));
     // NES 2.0: 0 unspecified, 1 no bus conflicts, 2 AND conflicts
     // for discrete UxROM/CNROM/AxROM. Keep conflict-safe selection for
     // all three because a probe fingerprint alone is not board proof.
@@ -178,55 +167,81 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
                        : runtime_mapper_enabled(mapper)))
         throw std::runtime_error("NES mapper layout not approved for register writes");
     check_cancel(io);
-    if (mapper == 1) {
-        // Normal MMC1 ROM read; never touch save RAM data. Battery layouts
-        // are rejected by read_rom_v2 before this function is called.
-        Mmc1Context context = {io};
-        nesmmc1::plan(prg_kib, chr_kib, execute_mmc1_step, &context);
-        return;
-    }
-    if (mapper == 2) { // Sanni UxROM: 16K switchable at $8000, last 16K fixed
-        const unsigned count = prg_kib / 16;
-        uint16_t addresses[32] = {};
-        safe_conflict_addresses(0xc000, count, addresses, io);
-        for (unsigned bank = 0; bank < count; ++bank) {
-            check_cancel(io);
-            prg_register(addresses[bank], static_cast<uint8_t>(bank));
-            dump_prg(0x4000, 0x8000);
-        }
-    } else if (mapper == 3) { // Sanni CNROM: fixed PRG, 8K CHR banks
-        check_cancel(io);
-        dump_prg(prg_kib * 1024u, 0x8000);
-        const unsigned count = chr_kib / 8;
-        uint16_t addresses[32] = {};
-        safe_conflict_addresses(0x8000, count, addresses, io);
-        for (unsigned bank = 0; bank < count; ++bank) {
-            check_cancel(io);
-            prg_register(addresses[bank], static_cast<uint8_t>(bank));
-            dump_chr(0, 0x2000);
-        }
-    } else if (mapper == 4) { // Sanni MMC3: PRG R6 at $8000, CHR R2 at $1000
-        // Sanni also enables SRAM via $A001, unnecessary and unsafe for
-        // read-only ROM dumping. Deliberately omit that write.
-        for (unsigned bank = 0; bank < prg_kib / 8; ++bank) {
-            check_cancel(io);
-            prg_register(0x8000, 0x06);
-            prg_register(0x8001, static_cast<uint8_t>(bank));
-            dump_prg(0x2000, 0x8000);
-        }
-        for (unsigned bank = 0; bank < chr_kib; ++bank) {
-            check_cancel(io);
-            prg_register(0x8000, 0x02);
-            prg_register(0x8001, static_cast<uint8_t>(bank));
-            dump_chr(0x1000, 0x400);
-        }
-    } else if (mapper == 7) { // Sanni AxROM: entire switchable 32K window
-        for (unsigned bank = 0; bank < prg_kib / 32; ++bank) {
-            check_cancel(io);
-            const uint8_t value = static_cast<uint8_t>(bank);
-            prg_register(safe_axrom_address(value, io), value);
-            dump_prg(0x8000, 0x8000);
-        }
-    }
+    // Preflight all fixed-bank conflict values before the first write.
+    uint16_t addresses[32] = {};
+    if (mapper == 2) safe_conflict_addresses(0xc000, prg_kib / 16, addresses, io);
+    if (mapper == 3) safe_conflict_addresses(0x8000, chr_kib / 8, addresses, io);
+    GeneratedContext state = {mapper, io, 0, {}, false};
+    ContextScope scope(state);
+    OSCR::Cores::NES::generatedReadPRG(mapper, exponent(prg_kib, 16));
+    if (chr_kib)
+        OSCR::Cores::NES::generatedReadCHR(mapper, exponent(chr_kib, 4));
 }
+
+void generated_write(unsigned address, unsigned data, bool serial)
+{
+    GeneratedContext &c = context();
+    if (address > 0xffffu) unsupported();
+    if (c.mapper == 1) {
+        // Original MMC1 serial helper passes the shifted byte; the NES
+        // serial input consumes bit 0. Keep the existing no-SRAM pulse mode.
+        if (serial && address != 0xe000u) unsupported();
+        if (!serial && address == 0xe000u) unsupported();
+        mmc1_register(static_cast<uint16_t>(address),
+                      static_cast<uint8_t>(data == 0x80u && address == 0x8000u ?
+                                           0x80u : data & 1u));
+    } else {
+        if (serial || data > 255u) unsupported();
+        if (c.mapper == 4) {
+            // ROM-only MMC3 never enables writable SRAM.
+            if (address == 0xa001u && data == 0x80u) return;
+            if (address != 0x8000u && address != 0x8001u) unsupported();
+        } else if (c.mapper == 7) {
+            if (address != 0x8000u) unsupported();
+            address = safe_axrom_address(static_cast<uint8_t>(data), c.io);
+        } else if (c.mapper == 2 || c.mapper == 3) {
+            if (address < (c.mapper == 2 ? 0xc000u : 0x8000u) ||
+                ReadBus().nes_byte(static_cast<uint16_t>(address), NesSpace::Prg) != data)
+                throw std::runtime_error("bus-conflict-safe address not found");
+        } else unsupported();
+        prg_register(static_cast<uint16_t>(address), static_cast<uint8_t>(data));
+    }
+    c.cache_valid = false;
+}
+
+uint8_t generated_read(unsigned address)
+{
+    GeneratedContext &c = context();
+    if ((c.mapper != 2 && c.mapper != 3) || address > 0xffffu ||
+        address < (c.mapper == 2 ? 0xc000u : 0x8000u)) unsupported();
+    unsigned base = address & ~511u;
+    if (!c.cache_valid || c.cache_base != base) {
+        ReadBus().nes_block(static_cast<uint16_t>(base), c.cache, sizeof(c.cache), NesSpace::Prg);
+        c.cache_base = base;
+        c.cache_valid = true;
+    }
+    return c.cache[address - base];
+}
+void generated_unsupported() { unsupported(); }
 } }
+
+namespace OSCR {
+namespace UI {
+void printLineSync(const char *) {
+    retrode3::nesmapper::generated_unsupported();
+}
+}
+namespace Cores { namespace NES {
+void write_prg_byte(unsigned a, unsigned v) { retrode3::nesmapper::generated_write(a,v,false); }
+void write_reg_byte(unsigned a, unsigned v) { retrode3::nesmapper::generated_write(a,v,true); }
+std::uint8_t read_prg_byte(unsigned a) { return retrode3::nesmapper::generated_read(a); }
+std::uint8_t read_chr_byte(unsigned) { retrode3::nesmapper::generated_unsupported(); return 0; }
+void write_ram_byte(unsigned, unsigned) { retrode3::nesmapper::generated_unsupported(); }
+void write_prg_pulsem2(unsigned, unsigned) { retrode3::nesmapper::generated_unsupported(); }
+void write_reg_m59(unsigned) { retrode3::nesmapper::generated_unsupported(); }
+void dumpPRG_pulsem2(unsigned, unsigned) { retrode3::nesmapper::generated_unsupported(); }
+void dumpCHR_pulsem2(unsigned) { retrode3::nesmapper::generated_unsupported(); }
+void dumpCHR_M2(unsigned) { retrode3::nesmapper::generated_unsupported(); }
+void delay(unsigned) { retrode3::nesmapper::generated_unsupported(); }
+} }
+}

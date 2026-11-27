@@ -1,0 +1,12 @@
+[
+  {
+    "reason": "Preserve hardware-tested 512 KiB MMC1 upper-bank sequence; avoid an extra lower-bank write before upper-bank selection.",
+    "before": "            if (NES_PRG > 4) // 512K\n            {\n              // Reset 512K Flag for Lower 256K\n              write_mmc1_byte(0xA000, 0);\n            }\n\n            if (i > 15) // Switch Upper 256K\n            {\n              // Set 512K Flag\n              write_mmc1_byte(0xA000, 0x10);\n            }",
+    "after": "            if (NES_PRG > 4) // 512K\n            {\n              write_mmc1_byte(0xA000, i > 15 ? 0x10 : 0);\n            }"
+  },
+  {
+    "reason": "MMC1 reset does not clear CHR 4 KiB mode; explicitly select tested 8 KiB CHR mode.",
+    "before": "        write_prg_byte(0x8000, 0x80);          // Clear Register\n        write_mmc1_byte(0xA000, i);",
+    "after": "        write_prg_byte(0x8000, 0x80);          // Clear Register\n        write_mmc1_byte(0x8000, 0x0C);\n        write_mmc1_byte(0xA000, i);"
+  }
+]

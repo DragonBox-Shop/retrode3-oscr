@@ -1,64 +1,46 @@
 #!/usr/bin/env python3
-"""Guard Sanni NES mapper bank selectors used by the Retrode3 Linux port.
-
-Pinned upstream e5a08326dfc8fff67193f7fc5a7bc36b5282b28c.
-Review changes in the original firmware before modifying these signatures.
-Python 3.4 compatible. Never writes upstream files.
-"""
+"""Verify complete upstream mapper extraction and strict patch application."""
+import importlib.machinery
+import importlib.util
 import io
 import os
+import re
 import sys
 
 UPSTREAM = "third_party/oscr-firmware/src/cores/NES.cpp"
-# Verify all branch-selection/register semantics the portable adapter relies on.
-EXPECTED = {
-    "UxROM PRG bus conflict search":
-        "if (read_prg_byte(0xC000 + x) == i)",
-    "UxROM PRG switching":
-        "write_prg_byte(0xC000 + x, i);",
-    "UxROM 16K PRG":
-        "dumpBankPRG(0x0, 0x4000, base);",
-    "CNROM CHR bus conflict search":
-        "if (read_prg_byte(0x8000 + x) == i)",
-    "CNROM CHR switching":
-        "write_prg_byte(0x8000 + x, i);",
-    "CNROM 8K CHR":
-        "dumpBankCHR(0x0, 0x2000);",
-    "MMC3 PRG R6 select":
-        "write_prg_byte(0x8000, 0x06);",
-    "MMC3 PRG bank register":
-        "write_prg_byte(0x8001, i);",
-    "MMC3 8K PRG":
-        "dumpBankPRG(0x0, 0x2000, base);",
-    "MMC3 CHR R2 select":
-        "write_prg_byte(0x8000, 0x02);",
-    "MMC3 1K CHR":
-        "dumpBankCHR(0x1000, 0x1400);",
-    "AxROM 32K PRG":
-        "dumpBankPRG(0x0, 0x8000, base);",
-    "MMC1 safe register":
-        "write_reg_byte(address, data >> i);",
-}
-
 def main():
+    loader = importlib.machinery.SourceFileLoader("nes_generator", "tools/build-linux-nes-core.py")
+    # Python 3.4 supports load_module; avoid requiring newer importlib APIs.
+    generator = loader.load_module()
     with io.open(UPSTREAM, "r", encoding="utf-8") as f:
         source = f.read()
-    missing = [name for name, snippet in EXPECTED.items()
-               if snippet not in source]
-    if missing:
-        sys.stderr.write("Pinned Sanni NES mapper algorithm changed: " +
-                         ", ".join(missing) + "\n")
-        return 2
-    # The current Linux kernel lacks a verified sub-33 ns MMC1 safe write.
-    # Do not silently turn it on when porting other mappers.
-    with io.open("src/retrode3/oscr_nes_mapper.cpp", "r",
-                 encoding="utf-8") as f:
-        adapter = f.read()
-    if "case 1:" in adapter or "NES_MODE_REG" in adapter.split("void prg_register")[1]:
-        # MMC1 comments are allowed; executable register operations are not.
-        if "case 1:" in adapter:
-            sys.stderr.write("MMC1 mapper writes need separate kernel review\n")
-            return 2
+    generated = generator.extract(source)
+    raw = generator.mapper_source(source)
+    for indent, count in ((6, 195), (4, 142)):
+        pattern = r"^" + " " * indent + r"case (\d+):"
+        # PRG and CHR top-level switch indent differs; split the functions.
+        tag = "void generatedReadPRG" if indent == 6 else "void generatedReadCHR"
+        stop = "void generatedReadCHR" if indent == 6 else None
+        a = raw.index(tag)
+        b = raw.index(stop, a) if stop else len(raw)
+        c = generated.index(tag)
+        d = generated.index(stop, c) if stop else len(generated)
+        cases = re.findall(pattern, raw[a:b], re.M)
+        assert len(set(cases)) == count, (tag, len(set(cases)))
+        assert cases == re.findall(pattern, generated[c:d], re.M), tag
+    assert "write_mmc1_byte(0x8000, 0x0C);" in generated
+    assert "write_mmc1_byte(0xA000, i > 15 ? 0x10 : 0);" in generated
+    # Deliberately break a patch anchor; the generator must reject it.
+    with io.open("patches/nes-generated.json", "r", encoding="utf-8") as f:
+        import json
+        patch = json.load(f)[0]
+    try:
+        generator.apply_patches(raw.replace(patch["before"], ""), "patches/nes-generated.json")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unmatched patch accepted")
+    print("NES upstream mapper switches: 195 PRG / 142 CHR; strict patches OK")
     return 0
 
 if __name__ == "__main__":

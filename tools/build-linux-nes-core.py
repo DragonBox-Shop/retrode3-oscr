@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strictly extract original pinned Sanni NES NROM bank iteration for Linux.
+"""Generate original pinned Sanni NES ROM algorithms for Linux.
 
 The original dumpBankPRG/dumpBankCHR loops are preserved verbatim.
 Original dumpPRG/dumpCHR per-byte AVR reading is reviewed and substituted
@@ -8,6 +8,7 @@ Reject any unexpected source algorithm change before building. Python 3.4.
 """
 import argparse
 import io
+import json
 import os
 import re
 import sys
@@ -53,7 +54,55 @@ def canonical(s):
     s = re.sub(r"//[^\n]*", "", s)
     return re.sub(r"\s+", "", s)
 
-def extract(source):
+
+# Extract the original algorithm bodies, not a local list of mapper cases.
+# All top-level cases are emitted; execution approval belongs to the HAL.
+def section(source, begin, end):
+    if source.count(begin) != 1 or source.count(end) != 1:
+        raise ValueError("NES upstream section marker changed: " + begin)
+    a = source.index(begin)
+    b = source.index(end, a + len(begin))
+    return source[a:b]
+
+def mapper_switch(source, begin, end):
+    body = section(source, begin, end)
+    start = "    switch (NES_MAPPER)\n    {\n"
+    if body.count(start) != 1:
+        raise ValueError("NES upstream mapper switch marker changed")
+    body = body[body.index(start):]
+    finish = "\n    }\n\n    if (!readrom)"
+    if body.count(finish) != 1:
+        raise ValueError("NES upstream mapper switch end changed")
+    return body[:body.index(finish)] + "\n    }\n"
+
+def mapper_source(source):
+    prg = mapper_switch(source, "  void readPRG(bool readrom)\n",
+                        "  void readCHR(bool readrom)\n")
+    chr_code = mapper_switch(source, "  void readCHR(bool readrom)\n",
+                             "  void readRAM()\n")
+    serial = section(source, "  void write_mmc1_byte(uint16_t address, uint8_t data)\n",
+                     "  // REFERENCE FOR REGISTER WRITE TO 0xE000/0xF000\n")
+    return (serial +
+            "  void generatedReadPRG(unsigned NES_MAPPER, unsigned NES_PRG) {\n"
+            "    const uint32_t oldcrc32 = 0, oldcrc32MMC3 = 0;\n"
+            "    uint16_t base = 0x8000;\n"
+            "    bool busConflict = false;\n"
+            "    uint16_t banks;\n" + prg + "  }\n"
+            "  void generatedReadCHR(unsigned NES_MAPPER, unsigned NES_CHR) {\n"
+            "    uint16_t banks;\n"
+            "    bool busConflict = false;\n" + chr_code + "  }\n")
+
+def apply_patches(code, path):
+    with io.open(path, "r", encoding="utf-8") as handle:
+        patches = json.load(handle)
+    for patch in patches:
+        before, after = patch["before"], patch["after"]
+        if code.count(before) != 1:
+            raise ValueError("NES patch not uniquely applicable: " + patch["reason"])
+        code = code.replace(before, after, 1)
+    return code
+
+def extract(source, patch_path=None):
     chunks = {}
     for name, begin, end in MARKERS:
         if source.count(begin) != 1 or source.count(end) != 1:
@@ -84,12 +133,16 @@ def extract(source):
     }
 
 """
-    return ('// AUTO-GENERATED from PINNED original OSCR NES.cpp. DO NOT EDIT.\n'
-            '// Only AVR per-byte reads converted to 512-byte Linux HAL blocks.\n'
+    generated = ('// AUTO-GENERATED from PINNED original OSCR NES.cpp. DO NOT EDIT.\n'
+            '// Original mapper switches and MMC1 serial loop; Linux HAL and reviewed patches.\n'
             '#include "retrode3/oscr_nes_compat.h"\n'
+            '#define F(x) x\n'
             'namespace OSCR { namespace Cores { namespace NES {\n'
             + prg + chr + chunks["dumpBankPRG"] + chunks["dumpBankCHR"]
-            + '} } }\n')
+            + mapper_source(source) + '} } }\n')
+    if patch_path is None:
+        patch_path = os.path.join(os.path.dirname(__file__), '..', 'patches', 'nes-generated.json')
+    return apply_patches(generated, patch_path)
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
