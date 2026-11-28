@@ -492,6 +492,9 @@ void synthetic_header(unsigned mapper, unsigned submapper,
     // 512 KiB PRG and 256 KiB volatile CHR RAM (64 << 12 bytes).
     if (mapper == 268u) header[11] = 0x0cu;
     if (mapper == 119u) header[11] = 7u; // TQROM includes 8 KiB CHR-RAM.
+    // Unknown UNROM-512 boards: conventional 32 KiB default for NES2
+    // manual overrides; a verified catalog header supersedes this.
+    if (mapper == 30u && submapper) header[11] = 9u;
 }
 int read_rom_v2(retrode3_probe_v2 const *probe,
                 retrode3_read_request_v2 const *request,
@@ -756,7 +759,7 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
            {"value":206,"label":"DxROM","read_supported":true},
            {"value":268,"label":"SMD133 (Coolboy/Mindkids)","read_supported":true}]},
 {"id":"submapper","label":"Submapper","type":"integer","minimum":0,"maximum":15,"required":true,"default":0},
-{"id":"prg_kib","label":"PRG ROM (KiB)","type":"integer","minimum":16,"maximum":512,"required":true},
+{"id":"prg_kib","label":"PRG ROM (KiB)","type":"integer","minimum":16,"maximum":1024,"required":true},
 {"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128,256]},
 {"id":"mirroring","label":"Mirroring","type":"enum","required":true,
  "values":["horizontal","vertical","four_screen"]},
@@ -807,8 +810,16 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
         const std::string id = std::to_string(p.mapper);
         values += ",{\"value\":" + id + ",\"label\":" +
             retrode3::json_quote_v3(p.label) + ",\"read_supported\":true}";
+        std::string submappers("[");
+        const unsigned mask = retrode3::nesmapper::family_submapper_mask(p.mapper);
+        for (unsigned sub = 0; sub < 16u; ++sub) {
+            if (!(mask & (1u << sub))) continue;
+            if (submappers.size() > 1u) submappers += ",";
+            submappers += std::to_string(sub);
+        }
+        submappers += "]";
         rules += ",{\"when\":{\"mapper\":" + id +
-            "},\"allow\":{\"submapper\":[0],\"prg_kib\":" +
+            "},\"allow\":{\"submapper\":" + submappers + ",\"prg_kib\":" +
             sizes(p.prg_min, p.prg_max) + ",\"chr_kib\":" +
             sizes(p.chr_min, p.chr_max) + "},\"read_supported\":true}";
         rules += ",{\"when\":{\"mapper\":" + id +

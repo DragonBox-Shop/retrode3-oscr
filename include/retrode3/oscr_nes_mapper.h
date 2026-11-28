@@ -8,7 +8,7 @@
  * of newly enabled development layouts is tracked separately. */
 namespace retrode3 { namespace nesmapper {
 // Additional reviewed ROM profiles share register primitives, not bank loops.
-enum class RegisterFamily { Mmc2, Mmc3, Fme7, Direct, Latch };
+enum class RegisterFamily { Mmc2, Mmc3, Fme7, Direct, Latch, Expansion };
 struct FamilyProfile {
     unsigned mapper;
     const char *label;
@@ -18,6 +18,7 @@ struct FamilyProfile {
 };
 const FamilyProfile *family_profiles(std::size_t &count);
 const FamilyProfile *family_profile(unsigned mapper);
+unsigned family_submapper_mask(unsigned mapper);
 bool geometry(unsigned mapper, unsigned submapper, unsigned prg_kib,
               unsigned chr_kib);
 bool runtime_writes_enabled();

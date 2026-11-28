@@ -254,7 +254,7 @@ class TestNesMapperBanks(unittest.TestCase):
         schema = cap["selection_schema"]
         field = next(f for f in schema["fields"] if f["id"] == "mapper")
         self.assertEqual(set(v["value"] for v in field["values"]
-                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 9, 10, 11, 13, 18, 22, 24, 26, 32, 33, 48, 64, 65, 66, 68, 69, 70, 71, 76, 88, 89, 95, 112, 117, 118, 119, 152, 154, 158, 180, 206, 241, 268})
+                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 9, 10, 11, 13, 18, 21, 22, 24, 25, 26, 28, 30, 32, 33, 48, 64, 65, 66, 68, 69, 70, 71, 76, 78, 85, 88, 89, 94, 95, 112, 117, 118, 119, 152, 154, 158, 180, 206, 210, 241, 268})
 
     def test_bank_order_and_crc_for_mappers_2_3_4_7(self):
         shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
@@ -402,6 +402,65 @@ class TestNesMapperBanks(unittest.TestCase):
             job["output"] += ".blocked"
             events = self.run_cli(mapper, [job], env)
             self.assertEqual(events[-1]["event"], "error", (mapper, events))
+            self.assertFalse(os.path.exists(log))
+
+    def test_expansion_and_submapper_profiles(self):
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
+        for mapper, sub, p, c in ((21, 1, 256, 128), (25, 1, 128, 128),
+                                  (25, 2, 256, 256), (28, 0, 1024, 0),
+                                  (30, 0, 512, 0), (30, 1, 512, 0),
+                                  (30, 2, 256, 0), (78, 1, 128, 128),
+                                  (78, 3, 128, 128), (85, 1, 256, 256),
+                                  (94, 0, 128, 0), (210, 1, 256, 256),
+                                  (210, 2, 128, 128)):
+            name = "expanded-%d-%d" % (mapper, sub)
+            selection = self.v3_override(p, c)
+            selection["parameters"].update(mapper=mapper, submapper=sub)
+            output = os.path.join(self.temp.name, name + ".nes")
+            log = os.path.join(self.temp.name, name + ".writes")
+            env = {"RETRODE_MOCK_NES_PRG_KIB": str(p),
+                   "RETRODE_MOCK_NES_CHR_KIB": str(c),
+                   "RETRODE_MOCK_NES_WRITELOG": log}
+            events = self.run_cli(mapper, [{"command": "probe", "core": "nes",
+                                           "request_id": name + "-probe"}], env)
+            self.assertEqual(events[-1]["event"], "probe_result", events)
+            self.assertFalse(os.path.exists(log))
+            job = {"command": "read_rom", "core": "nes", "request_id": name,
+                   "output": output, "selection": selection}
+            events = self.run_cli(mapper, [job], env)
+            self.assertEqual(events[-1]["event"], "result", (mapper, sub, events))
+            with io.open(output, "rb") as handle:
+                actual = handle.read()
+            self.assertEqual(actual[16:], fixture_rom(mapper, p, c)[16:], (mapper, sub))
+            if sub:
+                self.assertEqual(actual[7] & 12, 8)
+                self.assertEqual(actual[8], sub << 4)
+                if mapper == 30:
+                    self.assertEqual(actual[11], 9)
+            with io.open(log, "r", encoding="utf-8") as handle:
+                writes = [tuple(int(v) for v in line.split())
+                          for line in handle if line.strip()]
+            self.assertTrue(writes)
+            if mapper == 28:
+                self.assertTrue(all(addr in (0x5000, 0x8000) and mode == 10
+                                    for addr, value, mode in writes))
+            elif mapper in (30, 94):
+                self.assertTrue(all(addr >= 0xc000 and mode == 10
+                                    for addr, value, mode in writes))
+            else:
+                self.assertTrue(all(addr >= 0x8000 and mode == 10
+                                    for addr, value, mode in writes))
+            os.unlink(log)
+            selection["parameters"]["battery"] = True
+            job["output"] += ".blocked"
+            events = self.run_cli(mapper, [job], env)
+            self.assertEqual(events[-1]["event"], "error", events)
+            self.assertFalse(os.path.exists(log))
+            selection["parameters"]["battery"] = False
+            selection["parameters"]["submapper"] = 15
+            job["output"] += ".sub"
+            events = self.run_cli(mapper, [job], env)
+            self.assertEqual(events[-1]["event"], "error", events)
             self.assertFalse(os.path.exists(log))
 
     def test_smd133_outer_register_windows_and_nes2_header(self):

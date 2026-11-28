@@ -1,5 +1,34 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## Homebrew und Submapper-Familien (2026-11-28)
+
+- 8 weitere Mapper-IDs: 21 (VRC4a, Submapper 1), 25 (VRC4b/d,
+  Submapper 1/2), 28 (Action 53), 30 (UNROM 512, Submapper 0/1/2),
+  78 (Submapper 1/3), 85 (VRC7b, Submapper 1), 94 (UN1ROM),
+  210 (Namco 175/340, Submapper 1/2). 47 von 195 Upstream-PRG-IDs.
+- Gemeinsame Submapper-Maske fuer HAL und v3-Schema; Action 53 bis
+  1024 KiB PRG. Nur freigegebene Geometrien und keine Batterie.
+  Mapper 30: konservative Konfliktpruefung auch ohne Buskonflikte,
+  ausschliesslich Banklatch-Writes ab C000, kein Flash-Kommandofenster.
+  Batterie-Flag kann Flash kennzeichnen und bleibt gesperrt.
+  Manuelle NES2-Overrides fuer 30 nehmen konventionell 32 KiB
+  CHR-RAM an; verifizierte Katalogheader gehen vor.
+- Original-Sanni-Sequenzen und Generator unveraendert. Action 53
+  verwendet die vorhandenen CPU-Expansion-Writes 5000; keine
+  generische Freigabe niedriger Adressen. Kernel-Short-M2-Pfad
+  umfasst 5000/8000 auf qualifizierter Hardware; andere Adressen
+  koennen noch Legacy-Timing verwenden. Keine elektrische Messung.
+- VRC4c, VRC7a und VRC23-Sonderheuristik noch nicht freigegeben;
+  MMC5 braucht besonders Review der Reset-/M2-Timing-Anforderungen.
+  Mapper 29 benoetigt sichere EXP0-Flashsteuerung und abweichende
+  Bankwerte; nicht pauschal aktivieren.
+- Quellen: https://www.nesdev.org/wiki/INES_Mapper_028 ,
+  https://www.nesdev.org/wiki/INES_Mapper_030 ,
+  https://www.nesdev.org/wiki/NES_2.0_submappers ,
+  https://www.nesdev.org/wiki/INES_Mapper_210 .
+- Synthetische Payload- und Registertests erweitert. Build/CI und
+  physische Tests noch offen.
+
 ## Weitere Familienfreigaben (2026-11-28)
 
 - 16 zusaetzliche Mapper-IDs: 18/22/24/26/32/33/48/65/68/112/117

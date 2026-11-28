@@ -160,6 +160,14 @@ const FamilyProfile *family_profiles(std::size_t &count)
         {152, "Bandai 74161/32 (mirroring)", "bandai-latch", RegisterFamily::Latch, 32, 128, 8, 128},
         {180, "UNROM (fixed first bank)", "unrom-fixed-first", RegisterFamily::Latch, 128, 128, 0, 0},
         {241, "32K latch", "mapper241", RegisterFamily::Latch, 64, 512, 0, 0},
+        {21, "Konami VRC4a", "vrc4a", RegisterFamily::Direct, 256, 256, 128, 128},
+        {25, "Konami VRC4b/d", "vrc4", RegisterFamily::Direct, 64, 256, 32, 256},
+        {28, "Action 53", "action53", RegisterFamily::Expansion, 32, 1024, 0, 0},
+        {30, "UNROM 512 (ROM read)", "unrom512", RegisterFamily::Latch, 64, 512, 0, 0},
+        {78, "Irem 74HC161/32", "mapper78", RegisterFamily::Latch, 128, 128, 128, 128},
+        {85, "Konami VRC7b", "vrc7b", RegisterFamily::Direct, 128, 256, 128, 256},
+        {94, "UN1ROM", "un1rom", RegisterFamily::Latch, 128, 128, 0, 0},
+        {210, "Namco 175/340", "namco175-340", RegisterFamily::Direct, 128, 256, 128, 256},
     };
     count = sizeof(profiles) / sizeof(profiles[0]);
     return profiles;
@@ -172,10 +180,22 @@ const FamilyProfile *family_profile(unsigned mapper)
         if (profiles[i].mapper == mapper) return profiles + i;
     return NULL;
 }
+// Submapper-sensitive register wiring must match the generated Sanni case.
+unsigned family_submapper_mask(unsigned mapper)
+{
+    switch (mapper) {
+    case 21: case 85: return 1u << 1; // VRC4a and VRC7b wiring only.
+    case 25: case 210: return (1u << 1) | (1u << 2);
+    case 78: return (1u << 1) | (1u << 3);
+    case 30: return 7u; // $C000 bank-select only; battery flag blocked above HAL.
+    default: return 1u;
+    }
+}
 bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
 {
     if (const FamilyProfile *p = family_profile(mapper))
-        return submapper == 0u && power_two(prg) && (chr == 0u || power_two(chr)) &&
+        return submapper < 16u && (family_submapper_mask(mapper) & (1u << submapper)) &&
+            power_two(prg) && (chr == 0u || power_two(chr)) &&
             prg >= p->prg_min && prg <= p->prg_max &&
             chr >= p->chr_min && chr <= p->chr_max;
     // SMD133: deliberately start with the 512 KiB PRG / 256 KiB
@@ -246,7 +266,8 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
     check_cancel(io);
     // Preflight all fixed-bank conflict values before the first write.
     uint16_t addresses[32] = {};
-    if (mapper == 2) safe_conflict_addresses(0xc000, prg_kib / 16, addresses, io);
+    if (mapper == 2 || mapper == 30)
+        safe_conflict_addresses(0xc000, prg_kib / 16, addresses, io);
     if (mapper == 3) safe_conflict_addresses(0x8000, chr_kib / 8, addresses, io);
     if (smd_no_prg_ram && (mapper != 268u || submapper != 0u ||
                            prg_kib != 512u || chr_kib != 0u))
@@ -280,6 +301,16 @@ static bool direct_register_allowed(unsigned mapper, unsigned address, unsigned 
         {68, 0xa000, 0, 127}, {68, 0xb000, 0, 127},
         {112, 0x8000, 0, 0}, {112, 0x8000, 6, 6}, {112, 0xa000, 0, 255},
         {117, 0x8000, 0, 31}, {117, 0xa000, 0, 255},
+        {21, 0xa000, 0, 31}, {21, 0xb000, 0, 15}, {21, 0xb002, 0, 7},
+        {25, 0x9005, 0, 0}, {25, 0x8000, 0, 31},
+        {25, 0xb000, 0, 15}, {25, 0xb00a, 0, 15},
+        {85, 0x8000, 0, 31},
+        {85, 0xa000, 0, 255}, {85, 0xa008, 0, 255},
+        {85, 0xb000, 0, 255}, {85, 0xb008, 0, 255},
+        {85, 0xc000, 0, 255}, {85, 0xc008, 0, 255},
+        {85, 0xd000, 0, 255}, {85, 0xd008, 0, 255},
+        {210, 0xe000, 0, 31}, {210, 0xe800, 0, 31},
+        {210, 0xe800, 0xc0, 0xc0}, {210, 0x8000, 0, 255},
     };
     for (const DirectRegisterRule &r : rules)
         if (mapper == r.mapper && address == r.address &&
@@ -294,6 +325,9 @@ static bool latch_register_allowed(unsigned mapper, unsigned data)
     case 89: return (data & ~0xf7u) == 0;
     case 180: return data < 8u;
     case 241: return data < 16u;
+    case 30: return data < 32u;
+    case 78: return (data & ~0xf7u) == 0;
+    case 94: return data <= 28u && !(data & 3u);
     default: return false;
     }
 }
@@ -369,13 +403,38 @@ void generated_write(unsigned address, unsigned data, bool serial)
                              (c.register_select == 0u && data >= 32u)) unsupported();
                 }
                 break;
+            case RegisterFamily::Expansion:
+                // Action 53: only the documented register-select and
+                // register-data ports, never PRG-RAM or flash commands.
+                if (c.mapper != 28u) unsupported();
+                if (address == 0x5000u) {
+                    if (data != 0u && data != 1u && data != 0x80u && data != 0x81u)
+                        unsupported();
+                    cpu_mapper_register(CpuRegisterSpace::Expansion, 0x5000u,
+                                        static_cast<uint8_t>(data));
+                    c.register_select = data;
+                    c.cache_valid = false;
+                    return;
+                }
+                if (address != 0x8000u || c.register_select == 0xffu ||
+                    (c.register_select == 0x81u ? data >= 32u : data != 0u))
+                    unsupported();
+                break;
             case RegisterFamily::Latch:
                 // These reviewed discrete boards decode the whole PRG
                 // write window. Select an equal ROM byte in the current
                 // mapping, never a conflicting fallback address.
                 if (address < 0x8000u || !latch_register_allowed(c.mapper, data))
                     unsupported();
-                address = safe_register_address(0x8000u, static_cast<uint8_t>(data), c.io);
+                if (c.mapper == 30u || c.mapper == 94u) {
+                    // Mapper 30 can contain flash: ONLY write its bank
+                    // latch in $C000-$FFFF, never the flash command area.
+                    // Mapper 94 likewise has a fixed upper ROM bank.
+                    if (c.mapper == 30u && address < 0xc000u) unsupported();
+                    address = safe_register_address(0xc000u, static_cast<uint8_t>(data), c.io);
+                } else {
+                    address = safe_register_address(0x8000u, static_cast<uint8_t>(data), c.io);
+                }
                 break;
             case RegisterFamily::Fme7:
                 if (address == 0x8000u) {
@@ -418,8 +477,10 @@ uint8_t generated_read(unsigned address)
 {
     GeneratedContext &c = context();
     if ((c.mapper != 2 && c.mapper != 3 && c.mapper != 66 &&
-         c.mapper != 70 && c.mapper != 152) || address > 0xffffu ||
-        address < (c.mapper == 2 ? 0xc000u : 0x8000u)) unsupported();
+         c.mapper != 70 && c.mapper != 152 && c.mapper != 30 &&
+         c.mapper != 94) || address > 0xffffu ||
+        address < ((c.mapper == 2 || c.mapper == 30 || c.mapper == 94) ?
+                   0xc000u : 0x8000u)) unsupported();
     unsigned base = address & ~511u;
     if (!c.cache_valid || c.cache_base != base) {
         ReadBus().nes_block(static_cast<uint16_t>(base), c.cache, sizeof(c.cache), NesSpace::Prg);
