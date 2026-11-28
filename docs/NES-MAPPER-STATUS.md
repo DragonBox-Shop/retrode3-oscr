@@ -1,5 +1,26 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## Familienfreigaben (2026-11-28)
+
+- Hardware-Rueckmeldung: Metal Storm Retro-Bit mit kurzem M2-Schreibzyklus
+  (Kernel-Commit 50ccec4) erfolgreich im Web ausgelesen und CRC-verifiziert;
+  Datei-CRC 33AF86D9. Weitere vorhandene Mapper laut Entwickler erfolgreich
+  nachgetestet. Neue Familien in diesem Commit sind noch ungetestet.
+- Sanni-Stand e5a0832: 195 explizite PRG-Mapper, 142 CHR-Mapper.
+  Jetzt 23 Mapper-IDs fuer eingeschraenkte ROM-Profile freigegeben.
+  Zusaetzliche Familienprofile 9/10, 64/76/88/95/118/119/154/158, 69
+  verwenden gemeinsame Register-HALs und eine Geometrietabelle, die auch
+  die v3-Auswahl erzeugt. Upstream und Generator bleiben unveraendert.
+- Nur Submapper 0, konservative ROM-Groessen; Batterie-Sperren bleiben.
+  TQROM-Override kodiert 8 KiB CHR-RAM in NES 2.0; nur CHR-ROM gelesen.
+  Keine neuen SRAM-, Flash- oder Low-Address-Writes.
+- Mock-Tests fuer Payload, Header, schreibfreie Probe, erlaubte Adressen
+  und Batterie-Sperre hinzugefuegt. Build/CI und Hardwaretest noch offen.
+- Naechste Gruppen: diskrete Latches mit Buskonflikten, weitere
+  ASIC-Registerfamilien, Expansion/WRAM-Overlays, spezielle M2-Pulse
+  und SRAM-sichere Write-Primitive. Nicht allein aufgrund einer
+  gemeinsamen Upstream-Switch-Gruppe freigeben.
+
 ## Metal Storm: Original-Registersequenz (2026-11-27)
 
 - Hardware: 64 identische 8-KiB-Baenke, Payload-CRC 4CC537AA;

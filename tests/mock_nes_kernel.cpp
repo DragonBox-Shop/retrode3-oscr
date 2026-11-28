@@ -11,6 +11,13 @@ unsigned char prg[32768], chr[8192];
 unsigned prg_size = 16384, chr_size = 8192;
 unsigned mapper = 0, ux_bank = 0, cn_bank = 0, ax_bank = 0;
 unsigned mmc_mode = 0, mmc_prg_bank = 0, mmc_chr_bank = 0;
+unsigned family_chr[8] = {};
+bool family_mmc3(unsigned m)
+{
+    return m == 64 || m == 76 || m == 88 || m == 95 || m == 118 ||
+           m == 119 || m == 154 || m == 158;
+}
+bool family_new(unsigned m) { return family_mmc3(m) || m == 9 || m == 10 || m == 69; }
 unsigned smd_window = 0x6000u, smd_outer[4] = {};
 bool smd_wram_enabled = true; // require explicit disabling before outer writes
 unsigned smd_seen = 0;
@@ -49,7 +56,7 @@ void init()
             const char *sub = std::getenv("RETRODE_MOCK_NES_SUBMAPPER");
             if (sub && std::atoi(sub) == 1) smd_window = 0x5000u;
         }
-        if (mapper == 1 || mapper == 11 || mapper == 13 || mapper == 66 || mapper == 71 || mapper == 206) {
+        if (mapper == 1 || mapper == 11 || mapper == 13 || mapper == 66 || mapper == 71 || mapper == 206 || family_new(mapper)) {
             const char *p = std::getenv("RETRODE_MOCK_NES_PRG_KIB");
             const char *c = std::getenv("RETRODE_MOCK_NES_CHR_KIB");
             if (p) prg_size = static_cast<unsigned>(std::atoi(p)) * 1024u;
@@ -220,7 +227,12 @@ unsigned char mapped_prg(unsigned address)
             return rom_prg[prg_size - 8192u + (address & 0x1fffu)];
         return rom_prg[offset % prg_size];
     }
-    if (mapper == 4 || mapper == 206) {
+    if (mapper == 10) {
+        if (address < 0xc000u)
+            return rom_prg[(mmc_prg_bank * 16384u + (address & 0x3fffu)) % prg_size];
+        return rom_prg[prg_size - 16384u + (address & 0x3fffu)];
+    }
+    if (mapper == 4 || mapper == 206 || family_new(mapper)) {
         if (address < 0xa000u)
             return rom_prg[(mmc_prg_bank * 8192u + (address & 0x1fffu)) % prg_size];
         if (address >= 0xe000u)
@@ -237,6 +249,24 @@ unsigned char mapped_chr(unsigned address)
         return rom_chr[((mmc1_chr & 0x1eu) * 4096u + address) % chr_size];
     if (mapper == 3 || mapper == 11 || mapper == 66)
         return rom_chr[(cn_bank * 8192u + address) % chr_size];
+    if (mapper == 9 || mapper == 10)
+        return rom_chr[(family_chr[0] * 4096u + (address & 0xfffu)) % chr_size];
+    if (mapper == 69)
+        return rom_chr[(family_chr[0] * 1024u + (address & 0x3ffu)) % chr_size];
+    if (mapper == 76)
+        return rom_chr[(family_chr[2] * 2048u + (address & 0x7ffu)) % chr_size];
+    if (mapper == 88 || mapper == 154) {
+        if (address < 0x800u)
+            return rom_chr[((family_chr[0] & ~1u) * 1024u + address) % chr_size];
+        if (address >= 0x1000u && address < 0x1800u) {
+            unsigned reg = 2u + ((address - 0x1000u) >> 10);
+            return rom_chr[((64u | (family_chr[reg] & 63u)) * 1024u +
+                            (address & 0x3ffu)) % chr_size];
+        }
+    }
+    if (family_mmc3(mapper) && address >= 0x1000u && address < 0x1400u)
+        return rom_chr[(family_chr[2] * 1024u + (address & 0x3ffu)) % chr_size];
+    if (family_mmc3(mapper)) return rom_chr[address % chr_size];
     if ((mapper == 4 || mapper == 206) && address >= 0x1000u && address < 0x1400u)
         return rom_chr[(mmc_chr_bank * 1024u + address - 0x1000u) % chr_size];
     if (mapper == 4 || mapper == 206) return rom_chr[address % chr_size];
@@ -337,6 +367,30 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     }
     else if (mapper == 2 || mapper == 71) ux_bank = value;
     else if (mapper == 3) cn_bank = value;
+    else if (mapper == 9 || mapper == 10) {
+        if (address == 0xa000u && value < 16u) mmc_prg_bank = value;
+        else if (address == 0xb000u && value < 32u) family_chr[0] = value;
+        else if (address == 0xc000u && value < 32u) family_chr[1] = value;
+        else return -1;
+    } else if (mapper == 69) {
+        if (address == 0x8000u && (value == 0 || value == 8 || value == 9))
+            mmc_mode = value;
+        else if (address == 0xa000u) {
+            if (mmc_mode == 0) family_chr[0] = value;
+            else if (mmc_mode == 9 && value < 32u) mmc_prg_bank = value;
+            else if (mmc_mode != 8 || value != 0) return -1;
+        } else return -1;
+    } else if (family_mmc3(mapper)) {
+        if (address == 0x8000u && (value == 0 || value == 2 || value == 3 || value == 6))
+            mmc_mode = value;
+        else if (address == 0x8001u) {
+            if (mmc_mode == 6) mmc_prg_bank = value;
+            else if (mmc_mode == 0 || mmc_mode == 2 || mmc_mode == 3) {
+                if (mapper == 119 && value >= 64u) return -1;
+                family_chr[mmc_mode] = value;
+            } else return -1;
+        } else return -1;
+    }
     else if (mapper == 4 || mapper == 206) {
         if (address == 0x8000u) mmc_mode = value & 7u;
         else if (address == 0x8001u) {

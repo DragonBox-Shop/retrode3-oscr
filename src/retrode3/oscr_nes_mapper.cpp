@@ -101,6 +101,7 @@ struct GeneratedContext {
     unsigned cache_base;
     uint8_t cache[512];
     bool cache_valid;
+    unsigned register_select;
 };
 GeneratedContext *active = NULL;
 struct ContextScope {
@@ -127,8 +128,40 @@ void unsupported()
     throw std::runtime_error("NES upstream hardware primitive not approved");
 }
 }
+// Conservative, power-of-two geometry bounds, not support for every variant.
+// All banking algorithms are generated from the pinned Sanni source.
+const FamilyProfile *family_profiles(std::size_t &count)
+{
+    static const FamilyProfile profiles[] = {
+        {9, "MMC2", "mmc2", RegisterFamily::Mmc2, 128, 128, 128, 128},
+        {10, "MMC4", "mmc4", RegisterFamily::Mmc2, 128, 256, 64, 128},
+        {64, "RAMBO-1", "rambo1", RegisterFamily::Mmc3, 64, 128, 64, 256},
+        {69, "Sunsoft FME-7 / 5B", "fme7", RegisterFamily::Fme7, 128, 256, 128, 256},
+        {76, "Namco 109", "namco109", RegisterFamily::Mmc3, 128, 128, 128, 128},
+        {88, "Namco 118", "namco118", RegisterFamily::Mmc3, 128, 128, 128, 128},
+        {95, "Namco 118 (mirroring)", "namco118", RegisterFamily::Mmc3, 128, 128, 32, 32},
+        {118, "TxSROM", "txsrom", RegisterFamily::Mmc3, 128, 256, 128, 128},
+        {119, "TQROM", "tqrom", RegisterFamily::Mmc3, 128, 128, 64, 64},
+        {154, "Namco 118 (single-screen)", "namco118", RegisterFamily::Mmc3, 128, 128, 128, 128},
+        {158, "RAMBO-1 (mirroring)", "rambo1", RegisterFamily::Mmc3, 128, 128, 128, 128},
+    };
+    count = sizeof(profiles) / sizeof(profiles[0]);
+    return profiles;
+}
+const FamilyProfile *family_profile(unsigned mapper)
+{
+    std::size_t count = 0;
+    const FamilyProfile *profiles = family_profiles(count);
+    for (std::size_t i = 0; i < count; ++i)
+        if (profiles[i].mapper == mapper) return profiles + i;
+    return NULL;
+}
 bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
 {
+    if (const FamilyProfile *p = family_profile(mapper))
+        return submapper == 0u && power_two(prg) && power_two(chr) &&
+            prg >= p->prg_min && prg <= p->prg_max &&
+            chr >= p->chr_min && chr <= p->chr_max;
     // SMD133: deliberately start with the 512 KiB PRG / 256 KiB
     // CHR-RAM profile used by the Retro-Bit rerelease. No CHR-ROM reads,
     // no later ASIC variants or arbitrary multicart geometries.
@@ -182,7 +215,7 @@ bool runtime_writes_enabled()
 bool runtime_mapper_enabled(unsigned mapper)
 {
     // Explicit list: newly ported geometry alone must not enable writes.
-    return mapper == 1 || mapper == 2 || mapper == 3 ||
+    return family_profile(mapper) != NULL || mapper == 1 || mapper == 2 || mapper == 3 ||
            mapper == 4 || mapper == 7 || mapper == 11 || mapper == 13 ||
            mapper == 66 || mapper == 71 || mapper == 206 || mapper == 268;
 }
@@ -202,7 +235,7 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
     if (smd_no_prg_ram && (mapper != 268u || submapper != 0u ||
                            prg_kib != 512u || chr_kib != 0u))
         throw std::runtime_error("invalid NES no-PRG-RAM board profile");
-    GeneratedContext state = {mapper, submapper, false, smd_no_prg_ram, io, 0, {}, false};
+    GeneratedContext state = {mapper, submapper, false, smd_no_prg_ram, io, 0, {}, false, 0xffu};
     ContextScope scope(state);
     OSCR::Cores::NES::generatedReadPRG(mapper, exponent(prg_kib, 16));
     if (chr_kib)
@@ -252,7 +285,38 @@ void generated_write(unsigned address, unsigned data, bool serial)
             c.cache_valid = false;
             return;
         }
-        if (c.mapper == 4 || c.mapper == 206) {
+        if (const FamilyProfile *profile = family_profile(c.mapper)) {
+            // Reviewed register families. No expansion/WRAM writes,
+            // SRAM enable, PPU writes or unrelated command registers.
+            switch (profile->family) {
+            case RegisterFamily::Mmc2:
+                if ((address != 0xa000u && address != 0xb000u && address != 0xc000u) ||
+                    data >= (address == 0xa000u ? 16u : 32u)) unsupported();
+                break;
+            case RegisterFamily::Mmc3:
+                if (address == 0xa001u && data == 0x80u) return;
+                if (address == 0x8000u) {
+                    if (data != 0u && data != 2u && data != 3u && data != 6u)
+                        unsupported();
+                    c.register_select = data;
+                } else if (address == 0x8001u) {
+                    if (c.register_select == 0xffu ||
+                        (c.mapper == 119u && c.register_select != 6u && data >= 64u))
+                        unsupported();
+                } else unsupported();
+                break;
+            case RegisterFamily::Fme7:
+                if (address == 0x8000u) {
+                    if (data != 0u && data != 8u && data != 9u) unsupported();
+                    c.register_select = data;
+                } else if (address == 0xa000u) {
+                    if ((c.register_select == 8u && data != 0u) ||
+                        (c.register_select == 9u && data >= 32u) ||
+                        c.register_select == 0xffu) unsupported();
+                } else unsupported();
+                break;
+            }
+        } else if (c.mapper == 4 || c.mapper == 206) {
             // MMC3/DxROM register family: never enable writable SRAM.
             if (address == 0xa001u && data == 0x80u) return;
             if (address != 0x8000u && address != 0x8001u) unsupported();

@@ -480,7 +480,7 @@ void synthetic_header(unsigned mapper, unsigned submapper,
         (mirroring == 1 ? 1u : 0u) | (battery ? 2u : 0u) |
         (mirroring == 2 ? 8u : 0u));
     header[7] = static_cast<unsigned char>(mapper & 0xf0u);
-    if (submapper || mapper > 255u) {
+    if (submapper || mapper > 255u || mapper == 119u) {
         // NES 2.0 is mandatory for mapper numbers above 255 even
         // when submapper is zero. Preserve all twelve mapper bits.
         if (submapper > 15u || mapper > 4095u)
@@ -491,6 +491,7 @@ void synthetic_header(unsigned mapper, unsigned submapper,
     // The currently approved manual SMD133 profile is specifically
     // 512 KiB PRG and 256 KiB volatile CHR RAM (64 << 12 bytes).
     if (mapper == 268u) header[11] = 0x0cu;
+    if (mapper == 119u) header[11] = 7u; // TQROM includes 8 KiB CHR-RAM.
 }
 int read_rom_v2(retrode3_probe_v2 const *probe,
                 retrode3_read_request_v2 const *request,
@@ -786,9 +787,42 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
 {"when":{"mapper":71,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"},
 {"when":{"mapper":206,"battery":true},"read_supported":false,"reason":"Battery-backed bank switching not approved"}]
 })V3";
-    if (std::strlen(schema) + 1 > len)
+    // The additional mapper choices and geometry rules use the same
+    // reviewed profile table as the HAL.
+    std::string document(schema), values, rules;
+    std::size_t count = 0;
+    const retrode3::nesmapper::FamilyProfile *profiles =
+        retrode3::nesmapper::family_profiles(count);
+    const auto sizes = [](unsigned first, unsigned last) {
+        std::string result("[");
+        for (unsigned v = first; v <= last; v *= 2u) {
+            if (v != first) result += ",";
+            result += std::to_string(v);
+        }
+        return result + "]";
+    };
+    for (std::size_t i = 0; i < count; ++i) {
+        const retrode3::nesmapper::FamilyProfile &p = profiles[i];
+        const std::string id = std::to_string(p.mapper);
+        values += ",{\"value\":" + id + ",\"label\":" +
+            retrode3::json_quote_v3(p.label) + ",\"read_supported\":true}";
+        rules += ",{\"when\":{\"mapper\":" + id +
+            "},\"allow\":{\"submapper\":[0],\"prg_kib\":" +
+            sizes(p.prg_min, p.prg_max) + ",\"chr_kib\":" +
+            sizes(p.chr_min, p.chr_max) + "},\"read_supported\":true}";
+        rules += ",{\"when\":{\"mapper\":" + id +
+            ",\"battery\":true},\"read_supported\":false,"
+            "\"reason\":\"Battery-backed bank switching not approved\"}";
+    }
+    const std::size_t mapper_end = document.find("]},\n{\"id\":\"submapper\"");
+    const std::size_t rules_end = document.rfind("]\n}");
+    if (mapper_end == std::string::npos || rules_end == std::string::npos)
+        return fail(err, cap, "NES v3 capability template changed");
+    document.insert(rules_end, rules);
+    document.insert(mapper_end, values);
+    if (document.size() + 1 > len)
         return fail(err, cap, "NES v3 capability buffer too small");
-    std::memcpy(out, schema, sizeof(schema));
+    std::memcpy(out, document.c_str(), document.size() + 1);
     return 0;
 }
 
@@ -828,7 +862,10 @@ int fast_probe_json_v3(char *out, size_t len, char *err, size_t cap)
              result.layouts[0].mapper == 66 ? "gxrom" :
              result.layouts[0].mapper == 71 ? "camerica" :
              result.layouts[0].mapper == 206 ? "dxrom" :
-             result.layouts[0].mapper == 268 ? "smd133" : "unknown") : "unknown") +
+             result.layouts[0].mapper == 268 ? "smd133" :
+             retrode3::nesmapper::family_profile(result.layouts[0].mapper) ?
+                 retrode3::nesmapper::family_profile(result.layouts[0].mapper)->mapping :
+                 "unknown") : "unknown") +
         ",\"size_bytes\":" + std::to_string(unique_layout ?
             16u + (result.layouts[0].prg_kib + result.layouts[0].chr_kib) * 1024u : 0u) +
         ",\"title\":" +

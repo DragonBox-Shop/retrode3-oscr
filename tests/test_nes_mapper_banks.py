@@ -254,7 +254,7 @@ class TestNesMapperBanks(unittest.TestCase):
         schema = cap["selection_schema"]
         field = next(f for f in schema["fields"] if f["id"] == "mapper")
         self.assertEqual(set(v["value"] for v in field["values"]
-                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 11, 13, 66, 71, 206, 268})
+                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 9, 10, 11, 13, 64, 66, 69, 71, 76, 88, 95, 118, 119, 154, 158, 206, 268})
 
     def test_bank_order_and_crc_for_mappers_2_3_4_7(self):
         shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
@@ -341,6 +341,51 @@ class TestNesMapperBanks(unittest.TestCase):
                                     for addr, value, mode in writes))
             else:
                 self.assertFalse(os.path.exists(log))
+
+    def test_reviewed_register_families(self):
+        shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
+        for mapper, p, c in ((9, 128, 128), (10, 256, 128),
+                             (64, 128, 256), (69, 256, 256),
+                             (76, 128, 128), (88, 128, 128),
+                             (95, 128, 32), (118, 256, 128),
+                             (119, 128, 64), (154, 128, 128),
+                             (158, 128, 128)):
+            name = "family-%d" % mapper
+            selection = self.v3_override(p, c)
+            selection["parameters"]["mapper"] = mapper
+            output = os.path.join(self.temp.name, name + ".nes")
+            log = os.path.join(self.temp.name, name + ".writes")
+            env = {"RETRODE_MOCK_NES_PRG_KIB": str(p),
+                   "RETRODE_MOCK_NES_CHR_KIB": str(c),
+                   "RETRODE_MOCK_NES_WRITELOG": log}
+            events = self.run_cli(mapper, [{"command": "probe", "core": "nes",
+                                           "request_id": name + "-probe"}], env)
+            self.assertEqual(events[-1]["event"], "probe_result", events)
+            self.assertFalse(os.path.exists(log))
+            job = {"command": "read_rom", "core": "nes", "request_id": name,
+                   "output": output, "selection": selection}
+            events = self.run_cli(mapper, [job], env)
+            self.assertEqual(events[-1]["event"], "result", (mapper, events))
+            with io.open(output, "rb") as handle:
+                actual = handle.read()
+            expected = fixture_rom(mapper, p, c)
+            self.assertEqual(actual[16:], expected[16:], mapper)
+            if mapper == 119:
+                self.assertEqual(actual[7] & 12, 8)
+                self.assertEqual(actual[11], 7)
+            else:
+                self.assertEqual(actual[:16], expected[:16], mapper)
+            with io.open(log, "r", encoding="utf-8") as handle:
+                writes = [tuple(int(v) for v in line.split()) for line in handle]
+            self.assertTrue(writes)
+            self.assertTrue(all(addr >= 0x8000 and addr != 0xa001 and mode == 10
+                                for addr, value, mode in writes))
+            os.unlink(log)
+            selection["parameters"]["battery"] = True
+            job["output"] += ".blocked"
+            events = self.run_cli(mapper, [job], env)
+            self.assertEqual(events[-1]["event"], "error", (mapper, events))
+            self.assertFalse(os.path.exists(log))
 
     def test_smd133_outer_register_windows_and_nes2_header(self):
         shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
