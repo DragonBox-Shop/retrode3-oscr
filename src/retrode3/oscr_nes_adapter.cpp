@@ -760,7 +760,7 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
            {"value":268,"label":"SMD133 (Coolboy/Mindkids)","read_supported":true}]},
 {"id":"submapper","label":"Submapper","type":"integer","minimum":0,"maximum":15,"required":true,"default":0},
 {"id":"prg_kib","label":"PRG ROM (KiB)","type":"integer","minimum":16,"maximum":1024,"required":true},
-{"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128,256]},
+{"id":"chr_kib","label":"CHR ROM (KiB)","type":"enum","required":true,"values":[0,8,16,32,64,128,256,512]},
 {"id":"mirroring","label":"Mirroring","type":"enum","required":true,
  "values":["horizontal","vertical","four_screen"]},
 {"id":"battery","label":"Battery","type":"boolean","required":true,"default":false}],

@@ -22,22 +22,27 @@ bool family_direct(unsigned m)
     switch (m) {
     case 18: case 22: case 24: case 26: case 32: case 33: case 48:
     case 65: case 68: case 112: case 117:
-    case 21: case 25: case 85: case 210: return true;
+    case 21: case 25: case 85: case 210:
+    case 27: case 90: case 209: case 211: return true;
     default: return false;
     }
 }
 bool family_latch(unsigned m)
 {
     return m == 70 || m == 89 || m == 152 || m == 180 || m == 241 ||
-           m == 30 || m == 78 || m == 94;
+           m == 30 || m == 78 || m == 94 || m == 148;
 }
 bool family_new(unsigned m)
 {
     return family_mmc3(m) || m == 9 || m == 10 || m == 69 ||
-           family_direct(m) || family_latch(m) || m == 28;
+           family_direct(m) || family_latch(m) || m == 28 ||
+           m == 5 || m == 16 || m == 19 || m == 157;
 }
 unsigned direct_prg[2] = {}, direct_chr[8] = {};
 unsigned action53_select = 0xffu;
+unsigned bandai_submapper = 4u, mmc5_prg_mode = 3u, mmc5_chr_mode = 0u;
+unsigned mmc5_chr_upper = 0u;
+bool namco_chr_rom = false;
 unsigned smd_window = 0x6000u, smd_outer[4] = {};
 bool smd_wram_enabled = true; // require explicit disabling before outer writes
 unsigned smd_seen = 0;
@@ -62,6 +67,10 @@ void init()
     initialized = true;
     const char *m = std::getenv("RETRODE_MOCK_NES_MAPPER");
     if (m) mapper = static_cast<unsigned>(std::atoi(m));
+    if (mapper == 16) {
+        const char *sub = std::getenv("RETRODE_MOCK_NES_SUBMAPPER");
+        if (sub) bandai_submapper = static_cast<unsigned>(std::atoi(sub));
+    }
     if (mapper) {
         prg_size = mapper == 2 ? 65536u :
                    mapper == 3 ? 32768u : 131072u;
@@ -247,10 +256,20 @@ unsigned char mapped_prg(unsigned address)
             return rom_prg[prg_size - 8192u + (address & 0x1fffu)];
         return rom_prg[offset % prg_size];
     }
+    if (mapper == 16 || mapper == 157) {
+        const unsigned bank = address < 0xc000u ? ux_bank : prg_size / 16384u - 1u;
+        return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
+    }
+    if (mapper == 5 && address < 0xc000u) {
+        unsigned bank = direct_prg[(address - 0x8000u) >> 13];
+        return rom_prg[(bank * 8192u + (address & 0x1fffu)) % prg_size];
+    }
+    if (mapper == 19 && address < 0xa000u)
+        return rom_prg[(direct_prg[0] * 8192u + (address & 0x1fffu)) % prg_size];
     if (mapper == 28)
         return rom_prg[(ax_bank * 32768u + offset) % prg_size];
     if (family_latch(mapper)) {
-        if (mapper == 241)
+        if (mapper == 241 || mapper == 148)
             return rom_prg[(ax_bank * 32768u + offset) % prg_size];
         unsigned bank;
         if (mapper == 180)
@@ -292,6 +311,16 @@ unsigned char mapped_chr(unsigned address)
         return rom_chr[((mmc1_chr & 0x1eu) * 4096u + address) % chr_size];
     if (mapper == 3 || mapper == 11 || mapper == 66)
         return rom_chr[(cn_bank * 8192u + address) % chr_size];
+    if (mapper == 5)
+        return rom_chr[(direct_chr[0] * 8192u + address) % chr_size];
+    if (mapper == 16)
+        return rom_chr[(direct_chr[0] * 1024u + (address & 0x3ffu)) % chr_size];
+    if (mapper == 19) {
+        if (!namco_chr_rom && direct_chr[address >> 10] >= 0xe0u) return 0xffu;
+        return rom_chr[(direct_chr[address >> 10] * 1024u + (address & 0x3ffu)) % chr_size];
+    }
+    if (mapper == 90 || mapper == 209 || mapper == 211)
+        return rom_chr[(direct_chr[0] * 8192u + address) % chr_size];
     if (family_latch(mapper))
         return rom_chr[(cn_bank * 8192u + address) % chr_size];
     if (family_direct(mapper)) {
@@ -368,7 +397,8 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
 {
     init();
     if (!buf || mode != NES_MODE_PRG || size != 1 ||
-        (address < 0x8000u && mapper != 268 && !(mapper == 28 && address == 0x5000u)))
+        (address < 0x8000u && mapper != 268 && mapper != 5 &&
+         mapper != 16 && !(mapper == 28 && address == 0x5000u)))
         return -1;
     const char *fault = std::getenv("RETRODE_MOCK_NES_WRITE_FAIL");
     if (fault) return -1;
@@ -397,6 +427,37 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
             mmc_prg_bank = value;
             smd_seen = 0;
         } else return -1; // wrong window, WRAM enable, or other write
+        record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
+        return 1;
+    }
+    if (mapper == 5) {
+        if (address == 0x5100u && value == 3u) mmc5_prg_mode = value;
+        else if (address == 0x5101u && value == 0u) mmc5_chr_mode = value;
+        else if ((address == 0x5114u || address == 0x5115u) &&
+                 mmc5_prg_mode == 3u && value >= 0x80u && value < 0xc0u)
+            direct_prg[address - 0x5114u] = value & 0x7fu;
+        else if (address == 0x5130u && value < 4u) mmc5_chr_upper = value;
+        else if (address == 0x5127u && mmc5_chr_mode == 0u)
+            direct_chr[0] = (mmc5_chr_upper << 8) | value;
+        else return -1;
+        record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
+        return 1;
+    }
+    if (mapper == 16 || mapper == 157) {
+        unsigned regbase = mapper == 16 && bandai_submapper == 4u ? 0x6000u : 0x8000u;
+        if (address == regbase + 8u && value < 16u) ux_bank = value;
+        else if (mapper == 16 && address == regbase) direct_chr[0] = value;
+        else return -1;
+        record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
+        return 1;
+    }
+    if (mapper == 19) {
+        if (address == 0xe000u && value < 32u) direct_prg[0] = value;
+        else if (address == 0xe800u && value == 0xc0u) namco_chr_rom = true;
+        else if (address >= 0x8000u && address <= 0xb800u &&
+                 !(address & 0x7ffu) && namco_chr_rom)
+            direct_chr[(address - 0x8000u) >> 11] = value;
+        else return -1;
         record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
         return 1;
     }
@@ -436,7 +497,10 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     else if (mapper == 2 || mapper == 71) ux_bank = value;
     else if (mapper == 3) cn_bank = value;
     else if (family_latch(mapper)) {
-        if (mapper == 30) {
+        if (mapper == 148) {
+            ax_bank = value >> 3;
+            cn_bank = value & 7u;
+        } else if (mapper == 30) {
             if (address < 0xc000u || value >= 32u) return -1;
             ux_bank = value;
         } else if (mapper == 94) {
@@ -463,6 +527,21 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
                 direct_chr[0] = (direct_chr[0] & 240u) | value;
             else if (address == 0xa001u && value < 16u)
                 direct_chr[0] = (direct_chr[0] & 15u) | (value << 4);
+            else return -1;
+            break;
+        case 27:
+            if (address == 0xa000u && value < 4u) direct_prg[1] = value;
+            else if (address == 0xb000u && value < 16u)
+                direct_chr[0] = (direct_chr[0] & 240u) | value;
+            else if (address == 0xb001u && value == 0u)
+                direct_chr[0] &= 15u;
+            else return -1;
+            break;
+        case 90: case 209: case 211:
+            if (address == 0xd000u && value == 2u) {}
+            else if (address == 0xd003u && value == 0x20u) {}
+            else if (address == 0x8000u && value < 64u) direct_prg[0] = value;
+            else if (address == 0x9000u && value < 64u) direct_chr[0] = value;
             else return -1;
             break;
         case 21:

@@ -236,11 +236,13 @@ int compatible(std::string const &file, Core const &core,
                                     has_v3 = true;
                                     can_read_rom = true;
                                     // Optional metadata only, never touch the bus for inventory.
-                                    char payload[16384] = {}, error[256] = {};
-                                    if (!v3->capabilities_json(payload, sizeof(payload), error, sizeof(error)) &&
-                                        std::memchr(payload, '\0', sizeof(payload))) {
+                                    // Shared bounded JSON capacity for growing core schemas.
+                                    std::vector<char> payload(65536, '\0');
+                                    char error[256] = {};
+                                    if (!v3->capabilities_json(payload.data(), payload.size(), error, sizeof(error)) &&
+                                        std::memchr(payload.data(), '\0', payload.size())) {
                                         try {
-                                            const retrode3::JsonV3 schema = retrode3::parse_json_v3(payload);
+                                            const retrode3::JsonV3 schema = retrode3::parse_json_v3(payload.data());
                                             probe_without_sense = schema.has("probe_without_sense") &&
                                                 schema.at("probe_without_sense").kind == retrode3::JsonV3::Boolean &&
                                                 schema.at("probe_without_sense").boolean &&
@@ -1021,12 +1023,12 @@ void read_rom_v2(retrode3::NdjsonProtocol &stream,
  * in the host. Live adapter callbacks are the final safety authority. */
 retrode3::JsonV3 core_document_v3(retrode3_core_json_v3_fn callback)
 {
-    char payload[16384] = {};
+    std::vector<char> payload(65536, '\0');
     char error[256] = {};
-    if (callback(payload, sizeof(payload), error, sizeof(error)) != 0)
+    if (callback(payload.data(), payload.size(), error, sizeof(error)) != 0)
         throw std::runtime_error(error[0] ? safe_cstr(error, sizeof(error))
                                           : "core JSON callback failed");
-    std::string json = safe_cstr(payload, sizeof(payload));
+    std::string json = safe_cstr(payload.data(), payload.size());
     retrode3::JsonV3 doc = retrode3::parse_json_v3(json);
     if (doc.kind != retrode3::JsonV3::Object)
         throw std::runtime_error("core JSON document must be an object");

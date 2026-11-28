@@ -8,7 +8,7 @@
  * of newly enabled development layouts is tracked separately. */
 namespace retrode3 { namespace nesmapper {
 // Additional reviewed ROM profiles share register primitives, not bank loops.
-enum class RegisterFamily { Mmc2, Mmc3, Fme7, Direct, Latch, Expansion };
+enum class RegisterFamily { Mmc2, Mmc3, Fme7, Direct, Latch, Expansion, Mmc5, Bandai, Namco };
 struct FamilyProfile {
     unsigned mapper;
     const char *label;

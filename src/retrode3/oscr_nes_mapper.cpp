@@ -168,6 +168,15 @@ const FamilyProfile *family_profiles(std::size_t &count)
         {85, "Konami VRC7b", "vrc7b", RegisterFamily::Direct, 128, 256, 128, 256},
         {94, "UN1ROM", "un1rom", RegisterFamily::Latch, 128, 128, 0, 0},
         {210, "Namco 175/340", "namco175-340", RegisterFamily::Direct, 128, 256, 128, 256},
+        {5, "MMC5", "mmc5", RegisterFamily::Mmc5, 128, 512, 128, 512},
+        {16, "Bandai FCG / LZ93D50", "bandai-fcg", RegisterFamily::Bandai, 128, 256, 128, 256},
+        {19, "Namco 163", "namco163", RegisterFamily::Namco, 128, 256, 128, 256},
+        {27, "VRC4 derivative", "mapper27", RegisterFamily::Direct, 32, 32, 8, 8},
+        {90, "J.Y. Company ASIC", "jy-asic", RegisterFamily::Direct, 128, 512, 128, 512},
+        {148, "Sachen SA-008-A / Tengen", "sachen-latch", RegisterFamily::Latch, 32, 32, 16, 64},
+        {157, "Bandai Datach (ROM read)", "datach", RegisterFamily::Bandai, 256, 256, 0, 0},
+        {209, "J.Y. Company ASIC", "jy-asic", RegisterFamily::Direct, 128, 512, 128, 512},
+        {211, "J.Y. Company ASIC", "jy-asic", RegisterFamily::Direct, 128, 512, 128, 512},
     };
     count = sizeof(profiles) / sizeof(profiles[0]);
     return profiles;
@@ -184,6 +193,8 @@ const FamilyProfile *family_profile(unsigned mapper)
 unsigned family_submapper_mask(unsigned mapper)
 {
     switch (mapper) {
+    case 16: return (1u << 4) | (1u << 5);
+    case 19: return (1u << 2) | (1u << 3) | (1u << 5);
     case 21: case 85: return 1u << 1; // VRC4a and VRC7b wiring only.
     case 25: case 210: return (1u << 1) | (1u << 2);
     case 78: return (1u << 1) | (1u << 3);
@@ -286,7 +297,14 @@ struct DirectRegisterRule {
 };
 static bool direct_register_allowed(unsigned mapper, unsigned address, unsigned data)
 {
+    // J.Y. ASIC: upstream selects 8 KiB PRG and CHR windows.
+    // These profiles fit inside a single 512 KiB outer bank.
+    if (mapper == 90u || mapper == 209u || mapper == 211u)
+        return (address == 0xd000u && data == 2u) ||
+               (address == 0xd003u && data == 0x20u) ||
+               ((address == 0x8000u || address == 0x9000u) && data < 64u);
     static const DirectRegisterRule rules[] = {
+        {27, 0xa000, 0, 3}, {27, 0xb000, 0, 7}, {27, 0xb001, 0, 0},
         {18, 0x8000, 0, 15}, {18, 0x8001, 0, 15},
         {18, 0x8002, 0, 15}, {18, 0x8003, 0, 15},
         {18, 0xa000, 0, 15}, {18, 0xa001, 0, 15},
@@ -328,6 +346,7 @@ static bool latch_register_allowed(unsigned mapper, unsigned data)
     case 30: return data < 32u;
     case 78: return (data & ~0xf7u) == 0;
     case 94: return data <= 28u && !(data & 3u);
+    case 148: return data < 8u;
     default: return false;
     }
 }
@@ -402,6 +421,45 @@ void generated_write(unsigned address, unsigned data, bool serial)
                     else if (c.register_select == 0xffu ||
                              (c.register_select == 0u && data >= 32u)) unsupported();
                 }
+                break;
+            case RegisterFamily::Mmc5:
+                // Sanni's six exact expansion registers. PRG selects ROM
+                // (bit 7), not RAM. No RAM-protection, SRAM or ExRAM writes.
+                if (!((address == 0x5100u && data == 3u) ||
+                      (address == 0x5101u && data == 0u) ||
+                      ((address == 0x5114u || address == 0x5115u) &&
+                       data >= 0x80u && data < 0xc0u) ||
+                      (address == 0x5127u && data < 64u) ||
+                      (address == 0x5130u && data < 4u))) unsupported();
+                cpu_mapper_register(CpuRegisterSpace::Expansion,
+                                    static_cast<uint16_t>(address), static_cast<uint8_t>(data));
+                c.cache_valid = false;
+                return;
+            case RegisterFamily::Bandai:
+                if (c.mapper == 157u) {
+                    if (address != 0x8008u || data >= 16u) unsupported();
+                    break;
+                }
+                // Upstream writes both FCG decode windows. NES2 submapper
+                // identifies the real one: avoid writes to the other,
+                // particularly the potentially RAM-mapped lower window.
+                if ((address != 0x6000u && address != 0x6008u &&
+                     address != 0x8000u && address != 0x8008u) ||
+                    ((address & 8u) && data >= 16u)) unsupported();
+                if (c.submapper == 4u && address < 0x8000u) {
+                    cpu_mapper_register(CpuRegisterSpace::WramOverlay,
+                                        static_cast<uint16_t>(address), static_cast<uint8_t>(data));
+                    c.cache_valid = false;
+                    return;
+                }
+                if ((c.submapper == 4u && address >= 0x8000u) ||
+                    (c.submapper == 5u && address < 0x8000u)) return;
+                break;
+            case RegisterFamily::Namco:
+                // Only CHR-ROM selectors here. The distinct upstream
+                // write_ram_byte helper is routed separately below.
+                if (address < 0x8000u || address > 0xb800u ||
+                    (address & 0x7ffu)) unsupported();
                 break;
             case RegisterFamily::Expansion:
                 // Action 53: only the documented register-select and
@@ -478,7 +536,7 @@ uint8_t generated_read(unsigned address)
     GeneratedContext &c = context();
     if ((c.mapper != 2 && c.mapper != 3 && c.mapper != 66 &&
          c.mapper != 70 && c.mapper != 152 && c.mapper != 30 &&
-         c.mapper != 94) || address > 0xffffu ||
+         c.mapper != 94 && c.mapper != 148) || address > 0xffffu ||
         address < ((c.mapper == 2 || c.mapper == 30 || c.mapper == 94) ?
                    0xc000u : 0x8000u)) unsupported();
     unsigned base = address & ~511u;
@@ -488,6 +546,19 @@ uint8_t generated_read(unsigned address)
         c.cache_valid = true;
     }
     return c.cache[address - base];
+}
+// Sanni write_ram_byte is a CPU register strobe, not a save write.
+// Its M2/ROMSEL sequence matches the kernel legacy NES_PRG cycle at
+// E000/E800 in logical order. Physical setup/hold timing is unverified;
+// only non-battery Namco 163 layouts are approved by the adapter.
+void generated_namco_register(unsigned address, unsigned data)
+{
+    GeneratedContext &c = context();
+    if (c.mapper != 19u ||
+        !((address == 0xe000u && data < 32u) ||
+          (address == 0xe800u && data == 0xc0u))) unsupported();
+    prg_register(static_cast<uint16_t>(address), static_cast<uint8_t>(data));
+    c.cache_valid = false;
 }
 void generated_unsupported() { unsupported(); }
 } }
@@ -503,7 +574,7 @@ void write_prg_byte(unsigned a, unsigned v) { retrode3::nesmapper::generated_wri
 void write_reg_byte(unsigned a, unsigned v) { retrode3::nesmapper::generated_write(a,v,true); }
 std::uint8_t read_prg_byte(unsigned a) { return retrode3::nesmapper::generated_read(a); }
 std::uint8_t read_chr_byte(unsigned) { retrode3::nesmapper::generated_unsupported(); return 0; }
-void write_ram_byte(unsigned, unsigned) { retrode3::nesmapper::generated_unsupported(); }
+void write_ram_byte(unsigned a, unsigned v) { retrode3::nesmapper::generated_namco_register(a,v); }
 void write_prg_pulsem2(unsigned, unsigned) { retrode3::nesmapper::generated_unsupported(); }
 void write_reg_m59(unsigned) { retrode3::nesmapper::generated_unsupported(); }
 void dumpPRG_pulsem2(unsigned, unsigned) { retrode3::nesmapper::generated_unsupported(); }

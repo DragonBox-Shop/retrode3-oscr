@@ -1,5 +1,34 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## MMC5, Bandai FCG und Namco 163 (2026-11-28)
+
+- Neun weitere Mapper-IDs: 5, 16, 19, 27, 90, 148, 157, 209, 211.
+  56 von 195 Upstream-PRG-IDs fuer begrenzte ROM-Profile.
+- MMC5: ausschliesslich Sannis sechs ROM-Bankregister (5100, 5101,
+  5114, 5115, 5127, 5130), PRG-ROM-Bit gesetzt. Kernel develop
+  7d26f65 erweitert den kurzen M2-Schreibpfad auf genau diese Adressen.
+  Quellenvergleich zeigt Reset-empfindliche Register; Pulsbreiten und
+  CHR-Leseflanken sind physisch noch nicht vermessen.
+- Bandai 16: nur Submapper 4/5, nur jeweils passendes CPU-Registerfenster.
+  Sannis jeweils zweiter Decode-Writeschritt wird im HAL unterdrueckt,
+  um keine unbekannten RAM-Overlays zu treffen. 157 nur 8008,
+  keine EEPROM-Operationen. 159 und 153 mit Save-Varianten bleiben zu.
+- Namco 19: Submapper 2/3/5, Sannis write_ram_byte ist ein CPU-
+  Registerstrobespezialfall, kein SRAM-Write. Logischer Legacy-
+  NES_PRG-Pfad bei E000/E800 entspricht der Reihenfolge von Sanni
+  einschliesslich ROMSEL-low waehrend M2 high; physisches Timing
+  nicht qualifiziert. Keine Batterie und kein direkter SRAM-Zugriff.
+- J.Y.-ASIC 90/209/211 vorerst max. 512 KiB PRG und CHR, keine
+  Bankzaehlerueberlaeufe oder Sondergeometrien. 148 konfliktfrei.
+- Gemeinsamer CLI-v3-Dokumentpuffer jetzt begrenzt auf 64 KiB statt
+  16 KiB, Heap statt Stack, fuer kuenftige dynamische Core-Schemata.
+  CHR-Auswahl bis 512 KiB. CLI und Kernel zusammen mit NES aktualisieren.
+- Referenzen: https://www.nesdev.org/wiki/MMC5 ,
+  https://www.nesdev.org/wiki/INES_Mapper_016/Submapper_table ,
+  https://www.nesdev.org/wiki/Namco_163 ,
+  https://www.nesdev.org/wiki/INES_Mapper_090 .
+- Mock-Tests hinzugefuegt. Build/CI und Hardwaretest noch offen.
+
 ## Homebrew und Submapper-Familien (2026-11-28)
 
 - 8 weitere Mapper-IDs: 21 (VRC4a, Submapper 1), 25 (VRC4b/d,
