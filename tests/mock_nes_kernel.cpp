@@ -17,7 +17,24 @@ bool family_mmc3(unsigned m)
     return m == 64 || m == 76 || m == 88 || m == 95 || m == 118 ||
            m == 119 || m == 154 || m == 158;
 }
-bool family_new(unsigned m) { return family_mmc3(m) || m == 9 || m == 10 || m == 69; }
+bool family_direct(unsigned m)
+{
+    switch (m) {
+    case 18: case 22: case 24: case 26: case 32: case 33: case 48:
+    case 65: case 68: case 112: case 117: return true;
+    default: return false;
+    }
+}
+bool family_latch(unsigned m)
+{
+    return m == 70 || m == 89 || m == 152 || m == 180 || m == 241;
+}
+bool family_new(unsigned m)
+{
+    return family_mmc3(m) || m == 9 || m == 10 || m == 69 ||
+           family_direct(m) || family_latch(m);
+}
+unsigned direct_prg[2] = {}, direct_chr[4] = {};
 unsigned smd_window = 0x6000u, smd_outer[4] = {};
 bool smd_wram_enabled = true; // require explicit disabling before outer writes
 unsigned smd_seen = 0;
@@ -227,6 +244,27 @@ unsigned char mapped_prg(unsigned address)
             return rom_prg[prg_size - 8192u + (address & 0x1fffu)];
         return rom_prg[offset % prg_size];
     }
+    if (family_latch(mapper)) {
+        if (mapper == 241)
+            return rom_prg[(ax_bank * 32768u + offset) % prg_size];
+        unsigned bank;
+        if (mapper == 180)
+            bank = address < 0xc000u ? 0u : ux_bank;
+        else
+            bank = address < 0xc000u ? ux_bank : prg_size / 16384u - 1u;
+        return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
+    }
+    if (family_direct(mapper)) {
+        if (mapper == 24 || mapper == 26 || mapper == 68) {
+            unsigned bank = address < 0xc000u ? direct_prg[0] : prg_size / 16384u - 1u;
+            return rom_prg[(bank * 16384u + (address & 0x3fffu)) % prg_size];
+        }
+        if (address < 0xc000u) {
+            unsigned window = (address - 0x8000u) >> 13;
+            return rom_prg[(direct_prg[window] * 8192u + (address & 0x1fffu)) % prg_size];
+        }
+        return rom_prg[(prg_size - 16384u + (address & 0x3fffu)) % prg_size];
+    }
     if (mapper == 10) {
         if (address < 0xc000u)
             return rom_prg[(mmc_prg_bank * 16384u + (address & 0x3fffu)) % prg_size];
@@ -249,6 +287,17 @@ unsigned char mapped_chr(unsigned address)
         return rom_chr[((mmc1_chr & 0x1eu) * 4096u + address) % chr_size];
     if (mapper == 3 || mapper == 11 || mapper == 66)
         return rom_chr[(cn_bank * 8192u + address) % chr_size];
+    if (family_latch(mapper))
+        return rom_chr[(cn_bank * 8192u + address) % chr_size];
+    if (family_direct(mapper)) {
+        if (mapper == 33 || mapper == 48)
+            return rom_chr[(direct_chr[0] * 2048u + (address & 0x7ffu)) % chr_size];
+        if (mapper == 68) {
+            unsigned window = address >> 11;
+            return rom_chr[(direct_chr[window] * 2048u + (address & 0x7ffu)) % chr_size];
+        }
+        return rom_chr[(direct_chr[0] * 1024u + (address & 0x3ffu)) % chr_size];
+    }
     if (mapper == 9 || mapper == 10)
         return rom_chr[(family_chr[0] * 4096u + (address & 0xfffu)) % chr_size];
     if (mapper == 69)
@@ -346,7 +395,7 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     }
     // Fail on any bus-conflicting write. Sanni's unsupported fallback
     // deliberately has no equivalent in the production mapper adapter.
-    if ((mapper == 2 || mapper == 3 || mapper == 7 || mapper == 11 || mapper == 66 || mapper == 71) && mapped_prg(address) != value)
+    if ((mapper == 2 || mapper == 3 || mapper == 7 || mapper == 11 || mapper == 66 || mapper == 71 || family_latch(mapper)) && mapped_prg(address) != value)
         return -1;
     record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
     if (mapper == 1) {
@@ -367,6 +416,74 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     }
     else if (mapper == 2 || mapper == 71) ux_bank = value;
     else if (mapper == 3) cn_bank = value;
+    else if (family_latch(mapper)) {
+        if (mapper == 180) ux_bank = value & 7u;
+        else if (mapper == 241) ax_bank = value & 15u;
+        else {
+            ux_bank = (value >> 4) & 7u;
+            cn_bank = mapper == 89 ? ((value & 7u) | ((value & 0x80u) >> 4)) : value & 15u;
+        }
+    }
+    else if (family_direct(mapper)) {
+        switch (mapper) {
+        case 18:
+            if (address >= 0x8000u && address <= 0x8003u && value < 16u) {
+                unsigned reg = (address - 0x8000u) >> 1;
+                if (address & 1u) direct_prg[reg] = (direct_prg[reg] & 15u) | (value << 4);
+                else direct_prg[reg] = (direct_prg[reg] & 240u) | value;
+            } else if (address == 0xa000u && value < 16u)
+                direct_chr[0] = (direct_chr[0] & 240u) | value;
+            else if (address == 0xa001u && value < 16u)
+                direct_chr[0] = (direct_chr[0] & 15u) | (value << 4);
+            else return -1;
+            break;
+        case 22:
+            if (address == 0x8000u && value < 16u) direct_prg[0] = value;
+            else if (address == 0xb000u && value < 16u)
+                direct_chr[0] = (direct_chr[0] & 0x78u) | (value >> 1);
+            else if (address == 0xb002u && value < 16u)
+                direct_chr[0] = (direct_chr[0] & 7u) | (value << 3);
+            else return -1;
+            break;
+        case 24: case 26:
+            if (address == 0x8000u && value < 16u) direct_prg[0] = value;
+            else if (address == 0xb003u && value == 0u) {}
+            else if (address == 0xd000u) direct_chr[0] = value;
+            else return -1;
+            break;
+        case 32:
+            if (address == 0x9000u && value == 1u) {}
+            else if (address == 0xa000u && value < 32u) direct_prg[1] = value;
+            else if (address == 0xb000u) direct_chr[0] = value;
+            else return -1;
+            break;
+        case 33: case 48:
+            if (address == 0x8000u && value < 32u) direct_prg[0] = value;
+            else if (address == 0x8001u && value < 32u) direct_prg[1] = value;
+            else if (address == 0x8002u) direct_chr[0] = value;
+            else return -1;
+            break;
+        case 65: case 117:
+            if (address == 0x8000u && value < 32u) direct_prg[0] = value;
+            else if (address == (mapper == 65 ? 0xb000u : 0xa000u)) direct_chr[0] = value;
+            else return -1;
+            break;
+        case 68:
+            if (address == 0xf000u && value < 8u) direct_prg[0] = value;
+            else if (address >= 0x8000u && address <= 0xb000u && !(address & 0xfffu))
+                direct_chr[(address - 0x8000u) >> 12] = value;
+            else return -1;
+            break;
+        case 112:
+            if (address == 0x8000u && (value == 0u || value == 6u)) mmc_mode = value;
+            else if (address == 0xa000u && mmc_mode == 0u && value < 32u)
+                direct_prg[0] = value;
+            else if (address == 0xa000u && mmc_mode == 6u) direct_chr[0] = value;
+            else return -1;
+            break;
+        default: return -1;
+        }
+    }
     else if (mapper == 9 || mapper == 10) {
         if (address == 0xa000u && value < 16u) mmc_prg_bank = value;
         else if (address == 0xb000u && value < 32u) family_chr[0] = value;

@@ -144,6 +144,22 @@ const FamilyProfile *family_profiles(std::size_t &count)
         {119, "TQROM", "tqrom", RegisterFamily::Mmc3, 128, 128, 64, 64},
         {154, "Namco 118 (single-screen)", "namco118", RegisterFamily::Mmc3, 128, 128, 128, 128},
         {158, "RAMBO-1 (mirroring)", "rambo1", RegisterFamily::Mmc3, 128, 128, 128, 128},
+        {18, "Jaleco SS88006", "ss88006", RegisterFamily::Direct, 128, 128, 128, 256},
+        {22, "Konami VRC2a", "vrc2a", RegisterFamily::Direct, 128, 128, 128, 128},
+        {24, "Konami VRC6a", "vrc6a", RegisterFamily::Direct, 256, 256, 128, 256},
+        {26, "Konami VRC6b", "vrc6b", RegisterFamily::Direct, 128, 256, 64, 128},
+        {32, "Irem G-101", "g101", RegisterFamily::Direct, 256, 256, 128, 128},
+        {33, "Taito TC0190", "tc0190", RegisterFamily::Direct, 128, 256, 128, 256},
+        {48, "Taito TC0190/TC0350", "tc0350", RegisterFamily::Direct, 128, 256, 128, 256},
+        {65, "Irem H3001", "h3001", RegisterFamily::Direct, 128, 256, 128, 256},
+        {68, "Sunsoft 4", "sunsoft4", RegisterFamily::Direct, 128, 128, 128, 256},
+        {112, "NTDEC ASDER", "asder", RegisterFamily::Direct, 64, 256, 64, 256},
+        {117, "Future Media", "futuremedia", RegisterFamily::Direct, 128, 256, 128, 256},
+        {70, "Bandai 74161/32", "bandai-latch", RegisterFamily::Latch, 64, 128, 128, 128},
+        {89, "Sunsoft 2", "sunsoft2", RegisterFamily::Latch, 128, 128, 128, 128},
+        {152, "Bandai 74161/32 (mirroring)", "bandai-latch", RegisterFamily::Latch, 32, 128, 8, 128},
+        {180, "UNROM (fixed first bank)", "unrom-fixed-first", RegisterFamily::Latch, 128, 128, 0, 0},
+        {241, "32K latch", "mapper241", RegisterFamily::Latch, 64, 512, 0, 0},
     };
     count = sizeof(profiles) / sizeof(profiles[0]);
     return profiles;
@@ -159,7 +175,7 @@ const FamilyProfile *family_profile(unsigned mapper)
 bool geometry(unsigned mapper, unsigned submapper, unsigned prg, unsigned chr)
 {
     if (const FamilyProfile *p = family_profile(mapper))
-        return submapper == 0u && power_two(prg) && power_two(chr) &&
+        return submapper == 0u && power_two(prg) && (chr == 0u || power_two(chr)) &&
             prg >= p->prg_min && prg <= p->prg_max &&
             chr >= p->chr_min && chr <= p->chr_max;
     // SMD133: deliberately start with the 512 KiB PRG / 256 KiB
@@ -242,6 +258,46 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
         OSCR::Cores::NES::generatedReadCHR(mapper, exponent(chr_kib, 4));
 }
 
+// Reviewed register addresses and maximum data values for direct ASICs.
+// Bank order and values themselves still originate in the generated code.
+struct DirectRegisterRule {
+    unsigned mapper, address, min_value, max_value;
+};
+static bool direct_register_allowed(unsigned mapper, unsigned address, unsigned data)
+{
+    static const DirectRegisterRule rules[] = {
+        {18, 0x8000, 0, 15}, {18, 0x8001, 0, 15},
+        {18, 0x8002, 0, 15}, {18, 0x8003, 0, 15},
+        {18, 0xa000, 0, 15}, {18, 0xa001, 0, 15},
+        {22, 0x8000, 0, 15}, {22, 0xb000, 0, 15}, {22, 0xb002, 0, 15},
+        {24, 0x8000, 0, 15}, {24, 0xb003, 0, 0}, {24, 0xd000, 0, 255},
+        {26, 0x8000, 0, 15}, {26, 0xb003, 0, 0}, {26, 0xd000, 0, 127},
+        {32, 0x9000, 1, 1}, {32, 0xa000, 0, 31}, {32, 0xb000, 0, 127},
+        {33, 0x8000, 0, 31}, {33, 0x8001, 0, 31}, {33, 0x8002, 0, 127},
+        {48, 0x8000, 0, 31}, {48, 0x8001, 0, 31}, {48, 0x8002, 0, 127},
+        {65, 0x8000, 0, 31}, {65, 0xb000, 0, 255},
+        {68, 0xf000, 0, 7}, {68, 0x8000, 0, 127}, {68, 0x9000, 0, 127},
+        {68, 0xa000, 0, 127}, {68, 0xb000, 0, 127},
+        {112, 0x8000, 0, 0}, {112, 0x8000, 6, 6}, {112, 0xa000, 0, 255},
+        {117, 0x8000, 0, 31}, {117, 0xa000, 0, 255},
+    };
+    for (const DirectRegisterRule &r : rules)
+        if (mapper == r.mapper && address == r.address &&
+            data >= r.min_value && data <= r.max_value)
+            return true;
+    return false;
+}
+static bool latch_register_allowed(unsigned mapper, unsigned data)
+{
+    switch (mapper) {
+    case 70: case 152: return (data & ~0x7fu) == 0;
+    case 89: return (data & ~0xf7u) == 0;
+    case 180: return data < 8u;
+    case 241: return data < 16u;
+    default: return false;
+    }
+}
+
 void generated_write(unsigned address, unsigned data, bool serial)
 {
     GeneratedContext &c = context();
@@ -305,6 +361,22 @@ void generated_write(unsigned address, unsigned data, bool serial)
                         unsupported();
                 } else unsupported();
                 break;
+            case RegisterFamily::Direct:
+                if (!direct_register_allowed(c.mapper, address, data)) unsupported();
+                if (c.mapper == 112u) {
+                    if (address == 0x8000u) c.register_select = data;
+                    else if (c.register_select == 0xffu ||
+                             (c.register_select == 0u && data >= 32u)) unsupported();
+                }
+                break;
+            case RegisterFamily::Latch:
+                // These reviewed discrete boards decode the whole PRG
+                // write window. Select an equal ROM byte in the current
+                // mapping, never a conflicting fallback address.
+                if (address < 0x8000u || !latch_register_allowed(c.mapper, data))
+                    unsupported();
+                address = safe_register_address(0x8000u, static_cast<uint8_t>(data), c.io);
+                break;
             case RegisterFamily::Fme7:
                 if (address == 0x8000u) {
                     if (data != 0u && data != 8u && data != 9u) unsupported();
@@ -345,7 +417,8 @@ void generated_write(unsigned address, unsigned data, bool serial)
 uint8_t generated_read(unsigned address)
 {
     GeneratedContext &c = context();
-    if ((c.mapper != 2 && c.mapper != 3 && c.mapper != 66) || address > 0xffffu ||
+    if ((c.mapper != 2 && c.mapper != 3 && c.mapper != 66 &&
+         c.mapper != 70 && c.mapper != 152) || address > 0xffffu ||
         address < (c.mapper == 2 ? 0xc000u : 0x8000u)) unsupported();
     unsigned base = address & ~511u;
     if (!c.cache_valid || c.cache_base != base) {

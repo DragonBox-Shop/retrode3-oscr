@@ -1,5 +1,19 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## Weitere Familienfreigaben (2026-11-28)
+
+- 16 zusaetzliche Mapper-IDs: 18/22/24/26/32/33/48/65/68/112/117
+  (direkte ASIC-Register) und 70/89/152/180/241 (diskrete Latches).
+  Insgesamt 39 von 195 Upstream-PRG-Mappern fuer begrenzte ROM-Profile.
+- Direkte Register-Policies begrenzen Adressen und Daten; keine
+  SRAM/Flash-/Expansion-Writes. Latch-Policies suchen vor jedem
+  Schreibzugriff einen passenden ROM-Wert im aktuellen Mapping.
+  Sannis Bankalgorithmen bleiben unveraendert. CHR=0 in Profil-/Schema-
+  Generierung unterstuetzt; gemeinsame Tabelle liefert Web-Auswahl.
+- Neue synthetische Registermodelle und Payload-/Batterie-Regressionen
+  hinzugefuegt. Build/CI und Hardwaretest stehen aus. Keine Freigabe
+  von Mapper 30 Flashvarianten, VRC-Submappern oder RAM-Overlays.
+
 ## Familienfreigaben (2026-11-28)
 
 - Hardware-Rueckmeldung: Metal Storm Retro-Bit mit kurzem M2-Schreibzyklus

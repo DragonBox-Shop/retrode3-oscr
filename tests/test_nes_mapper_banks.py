@@ -254,7 +254,7 @@ class TestNesMapperBanks(unittest.TestCase):
         schema = cap["selection_schema"]
         field = next(f for f in schema["fields"] if f["id"] == "mapper")
         self.assertEqual(set(v["value"] for v in field["values"]
-                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 9, 10, 11, 13, 64, 66, 69, 71, 76, 88, 95, 118, 119, 154, 158, 206, 268})
+                             if v["read_supported"]), {0, 1, 2, 3, 4, 7, 9, 10, 11, 13, 18, 22, 24, 26, 32, 33, 48, 64, 65, 66, 68, 69, 70, 71, 76, 88, 89, 95, 112, 117, 118, 119, 152, 154, 158, 180, 206, 241, 268})
 
     def test_bank_order_and_crc_for_mappers_2_3_4_7(self):
         shutil.copyfile(PRODUCTION_MODULE, os.path.join(self.available, "nes.so"))
@@ -349,7 +349,23 @@ class TestNesMapperBanks(unittest.TestCase):
                              (76, 128, 128), (88, 128, 128),
                              (95, 128, 32), (118, 256, 128),
                              (119, 128, 64), (154, 128, 128),
-                             (158, 128, 128)):
+                             (158, 128, 128),
+                             (18, 128, 256),
+                             (22, 128, 128),
+                             (24, 256, 256),
+                             (26, 256, 128),
+                             (32, 256, 128),
+                             (33, 256, 256),
+                             (48, 256, 256),
+                             (65, 256, 256),
+                             (68, 128, 256),
+                             (112, 256, 256),
+                             (117, 256, 256),
+                             (70, 128, 128),
+                             (89, 128, 128),
+                             (152, 128, 128),
+                             (180, 128, 0),
+                             (241, 512, 0)):
             name = "family-%d" % mapper
             selection = self.v3_override(p, c)
             selection["parameters"]["mapper"] = mapper
@@ -378,7 +394,8 @@ class TestNesMapperBanks(unittest.TestCase):
             with io.open(log, "r", encoding="utf-8") as handle:
                 writes = [tuple(int(v) for v in line.split()) for line in handle]
             self.assertTrue(writes)
-            self.assertTrue(all(addr >= 0x8000 and addr != 0xa001 and mode == 10
+            self.assertTrue(all(addr >= 0x8000 and mode == 10 and
+                                (addr != 0xa001 or mapper == 18 or mapper in (70, 89, 152, 180, 241))
                                 for addr, value, mode in writes))
             os.unlink(log)
             selection["parameters"]["battery"] = True

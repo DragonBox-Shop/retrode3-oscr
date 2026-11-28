@@ -794,6 +794,7 @@ int capabilities_json_v3(char *out, size_t len, char *err, size_t cap)
     const retrode3::nesmapper::FamilyProfile *profiles =
         retrode3::nesmapper::family_profiles(count);
     const auto sizes = [](unsigned first, unsigned last) {
+        if (first == 0u && last == 0u) return std::string("[0]");
         std::string result("[");
         for (unsigned v = first; v <= last; v *= 2u) {
             if (v != first) result += ",";
