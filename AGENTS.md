@@ -110,6 +110,46 @@ Hardwareunterlagen nach `retrode3-hardware`.
   Regressionstests und Hardwarevergleich entfernen. Gilt fuer
   saemtliche bestehenden und zukuenftigen OSCR-Cores, nicht nur NES.
 
+## Verbindlicher Upstream-Timing- und Bus-Audit
+
+- Bei der Integration neuer Mapper/Familien bereits deren verwendete
+  Upstream-Hardwareprimitive und notwendige Signalreihenfolgen pruefen.
+  Nach Abschluss der NES-Mapper-Integration und vor der entsprechenden
+  Release-Freigabe einen vollstaendigen, familienuebergreifenden Audit
+  durchfuehren. Dasselbe Prinzip gilt fuer alle weiteren OSCR-Cores.
+- Referenz ist der exakt gepinnte Sanni-Quellstand einschliesslich
+  Hardware-/Port-Makros, Delay-Implementierung, AVR-Takt und
+  relevanter Board-Variante. Gegen den tatsaechlich ausgefuehrten
+  Retrode3-Pfad vergleichen: Generator/Patches, HAL, Kernel,
+  Device Tree, GPIO-Polaritaeten und aktive schnelle/Fallback-Pfade.
+- Nicht nur Registeradressen und Daten vergleichen, sondern auch
+  Signalflanken und Reihenfolge, Setup-/Hold-Zeiten, Pulsbreiten,
+  maximale Unterbrechungen, Adress-/Datenbus-Richtung, OE/WE,
+  ROMSEL/M2, PPU-Zugriffe, Slot-/Power-/Reset-Zustaende sowie
+  Verhalten zwischen einzelnen Block- und Systemaufrufen.
+  Scheduler, IRQs, GPIO-Latenz und Batching beruecksichtigen.
+  Insbesondere NES: kurze M2-Low-Phasen bei resetempfindlichen
+  Mappern (Metal Storm/SMD133); nicht nur den aktiven Schreibpuls.
+- Jede notwendige Upstream-Abweichung mit Grund, betroffenen
+  Mappern/Varianten und Test dokumentieren. Nicht pauschal AVR-Zyklen
+  nachbilden: schnellere Transfers sind erlaubt, wenn elektrische
+  Anforderungen, Signalreihenfolge und Zustandsverhalten erhalten
+  bleiben. Ungeklaerte kritische Abweichungen vor Freigabe beheben
+  oder den betroffenen Pfad explizit sperren.
+- Soweit moeglich automatisierte Vergleichstraces der logischen
+  Busoperationen und Regressionstests fuer gemeinsame Primitive
+  erstellen; elektrische Timing-Messungen mit Logikanalysator oder
+  Oszilloskop an repraesentativen Hardwarefamilien priorisieren.
+  Quellcode-Vergleich/Mock-Trace ist kein Beweis realer Pulsbreiten.
+- Audit-Matrix pro Familie/Variante versionieren: Upstream-Revision,
+  Kernel-Revision, Primitive, Abweichungen, Mess-/Testnachweise,
+  offene Punkte. Status getrennt ausweisen (Code geprueft,
+  Mock-geprueft, elektrisch gemessen, Cartridge-CRC bestaetigt,
+  nicht physisch getestet). Fehlende Testmodule nicht als bestandene
+  Hardwaretests ausgeben. Repraesentative Tests sollen gemeinsame
+  Primitive und besonders empfindliche Varianten abdecken;
+  bestehende Hardwareabnahme- und Sicherheitsregeln bleiben gueltig.
+
 ## Neue Plugin-Cores: Debian-Paket ist Pflicht
 
 - **Jeder neue Core fuer ein Release braucht `packaging/cores/<id>.core`
