@@ -13,5 +13,15 @@
     "reason": "Linux integer promotion of uint16_t banks differs from AVR; avoid signed comparison and guard short geometries.",
     "before": "for (size_t i = 0; i < banks - 4; i++)",
     "after": "for (size_t i = 0; banks >= 4u && i < static_cast<size_t>(banks - 4u); i++)"
+  },
+  {
+    "reason": "Mapper 47 outer latch uses CPU data bit 0, not address bit 0 (NESdev mapper 047, Nintendo 2-in-1); pinned e5a0832 wrote zero for both blocks. Preserve generated loop and correct the two writes. Mock models data latch.",
+    "before": "write_prg_byte(0x6000 + (i >> 4), 0);",
+    "after": "write_prg_byte(0x6000, i >> 4);"
+  },
+  {
+    "reason": "Mapper 47 CHR outer latch uses CPU data bit 0, same physical register as PRG; pinned e5a0832 used an address offset instead. See mapper 47 payload regression.",
+    "before": "write_prg_byte(0x6800 + ((i & 0x180) >> 7), 0);",
+    "after": "write_prg_byte(0x6000, (i & 0x80) >> 7);"
   }
 ]

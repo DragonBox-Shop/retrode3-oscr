@@ -12,6 +12,49 @@ unsigned prg_size = 16384, chr_size = 8192;
 unsigned mapper = 0, ux_bank = 0, cn_bank = 0, ax_bank = 0;
 unsigned mmc_mode = 0, mmc_prg_bank = 0, mmc_chr_bank = 0;
 unsigned family_chr[8] = {};
+bool family_outer(unsigned m)
+{
+    switch (m) {
+    case 12: case 37: case 44: case 47: case 49: case 115:
+    case 116: case 134: case 248: case 351: return true;
+    default: return false;
+    }
+}
+unsigned outer_reg[3] = {};
+bool outer_writable = false;
+unsigned outer_prg_bank(unsigned inner)
+{
+    switch (mapper) {
+    case 37: return (inner & ((outer_reg[0] & 4u) ? 15u : 7u)) |
+                    ((outer_reg[0] & 4u) ? 16u : (outer_reg[0] == 3u ? 8u : 0u));
+    case 44: return outer_reg[0] >= 6u ? 96u | (inner & 31u) :
+                    (outer_reg[0] << 4) | (inner & 15u);
+    case 47: return (outer_reg[0] << 4) | (inner & 15u);
+    case 49: return ((outer_reg[0] >> 6) << 4) | (inner & 15u);
+    case 115: case 248: return ((outer_reg[0] & 0x40u) >> 1) | (inner & 31u);
+    case 134: return (outer_reg[0] & 0x10u ? 64u : 0u) |
+                     ((outer_reg[1] & 2u) << 4) | (inner & 31u);
+    case 351: return ((outer_reg[1] & 0xfcu) >> 1) | (inner & 31u);
+    default: return inner & 63u;
+    }
+}
+unsigned outer_chr_bank(unsigned inner)
+{
+    switch (mapper) {
+    case 12: return ((outer_reg[0] & 1u) << 8) | inner;
+    case 37: return ((outer_reg[0] & 4u) << 5) | (inner & 127u);
+    case 44: return outer_reg[0] >= 6u ? 768u | inner :
+                    (outer_reg[0] << 7) | (inner & 127u);
+    case 47: return (outer_reg[0] << 7) | (inner & 127u);
+    case 49: return ((outer_reg[0] >> 6) << 7) | (inner & 127u);
+    case 115: case 248: return (outer_reg[1] << 8) | inner;
+    case 116: return ((outer_reg[0] & 4u) << 6) | inner;
+    case 134: return ((outer_reg[0] & 0x20u) << 4) |
+                     ((outer_reg[1] & 0x20u) << 3) | inner;
+    case 351: return ((outer_reg[0] & 0xfcu) << 1) | inner;
+    default: return inner;
+    }
+}
 bool family_mmc3(unsigned m)
 {
     return m == 64 || m == 76 || m == 88 || m == 95 || m == 118 ||
@@ -34,7 +77,7 @@ bool family_latch(unsigned m)
 }
 bool family_new(unsigned m)
 {
-    return family_mmc3(m) || m == 9 || m == 10 || m == 69 ||
+    return family_outer(m) || family_mmc3(m) || m == 9 || m == 10 || m == 69 ||
            family_direct(m) || family_latch(m) || m == 28 ||
            m == 5 || m == 16 || m == 19 || m == 157;
 }
@@ -59,7 +102,7 @@ unsigned char pattern_prg(unsigned i)
 unsigned char pattern_chr(unsigned i)
 {
     return static_cast<unsigned char>((i * 5u + (i >> 8) * 17u +
-                                      (i >> 10) * 41u + 9u) & 255u);
+                                      (i >> 10) * 41u + 9u + (family_outer(mapper) ? (i >> 18) * 53u : 0u)) & 255u);
 }
 void init()
 {
@@ -294,6 +337,8 @@ unsigned char mapped_prg(unsigned address)
             return rom_prg[(mmc_prg_bank * 16384u + (address & 0x3fffu)) % prg_size];
         return rom_prg[prg_size - 16384u + (address & 0x3fffu)];
     }
+    if (family_outer(mapper) && address < 0xa000u)
+        return rom_prg[(outer_prg_bank(mmc_prg_bank) * 8192u + (address & 0x1fffu)) % prg_size];
     if (mapper == 4 || mapper == 206 || family_new(mapper)) {
         if (address < 0xa000u)
             return rom_prg[(mmc_prg_bank * 8192u + (address & 0x1fffu)) % prg_size];
@@ -349,6 +394,8 @@ unsigned char mapped_chr(unsigned address)
                             (address & 0x3ffu)) % chr_size];
         }
     }
+    if (family_outer(mapper))
+        return rom_chr[(outer_chr_bank(mmc_chr_bank) * 1024u + (address & 0x3ffu)) % chr_size];
     if (family_mmc3(mapper) && address >= 0x1000u && address < 0x1400u)
         return rom_chr[(family_chr[2] * 1024u + (address & 0x3ffu)) % chr_size];
     if (family_mmc3(mapper)) return rom_chr[address % chr_size];
@@ -398,7 +445,7 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
     init();
     if (!buf || mode != NES_MODE_PRG || size != 1 ||
         (address < 0x8000u && mapper != 268 && mapper != 5 &&
-         mapper != 16 && !(mapper == 28 && address == 0x5000u)))
+         mapper != 16 && !family_outer(mapper) && !(mapper == 28 && address == 0x5000u)))
         return -1;
     const char *fault = std::getenv("RETRODE_MOCK_NES_WRITE_FAIL");
     if (fault) return -1;
@@ -470,6 +517,32 @@ extern "C" int nes_write(std::uint16_t address, void *buf,
         else if (!(address == 0x8000u && action53_select != 0xffu &&
                    action53_select != 0x81u && value == 0u))
             return -1;
+        record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
+        return 1;
+    }
+    if (family_outer(mapper)) {
+        if (address == 0xa001u && (value & 0xf8u) == 0x80u) {
+            outer_writable = true;
+            if (mapper == 44) outer_reg[0] = value & 7u;
+        } else if (address == 0x8000u && (value == 2u || value == 6u)) mmc_mode = value;
+        else if (address == 0x8001u && mmc_mode == 6u) mmc_prg_bank = value;
+        else if (address == 0x8001u && mmc_mode == 2u) mmc_chr_bank = value;
+        else if (mapper == 12 && address == 0x4132u) outer_reg[0] = value;
+        else if (mapper == 37 && outer_writable && address == 0x6000u)
+            outer_reg[0] = value & 7u;
+        else if (mapper == 47 && outer_writable && address >= 0x6000u && address < 0x8000u)
+            outer_reg[0] = value & 1u; // address is irrelevant
+        else if (mapper == 49 && outer_writable &&
+                 (address == 0x6000u || address == 0x6800u) && (value & 1u))
+            outer_reg[0] = value;
+        else if ((mapper == 115 || mapper == 248 || mapper == 134) &&
+                 (address == 0x6000u || address == 0x6001u))
+            outer_reg[address & 1u] = value;
+        else if (mapper == 116 && address == 0x4100u && (value & 3u) == 1u)
+            outer_reg[0] = value;
+        else if (mapper == 351 && address >= 0x5000u && address <= 0x5002u)
+            outer_reg[address & 3u] = value;
+        else return -1;
         record_log("RETRODE_MOCK_NES_WRITELOG", address, value, mode);
         return 1;
     }

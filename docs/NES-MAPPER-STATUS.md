@@ -1,5 +1,34 @@
 # NES-Mapping: aktueller Entwicklungsstand und Chat-Handoff
 
+## MMC3 Outer-Bank-Familie (2026-11-28)
+
+- 10 weitere Mapper-IDs: 12, 37, 44, 47, 49, 115, 116, 134, 248, 351.
+  66 von 195 Upstream-PRG-IDs fuer eingeschraenkte ROM-Profile.
+- Eigene gemeinsame OuterMmc3-Registerpolicy: originale Bankloops,
+  adress-/datenbezogene Freigaben, PRG-/CHR-Phase, begrenzte absolute
+  Banknummer vor AVR-kompatibler uint8_t-Wandlung. Kein genereller
+  Zugriff auf RAM-Fenster. Batterie-Sperre bleibt bestehen.
+- Bei 37/47/49 ersetzt das Outer-Latch das PRG-RAM; daher A001=80
+  wie upstream notwendig. Bei 44 ist A001 selbst das Outer-Register.
+  115/248: 600x unabhaengig vom RAM-Enable. 116: nur Submapper 0/1/2
+  (kein Reset-Multicart). 47: zwei deterministische Patches korrigieren
+  den upstream adressbasierten Bankselect zum dokumentierten D0-Latch.
+- 74/195: CHR-RAM verdeckt Teile des CHR-ROMs; 176: viele
+  ASIC-/RAM-/Flash-Varianten; 126/422/534: gated RAM-Overlay.
+  Diese nicht pauschal aktivieren. 52/224/245 ebenfalls offen.
+- Quellen: https://www.nesdev.org/wiki/INES_Mapper_037 ,
+  https://www.nesdev.org/wiki/INES_Mapper_047 ,
+  https://www.nesdev.org/wiki/INES_Mapper_049 ,
+  https://www.nesdev.org/wiki/INES_Mapper_115 ,
+  https://www.nesdev.org/wiki/INES_Mapper_116 ,
+  https://www.nesdev.org/wiki/INES_Mapper_134 ,
+  https://www.nesdev.org/wiki/NES_2.0_Mapper_351 ,
+  https://www.nesdev.org/wiki/MMC3_with_CHR_ROM_and_CHR_RAM .
+- Mock-Bankmodelle mit unterschiedlichen CHR-Daten oberhalb 256 KiB
+  und Payload-/Write-Tests hinzugefuegt. Build/CI und elektrische
+  Qualifizierung stehen aus; keine physische Freigabe behauptet.
+
+
 ## MMC5, Bandai FCG und Namco 163 (2026-11-28)
 
 - Neun weitere Mapper-IDs: 5, 16, 19, 27, 90, 148, 157, 209, 211.

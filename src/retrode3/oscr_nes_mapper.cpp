@@ -102,6 +102,9 @@ struct GeneratedContext {
     uint8_t cache[512];
     bool cache_valid;
     unsigned register_select;
+    unsigned prg_kib, chr_kib;
+    bool chr_phase;
+    bool outer_initialized;
 };
 GeneratedContext *active = NULL;
 struct ContextScope {
@@ -177,6 +180,16 @@ const FamilyProfile *family_profiles(std::size_t &count)
         {157, "Bandai Datach (ROM read)", "datach", RegisterFamily::Bandai, 256, 256, 0, 0},
         {209, "J.Y. Company ASIC", "jy-asic", RegisterFamily::Direct, 128, 512, 128, 512},
         {211, "J.Y. Company ASIC", "jy-asic", RegisterFamily::Direct, 128, 512, 128, 512},
+        {12, "MMC3 with extended CHR", "mmc3-outer", RegisterFamily::OuterMmc3, 256, 256, 512, 512},
+        {37, "Nintendo 3-in-1", "mmc3-outer", RegisterFamily::OuterMmc3, 256, 256, 256, 256},
+        {44, "MMC3 7-in-1", "mmc3-outer", RegisterFamily::OuterMmc3, 1024, 1024, 1024, 1024},
+        {47, "Nintendo 2-in-1", "mmc3-outer", RegisterFamily::OuterMmc3, 256, 256, 256, 256},
+        {49, "MMC3 Super HIK", "mmc3-outer", RegisterFamily::OuterMmc3, 512, 512, 512, 512},
+        {115, "Kasheng MMC3", "mmc3-outer", RegisterFamily::OuterMmc3, 128, 512, 128, 512},
+        {116, "Somari hybrid (MMC3 mode)", "mmc3-outer", RegisterFamily::OuterMmc3, 128, 256, 128, 512},
+        {134, "MMC3 T4A54A", "mmc3-outer", RegisterFamily::OuterMmc3, 512, 512, 512, 512},
+        {248, "Kasheng MMC3 alias", "mmc3-outer", RegisterFamily::OuterMmc3, 128, 512, 128, 512},
+        {351, "Techline XB multicart", "mmc3-outer", RegisterFamily::OuterMmc3, 512, 512, 512, 512},
     };
     count = sizeof(profiles) / sizeof(profiles[0]);
     return profiles;
@@ -193,6 +206,7 @@ const FamilyProfile *family_profile(unsigned mapper)
 unsigned family_submapper_mask(unsigned mapper)
 {
     switch (mapper) {
+    case 116: return 7u; // Huang-1/2 single-game MMC3 mode, not reset multicart.
     case 16: return (1u << 4) | (1u << 5);
     case 19: return (1u << 2) | (1u << 3) | (1u << 5);
     case 21: case 85: return 1u << 1; // VRC4a and VRC7b wiring only.
@@ -283,11 +297,16 @@ void dump(unsigned mapper, unsigned submapper, unsigned prg_kib,
     if (smd_no_prg_ram && (mapper != 268u || submapper != 0u ||
                            prg_kib != 512u || chr_kib != 0u))
         throw std::runtime_error("invalid NES no-PRG-RAM board profile");
-    GeneratedContext state = {mapper, submapper, false, smd_no_prg_ram, io, 0, {}, false, 0xffu};
+    GeneratedContext state = {mapper, submapper, false, smd_no_prg_ram, io, 0, {}, false, 0xffu,
+                              prg_kib, chr_kib, false, false};
     ContextScope scope(state);
     OSCR::Cores::NES::generatedReadPRG(mapper, exponent(prg_kib, 16));
-    if (chr_kib)
+    if (chr_kib) {
+        state.chr_phase = true;
+        state.outer_initialized = false;
+        state.register_select = 0xffu;
         OSCR::Cores::NES::generatedReadCHR(mapper, exponent(chr_kib, 4));
+    }
 }
 
 // Reviewed register addresses and maximum data values for direct ASICs.
@@ -351,10 +370,95 @@ static bool latch_register_allowed(unsigned mapper, unsigned data)
     }
 }
 
+// MMC3 outer-bank policies preserve the original bank loops. AVR
+// write_prg_byte accepts uint8_t, so the generated Linux loop's absolute
+// bank number must be narrowed only after validating the selected window.
+static void outer_mmc3_write(GeneratedContext &c, unsigned address, unsigned data)
+{
+    const unsigned mapper = c.mapper;
+    if (address == 0xa001u) {
+        if (mapper == 44u) {
+            if (data < 0x80u || data > 0x87u) unsupported();
+            prg_register(0xa001u, static_cast<uint8_t>(data));
+        } else {
+            if (data != 0x80u) unsupported();
+            // 37/47/49 replace PRG-RAM with a bank latch, and the
+            // MMC3 RAM-write-enable output gates that latch.
+            if (mapper == 37u || mapper == 47u || mapper == 49u)
+                prg_register(0xa001u, 0x80u);
+        }
+        c.outer_initialized = true;
+        return;
+    }
+    if (!c.outer_initialized) unsupported();
+    if (address == 0x8000u) {
+        if (data != (c.chr_phase ? 2u : 6u)) unsupported();
+        c.register_select = data;
+        prg_register(0x8000u, static_cast<uint8_t>(data));
+        return;
+    }
+    if (address == 0x8001u) {
+        const unsigned banks = c.chr_phase ? c.chr_kib : c.prg_kib / 8u;
+        if (c.register_select != (c.chr_phase ? 2u : 6u) || data >= banks)
+            unsupported();
+        prg_register(0x8001u, static_cast<uint8_t>(data & 0xffu));
+        return;
+    }
+    bool allowed = false;
+    switch (mapper) {
+    case 12:
+        allowed = c.chr_phase && address == 0x4132u && (data == 0u || data == 0x11u);
+        break;
+    case 37:
+        allowed = address == 0x6000u && (data == 0u || data == 3u || data == 4u);
+        break;
+    case 47:
+        // Corrected upstream patch selects the latch by data bit 0.
+        allowed = address == 0x6000u && data < 2u;
+        break;
+    case 49:
+        allowed = address == (c.chr_phase ? 0x6800u : 0x6000u) &&
+                  (data & ~0xc0u) == 1u;
+        break;
+    case 115: case 248:
+        allowed = (address == 0x6000u && (data == 0u || data == 0x40u)) ||
+                  (c.chr_phase && address == 0x6001u && data < 2u);
+        break;
+    case 116:
+        allowed = address == 0x4100u &&
+                  (data == 1u || (c.chr_phase && data == 5u));
+        break;
+    case 134:
+        allowed = (address == 0x6000u && (data == 0u || (c.chr_phase && data == 0x20u))) ||
+                  (address == 0x6001u &&
+                   (c.chr_phase ? (data & ~0x30u) == 0u : data < 4u));
+        break;
+    case 351:
+        allowed = (address == 0x5002u && data == 0u) ||
+                  (address == 0x5000u && (data == 0u ||
+                     (c.chr_phase && data <= 0xfcu && !(data & 3u)))) ||
+                  (address == 0x5001u && data <= 0x7eu && !(data & 1u) &&
+                     (!c.chr_phase || data == 0u));
+        break;
+    default: break;
+    }
+    if (!allowed) unsupported();
+    cpu_mapper_register(address < 0x6000u ? CpuRegisterSpace::Expansion :
+                        CpuRegisterSpace::WramOverlay,
+                        static_cast<uint16_t>(address), static_cast<uint8_t>(data));
+}
+
 void generated_write(unsigned address, unsigned data, bool serial)
 {
     GeneratedContext &c = context();
     if (address > 0xffffu) unsupported();
+    const FamilyProfile *outer = family_profile(c.mapper);
+    if (outer && outer->family == RegisterFamily::OuterMmc3) {
+        if (serial) unsupported();
+        outer_mmc3_write(c, address, data);
+        c.cache_valid = false;
+        return;
+    }
     if (c.mapper == 1) {
         // Original MMC1 serial helper passes the shifted byte; the NES
         // serial input consumes bit 0. Keep the existing no-SRAM pulse mode.
@@ -402,6 +506,7 @@ void generated_write(unsigned address, unsigned data, bool serial)
                 if ((address != 0xa000u && address != 0xb000u && address != 0xc000u) ||
                     data >= (address == 0xa000u ? 16u : 32u)) unsupported();
                 break;
+            case RegisterFamily::OuterMmc3: unsupported(); break; // handled above
             case RegisterFamily::Mmc3:
                 if (address == 0xa001u && data == 0x80u) return;
                 if (address == 0x8000u) {
